@@ -22,5 +22,5 @@ DATABASE_URL=postgresql://[user[:password]@][netloc][:port][/dbname][?param1=val
 
 ### Run
 ```bash
-go run cmd/main.go
+go run cmd/jpcorrect/main.go
 ```
