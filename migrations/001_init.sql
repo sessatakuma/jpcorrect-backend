@@ -1,58 +1,57 @@
--- Schema: jpcorrect
 CREATE SCHEMA IF NOT EXISTS jpcorrect;
 
--- Sequences
-CREATE SEQUENCE IF NOT EXISTS jpcorrect.practice_practice_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS jpcorrect.error_tag_error_tag_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS jpcorrect.xml_detail_xml_detail_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS jpcorrect.ai_correction_ai_correction_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE;
-CREATE SEQUENCE IF NOT EXISTS jpcorrect.note_note_id_seq START WITH 1 INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 NO CYCLE;
+-- ENUM type for error_type
+DO $$ BEGIN
+	CREATE TYPE jpcorrect.error_type AS ENUM ('E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9');
+EXCEPTION
+	WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Tables
+CREATE TABLE IF NOT EXISTS jpcorrect."user" (
+	user_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	name text NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS jpcorrect.practice (
-	practice_id integer DEFAULT nextval('jpcorrect.practice_practice_id_seq') PRIMARY KEY,
-	start_time double precision NOT NULL,
-	end_time double precision NOT NULL
+	practice_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	user_id integer,
+	CONSTRAINT practice_user_id_fkey FOREIGN KEY (user_id) REFERENCES jpcorrect."user"(user_id)
 );
 
-CREATE TABLE IF NOT EXISTS jpcorrect.error_tag (
-	error_tag_id integer DEFAULT nextval('jpcorrect.error_tag_error_tag_id_seq') PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS jpcorrect.error (
+	error_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	practice_id integer NOT NULL,
-	error_person_id integer NOT NULL,
-	error_type character varying(3) NOT NULL,
-	ai_flag boolean DEFAULT false,
-	ai_corrected boolean DEFAULT false,
+	user_id integer NOT NULL,
+	error_type jpcorrect.error_type NOT NULL,
+	ai_detected boolean DEFAULT false,
+	ai_miscorrected boolean DEFAULT false,
 	human_corrected boolean DEFAULT false,
-	CONSTRAINT error_tag_error_type_check CHECK (error_type ~ '^E[1-9]$'),
-	CONSTRAINT error_tag_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES jpcorrect.practice(practice_id)
-);
-
-CREATE TABLE IF NOT EXISTS jpcorrect.ai_correction (
-	ai_correction_id integer DEFAULT nextval('jpcorrect.ai_correction_ai_correction_id_seq') PRIMARY KEY,
-	error_tag_id integer NOT NULL,
-	correction_content text,
-	CONSTRAINT ai_correction_error_tag_id_fkey FOREIGN KEY (error_tag_id) REFERENCES jpcorrect.error_tag(error_tag_id)
+	start_time double precision DEFAULT 0 NOT NULL,
+	end_time double precision DEFAULT 0 NOT NULL,
+	CONSTRAINT error_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES jpcorrect.practice(practice_id),
+	CONSTRAINT error_user_id_fkey FOREIGN KEY (user_id) REFERENCES jpcorrect."user"(user_id)
 );
 
 CREATE TABLE IF NOT EXISTS jpcorrect.note (
-	note_id integer DEFAULT nextval('jpcorrect.note_note_id_seq') PRIMARY KEY,
+	note_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	practice_id integer NOT NULL,
-	user_note text,
+	content text,
 	CONSTRAINT note_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES jpcorrect.practice(practice_id)
 );
 
-CREATE TABLE IF NOT EXISTS jpcorrect.xml_detail (
-	xml_detail_id integer DEFAULT nextval('jpcorrect.xml_detail_xml_detail_id_seq') PRIMARY KEY,
-	error_tag_id integer NOT NULL,
-	text_content text,
+CREATE TABLE IF NOT EXISTS jpcorrect.transcript (
+	transcript_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	error_id integer NOT NULL,
+	content text,
 	furigana text,
-	pitch text,
-	CONSTRAINT xml_detail_error_tag_id_fkey FOREIGN KEY (error_tag_id) REFERENCES jpcorrect.error_tag(error_tag_id)
+	accent text,
+	CONSTRAINT transcript_error_id_fkey FOREIGN KEY (error_id) REFERENCES jpcorrect.error(error_id)
 );
 
--- Indexes
-CREATE UNIQUE INDEX IF NOT EXISTS practice_pkey ON jpcorrect.practice (practice_id);
-CREATE UNIQUE INDEX IF NOT EXISTS error_tag_pkey ON jpcorrect.error_tag (error_tag_id);
-CREATE UNIQUE INDEX IF NOT EXISTS ai_correction_pkey ON jpcorrect.ai_correction (ai_correction_id);
-CREATE UNIQUE INDEX IF NOT EXISTS note_pkey ON jpcorrect.note (note_id);
-CREATE UNIQUE INDEX IF NOT EXISTS xml_detail_pkey ON jpcorrect.xml_detail (xml_detail_id);
+CREATE TABLE IF NOT EXISTS jpcorrect.ai_correction (
+	ai_correction_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	error_id integer NOT NULL,
+	content text,
+	CONSTRAINT ai_correction_error_id_fkey FOREIGN KEY (error_id) REFERENCES jpcorrect.error(error_id)
+);
