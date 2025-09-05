@@ -13,7 +13,7 @@ type AICorrection struct {
 
 type AICorrectionRepository interface {
 	GetByID(ctx context.Context, aiCorrectionID int) (*AICorrection, error)
-	GetByMistakeID(ctx context.Context, mistakeID int) ([]*AICorrection, error)
+	GetByMistakeID(ctx context.Context, mistakeID int) (*AICorrection, error)
 
 	Create(ctx context.Context, aiCorrection *AICorrection) error
 	Update(ctx context.Context, aiCorrection *AICorrection) error

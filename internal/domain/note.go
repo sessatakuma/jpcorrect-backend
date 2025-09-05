@@ -13,7 +13,7 @@ type Note struct {
 
 type NoteRepository interface {
 	GetByID(ctx context.Context, noteID int) (*Note, error)
-	GetByPracticeID(ctx context.Context, practiceID int) ([]*Note, error)
+	GetByPracticeID(ctx context.Context, practiceID int) (*Note, error)
 
 	Create(ctx context.Context, note *Note) error
 	Update(ctx context.Context, note *Note) error

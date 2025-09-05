@@ -18,6 +18,7 @@ type Mistake struct {
 type MistakeRepository interface {
 	GetByID(ctx context.Context, mistakeID int) (*Mistake, error)
 	GetByPracticeID(ctx context.Context, practiceID int) ([]*Mistake, error)
+	GetByUserID(ctx context.Context, userID int) ([]*Mistake, error)
 
 	Create(ctx context.Context, m *Mistake) error
 	Update(ctx context.Context, m *Mistake) error

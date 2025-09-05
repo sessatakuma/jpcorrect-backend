@@ -15,7 +15,7 @@ type Transcript struct {
 
 type TranscriptRepository interface {
 	GetByID(ctx context.Context, transcriptID int) (*Transcript, error)
-	GetByMistakeID(ctx context.Context, mistakeID int) ([]*Transcript, error)
+	GetByMistakeID(ctx context.Context, mistakeID int) (*Transcript, error)
 
 	Create(ctx context.Context, transcript *Transcript) error
 	Update(ctx context.Context, transcript *Transcript) error
