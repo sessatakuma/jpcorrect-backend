@@ -1,13 +1,13 @@
 CREATE SCHEMA IF NOT EXISTS jpcorrect;
 
--- ENUM type for error_status
+-- ENUM type for mistake_status
 DO $$ BEGIN
 	CREATE TYPE jpcorrect.mistake_status AS ENUM ('ai_detected', 'ai_miscorrected', 'human_corrected');
 EXCEPTION
 	WHEN duplicate_object THEN NULL;
 END $$;
 
--- ENUM type for error_type
+-- ENUM type for mistake_type
 DO $$ BEGIN
 	CREATE TYPE jpcorrect.mistake_type AS ENUM ('E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9');
 EXCEPTION
