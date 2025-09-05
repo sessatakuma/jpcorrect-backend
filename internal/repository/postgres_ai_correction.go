@@ -16,7 +16,7 @@ func NewPostgresAICorrection(conn Connection) domain.AICorrectionRepository {
 func (p *postgresAICorrectionRepository) GetByID(ctx context.Context, aiCorrectionID int) (*domain.AICorrection, error) {
 	return nil, nil
 }
-func (p *postgresAICorrectionRepository) GetByErrorID(ctx context.Context, errorID int) ([]*domain.AICorrection, error) {
+func (p *postgresAICorrectionRepository) GetByMistakeID(ctx context.Context, mistakeID int) ([]*domain.AICorrection, error) {
 	return nil, nil
 }
 func (p *postgresAICorrectionRepository) Create(ctx context.Context, aiCorrection *domain.AICorrection) error {

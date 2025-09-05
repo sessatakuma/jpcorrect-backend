@@ -16,7 +16,7 @@ func NewPostgresTranscript(conn Connection) domain.TranscriptRepository {
 func (p *postgresTranscriptRepository) GetByID(ctx context.Context, transcriptID int) (*domain.Transcript, error) {
 	return nil, nil
 }
-func (p *postgresTranscriptRepository) GetByErrorID(ctx context.Context, errorID int) ([]*domain.Transcript, error) {
+func (p *postgresTranscriptRepository) GetByMistakeID(ctx context.Context, mistakeID int) ([]*domain.Transcript, error) {
 	return nil, nil
 }
 func (p *postgresTranscriptRepository) Create(ctx context.Context, transcript *domain.Transcript) error {
