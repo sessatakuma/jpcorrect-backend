@@ -1,11 +1,12 @@
 package main
 
 import (
-	"jpcorrect-backend/internal/repository"
+	"jpcorrect-backend/internal/cmd"
 
 	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
-	repository.Test()
+	// cmd.TestConnection()
+	cmd.StartAPI()
 }
