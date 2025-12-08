@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"jpcorrect-backend/internal/api"
-	"jpcorrect-backend/internal/routes"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,9 +19,9 @@ func StartAPI() {
 	}
 	defer dbpool.Close()
 
-	api := api.NewAPI(dbpool)
+	a := api.NewAPI(dbpool)
 
 	r := gin.Default()
-	routes.Register(r, api)
+	api.Register(r, a)
 	r.Run() // listen and serve on
 }
