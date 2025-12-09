@@ -1,7 +1,13 @@
 .PHONY: air sqlc createdb updb downdb
 
+BIN_EXT =
+
+ifeq ($(OS),Windows_NT)
+    BIN_EXT = .exe
+endif
+
 air:
-	go tool air --build.cmd "go build -o ./tmp/main.exe ./cmd/jpcorrect/main.go" --build.entrypoint "./tmp/main.exe"
+	go tool air --build.cmd "go build -o ./tmp/main$(BIN_EXT) ./cmd/jpcorrect/main.go" --build.entrypoint "./tmp/main$(BIN_EXT)"
 
 sqlc:
 	go tool sqlc generate
