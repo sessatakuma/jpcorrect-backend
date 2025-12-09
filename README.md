@@ -36,10 +36,10 @@ make sqlc
 ```
 Create migration files using [migrate](https://github.com/golang-migrate/migrate):
 ```bash
-make createdb name=<migration_name>
+make migrate-create name=<your_migration_name>
 ```
 Migrate database up or down:
 ```bash
-make updb
-make downdb
+make migrate-up
+make migrate-down
 ```
