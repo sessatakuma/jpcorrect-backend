@@ -2,16 +2,14 @@ package domain
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Practice represents the jpcorrect.practice table
 type Practice struct {
-	PracticeID int         `db:"practice_id" json:"practice_id"`
-	UserID     int         `db:"user_id" json:"user_id"`
-	Date       pgtype.Date `db:"date" json:"date"`
-	Duration   float64     `db:"duration" json:"duration"`
+	PracticeID int     `db:"practice_id" json:"practice_id"`
+	UserID     int     `db:"user_id" json:"user_id"`
+	Date       string  `db:"date" json:"date"`
+	Duration   float64 `db:"duration" json:"duration"`
 }
 
 type PracticeRepository interface {

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -24,14 +25,16 @@ func (p *postgresPracticeRepository) fetch(ctx context.Context, query string, ar
 	var practices []*domain.Practice
 	for rows.Next() {
 		var practice domain.Practice
+		var date time.Time
 		if err := rows.Scan(
 			&practice.PracticeID,
 			&practice.UserID,
-			&practice.Date,
+			&date,
 			&practice.Duration,
 		); err != nil {
 			return nil, err
 		}
+		practice.Date = date.Format(time.DateOnly)
 		practices = append(practices, &practice)
 	}
 	return practices, nil
