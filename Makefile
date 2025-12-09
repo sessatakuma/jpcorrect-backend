@@ -1,4 +1,4 @@
-.PHONY: air sqlc createdb updb downdb
+.PHONY: air sqlc migrate-create migrate-up migrate-down
 
 BIN_EXT =
 
@@ -12,11 +12,11 @@ air:
 sqlc:
 	go tool sqlc generate
 
-createdb:
+migrate-create:
 	go tool migrate create -ext sql -dir db/migrations -seq $(name)
 
-updb:
+migrate-up:
 	go tool migrate -path db/migrations -database "$(subst postgres://,pgx5://,$(DATABASE_URL))" up
 
-downdb:
+migrate-down:
 	go tool migrate -path db/migrations -database "$(subst postgres://,pgx5://,$(DATABASE_URL))" down
