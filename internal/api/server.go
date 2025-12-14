@@ -1,12 +1,40 @@
-package routes
+package api
 
 import (
-	"jpcorrect-backend/internal/api"
+	"jpcorrect-backend/internal/domain"
+	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Register(r *gin.Engine, api *api.API) {
+type API struct {
+	aiCorrectionRepo domain.AICorrectionRepository
+	mistakeRepo      domain.MistakeRepository
+	noteRepo         domain.NoteRepository
+	practiceRepo     domain.PracticeRepository
+	transcriptRepo   domain.TranscriptRepository
+	userRepo         domain.UserRepository
+}
+
+func NewAPI(conn repository.Connection) *API {
+	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
+	mistakeRepo := repository.NewPostgresMistake(conn)
+	noteRepo := repository.NewPostgresNote(conn)
+	practiceRepo := repository.NewPostgresPractice(conn)
+	transcriptRepo := repository.NewPostgresTranscript(conn)
+	userRepo := repository.NewPostgresUser(conn)
+
+	return &API{
+		aiCorrectionRepo: aiCorrectionRepo,
+		mistakeRepo:      mistakeRepo,
+		noteRepo:         noteRepo,
+		practiceRepo:     practiceRepo,
+		transcriptRepo:   transcriptRepo,
+		userRepo:         userRepo,
+	}
+}
+
+func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
 
 	// AI Corrections
