@@ -8,5 +8,5 @@ import (
 
 func main() {
 	// cmd.TestConnection()
-	cmd.StartAPI()
+	cmd.Execute()
 }

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -24,12 +25,16 @@ func (p *postgresPracticeRepository) fetch(ctx context.Context, query string, ar
 	var practices []*domain.Practice
 	for rows.Next() {
 		var practice domain.Practice
+		var date time.Time
 		if err := rows.Scan(
 			&practice.PracticeID,
 			&practice.UserID,
+			&date,
+			&practice.Duration,
 		); err != nil {
 			return nil, err
 		}
+		practice.Date = date.Format(time.DateOnly)
 		practices = append(practices, &practice)
 	}
 	return practices, nil
@@ -37,9 +42,9 @@ func (p *postgresPracticeRepository) fetch(ctx context.Context, query string, ar
 
 func (p *postgresPracticeRepository) GetByID(ctx context.Context, practiceID int) (*domain.Practice, error) {
 	query := `
-		SELECT practice_id, user_id
-		FROM jpcorrect.practice
-		WHERE practice_id = $1`
+        SELECT practice_id, user_id, date, duration
+        FROM jpcorrect.practice
+        WHERE practice_id = $1`
 
 	practices, err := p.fetch(ctx, query, practiceID)
 	if err != nil {
@@ -53,9 +58,9 @@ func (p *postgresPracticeRepository) GetByID(ctx context.Context, practiceID int
 
 func (p *postgresPracticeRepository) GetByUserID(ctx context.Context, userID int) ([]*domain.Practice, error) {
 	query := `
-		SELECT practice_id, user_id
-		FROM jpcorrect.practice
-		WHERE user_id = $1`
+        SELECT practice_id, user_id, date, duration
+        FROM jpcorrect.practice
+        WHERE user_id = $1`
 
 	practices, err := p.fetch(ctx, query, userID)
 	if err != nil {
@@ -69,11 +74,11 @@ func (p *postgresPracticeRepository) GetByUserID(ctx context.Context, userID int
 
 func (p *postgresPracticeRepository) Create(ctx context.Context, practice *domain.Practice) error {
 	query := `
-		INSERT INTO jpcorrect.practice (user_id)
-		VALUES ($1)
-		RETURNING practice_id`
+        INSERT INTO jpcorrect.practice (user_id, date, duration)
+        VALUES ($1, $2, $3)
+        RETURNING practice_id`
 
-	if err := p.conn.QueryRow(ctx, query, practice.UserID).Scan(&practice.PracticeID); err != nil {
+	if err := p.conn.QueryRow(ctx, query, practice.UserID, practice.Date, practice.Duration).Scan(&practice.PracticeID); err != nil {
 		return err
 	}
 	return nil
@@ -81,11 +86,11 @@ func (p *postgresPracticeRepository) Create(ctx context.Context, practice *domai
 
 func (p *postgresPracticeRepository) Update(ctx context.Context, practice *domain.Practice) error {
 	query := `
-		UPDATE jpcorrect.practice
-		SET user_id = $1
-		WHERE practice_id = $2`
+        UPDATE jpcorrect.practice
+        SET user_id = $1, date = $2, duration = $3
+        WHERE practice_id = $4`
 
-	if _, err := p.conn.Exec(ctx, query, practice.UserID, practice.PracticeID); err != nil {
+	if _, err := p.conn.Exec(ctx, query, practice.UserID, practice.Date, practice.Duration, practice.PracticeID); err != nil {
 		return err
 	}
 	return nil
@@ -93,8 +98,8 @@ func (p *postgresPracticeRepository) Update(ctx context.Context, practice *domai
 
 func (p *postgresPracticeRepository) Delete(ctx context.Context, practiceID int) error {
 	query := `
-		DELETE FROM jpcorrect.practice
-		WHERE practice_id = $1`
+        DELETE FROM jpcorrect.practice
+        WHERE practice_id = $1`
 
 	if _, err := p.conn.Exec(ctx, query, practiceID); err != nil {
 		return err

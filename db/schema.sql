@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS jpcorrect."user" (
 CREATE TABLE IF NOT EXISTS jpcorrect.practice (
 	practice_id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 	user_id integer,
+	date date,
+	duration double precision,
 	CONSTRAINT practice_user_id_fkey FOREIGN KEY (user_id) REFERENCES jpcorrect."user"(user_id)
 );
 
