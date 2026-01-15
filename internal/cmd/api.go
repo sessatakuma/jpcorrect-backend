@@ -23,8 +23,11 @@ func Execute() {
 	}
 	defer dbpool.Close()
 
-	a := api.NewAPI(dbpool)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
 
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), client, dbpool)
 	r := gin.Default()
 	api.Register(r, a)
 

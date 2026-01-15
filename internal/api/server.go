@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http"
+
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/repository"
 
@@ -8,6 +10,8 @@ import (
 )
 
 type API struct {
+	apiToolsURL      string
+	httpClient       *http.Client
 	aiCorrectionRepo domain.AICorrectionRepository
 	mistakeRepo      domain.MistakeRepository
 	noteRepo         domain.NoteRepository
@@ -16,7 +20,7 @@ type API struct {
 	userRepo         domain.UserRepository
 }
 
-func NewAPI(conn repository.Connection) *API {
+func NewAPI(url string, client *http.Client, conn repository.Connection) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)
@@ -25,6 +29,8 @@ func NewAPI(conn repository.Connection) *API {
 	userRepo := repository.NewPostgresUser(conn)
 
 	return &API{
+		apiToolsURL:      url,
+		httpClient:       client,
 		aiCorrectionRepo: aiCorrectionRepo,
 		mistakeRepo:      mistakeRepo,
 		noteRepo:         noteRepo,
