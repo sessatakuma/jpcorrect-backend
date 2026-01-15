@@ -11,7 +11,7 @@ import (
 
 type API struct {
 	apiToolsURL      string
-	httpClient       *http.Client
+	proxyTransport   *http.Transport
 	aiCorrectionRepo domain.AICorrectionRepository
 	mistakeRepo      domain.MistakeRepository
 	noteRepo         domain.NoteRepository
@@ -20,7 +20,7 @@ type API struct {
 	userRepo         domain.UserRepository
 }
 
-func NewAPI(url string, client *http.Client, conn repository.Connection) *API {
+func NewAPI(url string, transport *http.Transport, conn repository.Connection) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)
@@ -30,7 +30,7 @@ func NewAPI(url string, client *http.Client, conn repository.Connection) *API {
 
 	return &API{
 		apiToolsURL:      url,
-		httpClient:       client,
+		proxyTransport:   transport,
 		aiCorrectionRepo: aiCorrectionRepo,
 		mistakeRepo:      mistakeRepo,
 		noteRepo:         noteRepo,

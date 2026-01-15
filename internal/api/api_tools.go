@@ -1,48 +1,36 @@
 package api
 
 import (
-	"bytes"
-	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
 
-func (a *API) handlerHelper(c *gin.Context, targetURL string) {
-	// Read the raw body
-	bodyBytes, err := io.ReadAll(c.Request.Body)
+func (a *API) handlerHelper(c *gin.Context, target string) {
+	remote, err := url.Parse(target)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid target URL"})
 		return
 	}
 
-	// Create a new request to the external API
-	req, err := http.NewRequest("POST", targetURL, bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create request"})
-		return
+	proxy := &httputil.ReverseProxy{
+		Transport: a.proxyTransport, // Use the custom transport for connection pooling
+
+		Director: func(req *http.Request) {
+			req.URL = remote // ! It replaces query parameters too
+			req.Host = remote.Host
+		},
+
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			w.Write([]byte(`{"error": "Failed to contact external API"}`))
+		},
 	}
 
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-
-	// Send the request
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to contact external API"})
-		return
-	}
-	defer resp.Body.Close()
-
-	// Read the response from the external API
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read response from external API"})
-		return
-	}
-
-	// Return the external API's response
-	c.Data(resp.StatusCode, resp.Header.Get("Content-Type"), respBody)
+	proxy.ServeHTTP(c.Writer, c.Request)
 }
 
 func (a *API) MarkAccentHandler(c *gin.Context) {
