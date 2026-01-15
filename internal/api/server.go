@@ -43,64 +43,76 @@ func NewAPI(url string, client *http.Client, conn repository.Connection) *API {
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
 
-	// AI Corrections
-	ai_corrections := r.Group("/ai_corrections")
+	v1 := r.Group("/v1")
 	{
-		ai_corrections.POST("", api.AICorrectionCreateHandler)
-		ai_corrections.GET("/:id", api.AICorrectionGetHandler)
-		ai_corrections.PUT("/:id", api.AICorrectionUpdateHandler)
-		ai_corrections.DELETE("/:id", api.AICorrectionDeleteHandler)
-		ai_corrections.GET("/mistake/:mistake_id", api.AICorrectionGetByMistakeHandler)
-	}
+		// API Tools Handlers
+		v1.POST("/mark-accent", api.MarkAccentHandler)
+		v1.POST("/mark-furigana", api.MarkFuriganaHandler)
+		v1.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
+		v1.POST("/usage-query/url", api.UsageQueryURLHandler)
+		v1.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)
+		v1.POST("/dict-query", api.DictQueryHandler)
+		v1.POST("/sentence-query", api.SentenceQueryHandler)
 
-	// Mistakes
-	mistakes := r.Group("/mistakes")
-	{
-		mistakes.POST("", api.MistakeCreateHandler)
-		mistakes.GET("/:id", api.MistakeGetHandler)
-		mistakes.PUT("/:id", api.MistakeUpdateHandler)
-		mistakes.DELETE("/:id", api.MistakeDeleteHandler)
-		mistakes.GET("/practice/:practice_id", api.MistakeGetByPracticeHandler)
-		mistakes.GET("/user/:user_id", api.MistakeGetByUserHandler)
-	}
+		// AI Corrections
+		aiCorrections := v1.Group("/ai-corrections")
+		{
+			aiCorrections.POST("", api.AICorrectionCreateHandler)
+			aiCorrections.GET("/:id", api.AICorrectionGetHandler)
+			aiCorrections.PUT("/:id", api.AICorrectionUpdateHandler)
+			aiCorrections.DELETE("/:id", api.AICorrectionDeleteHandler)
+			aiCorrections.GET("/mistake/:mistake_id", api.AICorrectionGetByMistakeHandler)
+		}
 
-	// Notes
-	notes := r.Group("/notes")
-	{
-		notes.POST("", api.NoteCreateHandler)
-		notes.GET("/:id", api.NoteGetHandler)
-		notes.PUT("/:id", api.NoteUpdateHandler)
-		notes.DELETE("/:id", api.NoteDeleteHandler)
-		notes.GET("/practice/:practice_id", api.NoteGetByPracticeHandler)
-	}
+		// Mistakes
+		mistakes := v1.Group("/mistakes")
+		{
+			mistakes.POST("", api.MistakeCreateHandler)
+			mistakes.GET("/:id", api.MistakeGetHandler)
+			mistakes.PUT("/:id", api.MistakeUpdateHandler)
+			mistakes.DELETE("/:id", api.MistakeDeleteHandler)
+			mistakes.GET("/practice/:practice_id", api.MistakeGetByPracticeHandler)
+			mistakes.GET("/user/:user_id", api.MistakeGetByUserHandler)
+		}
 
-	// Practices
-	practices := r.Group("/practices")
-	{
-		practices.POST("", api.PracticeCreateHandler)
-		practices.GET("/:id", api.PracticeGetHandler)
-		practices.PUT("/:id", api.PracticeUpdateHandler)
-		practices.DELETE("/:id", api.PracticeDeleteHandler)
-		practices.GET("/user/:user_id", api.PracticeGetByUserHandler)
-	}
+		// Notes
+		notes := v1.Group("/notes")
+		{
+			notes.POST("", api.NoteCreateHandler)
+			notes.GET("/:id", api.NoteGetHandler)
+			notes.PUT("/:id", api.NoteUpdateHandler)
+			notes.DELETE("/:id", api.NoteDeleteHandler)
+			notes.GET("/practice/:practice_id", api.NoteGetByPracticeHandler)
+		}
 
-	// Transcripts
-	transcripts := r.Group("/transcripts")
-	{
-		transcripts.POST("", api.TranscriptCreateHandler)
-		transcripts.GET("/:id", api.TranscriptGetHandler)
-		transcripts.PUT("/:id", api.TranscriptUpdateHandler)
-		transcripts.DELETE("/:id", api.TranscriptDeleteHandler)
-		transcripts.GET("/mistake/:mistake_id", api.TranscriptGetByMistakeHandler)
-	}
+		// Practices
+		practices := v1.Group("/practices")
+		{
+			practices.POST("", api.PracticeCreateHandler)
+			practices.GET("/:id", api.PracticeGetHandler)
+			practices.PUT("/:id", api.PracticeUpdateHandler)
+			practices.DELETE("/:id", api.PracticeDeleteHandler)
+			practices.GET("/user/:user_id", api.PracticeGetByUserHandler)
+		}
 
-	// Users
-	users := r.Group("/users")
-	{
-		users.POST("", api.UserCreateHandler)
-		users.GET("/:id", api.UserGetHandler)
-		users.PUT("/:id", api.UserUpdateHandler)
-		users.DELETE("/:id", api.UserDeleteHandler)
-		users.GET("/name/:name", api.UserGetByNameHandler)
+		// Transcripts
+		transcripts := v1.Group("/transcripts")
+		{
+			transcripts.POST("", api.TranscriptCreateHandler)
+			transcripts.GET("/:id", api.TranscriptGetHandler)
+			transcripts.PUT("/:id", api.TranscriptUpdateHandler)
+			transcripts.DELETE("/:id", api.TranscriptDeleteHandler)
+			transcripts.GET("/mistake/:mistake_id", api.TranscriptGetByMistakeHandler)
+		}
+
+		// Users
+		users := v1.Group("/users")
+		{
+			users.POST("", api.UserCreateHandler)
+			users.GET("/:id", api.UserGetHandler)
+			users.PUT("/:id", api.UserUpdateHandler)
+			users.DELETE("/:id", api.UserDeleteHandler)
+			users.GET("/name/:name", api.UserGetByNameHandler)
+		}
 	}
 }
