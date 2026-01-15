@@ -23,8 +23,13 @@ func Execute() {
 	}
 	defer dbpool.Close()
 
-	a := api.NewAPI(dbpool)
+	transport := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	}
 
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool)
 	r := gin.Default()
 	api.Register(r, a)
 
