@@ -33,8 +33,12 @@ func Execute() {
 	r := gin.Default()
 	api.Register(r, a)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 	srv := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":" + port,
 		Handler:           r,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
