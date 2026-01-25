@@ -12,6 +12,7 @@ import (
 type API struct {
 	apiToolsURL      string
 	proxyTransport   *http.Transport
+	jwksURL          string
 	aiCorrectionRepo domain.AICorrectionRepository
 	mistakeRepo      domain.MistakeRepository
 	noteRepo         domain.NoteRepository
@@ -20,7 +21,7 @@ type API struct {
 	userRepo         domain.UserRepository
 }
 
-func NewAPI(url string, transport *http.Transport, conn repository.Connection) *API {
+func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)
@@ -31,6 +32,7 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection) *
 	return &API{
 		apiToolsURL:      url,
 		proxyTransport:   transport,
+		jwksURL:          jwksURL,
 		aiCorrectionRepo: aiCorrectionRepo,
 		mistakeRepo:      mistakeRepo,
 		noteRepo:         noteRepo,
@@ -44,6 +46,7 @@ func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
 
 	v1 := r.Group("/v1")
+	v1.Use(api.AuthMiddleware())
 	{
 		// API Tools Handlers
 		v1.POST("/mark-accent", api.MarkAccentHandler)

@@ -29,7 +29,17 @@ func Execute() {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool)
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, os.Getenv("JWKS_URL"))
+	
+	// Initialize JWKS for JWT validation
+	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := a.InitializeJWKS(initCtx); err != nil {
+		initCancel()
+		log.Fatalf("failed to initialize JWKS: %v", err)
+		os.Exit(1)
+	}
+	initCancel()
+
 	r := gin.Default()
 	api.Register(r, a)
 
@@ -63,9 +73,9 @@ func Execute() {
 
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Println("Server forced to shutdown: ", err)
 	}
 
