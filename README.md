@@ -20,6 +20,7 @@ Create `.env` for configuration (in project root).
 DATABASE_URL=postgresql://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
 API_TOOLS_URL=your_api_tools_url
 GIN_MODE=debug
+JWKS_URL=your_jwks_url
 ```
 
 ### Run
