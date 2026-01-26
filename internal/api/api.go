@@ -28,6 +28,7 @@ type API struct {
 	practiceRepo     domain.PracticeRepository
 	transcriptRepo   domain.TranscriptRepository
 	userRepo         domain.UserRepository
+	webrtcHub        *Hub
 }
 
 func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string) *API {
@@ -48,11 +49,14 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection, j
 		practiceRepo:     practiceRepo,
 		transcriptRepo:   transcriptRepo,
 		userRepo:         userRepo,
+		webrtcHub:        NewHub(),
 	}
 }
 
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+	// WebRTC WebSocket endpoint
+	r.GET("/ws", api.ServeWebSocket)
 
 	v1 := r.Group("/v1")
 	v1.Use(api.AuthMiddleware())
