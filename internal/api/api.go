@@ -2,6 +2,9 @@ package api
 
 import (
 	"net/http"
+	"sync"
+
+	"github.com/MicahParks/keyfunc/v3"
 
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/repository"
@@ -13,6 +16,9 @@ type API struct {
 	apiToolsURL      string
 	proxyTransport   *http.Transport
 	jwksURL          string
+	jwksCache        keyfunc.Keyfunc
+	jwksMutex        sync.Mutex
+	jwksErr          error
 	aiCorrectionRepo domain.AICorrectionRepository
 	mistakeRepo      domain.MistakeRepository
 	noteRepo         domain.NoteRepository
