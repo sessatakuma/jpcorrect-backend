@@ -573,8 +573,10 @@
             const handlers = new Map();
 
             function connect() {
-                // Connect to the main API WebSocket endpoint
-                const url = 'ws://localhost:8080/ws';
+                // Connect to WebSocket through the proxy (使用當前頁面的 protocol 和 domain)
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const url = `${protocol}//${window.location.host}/ws`;
+                log(`連線到: ${url}`, 'info');
                 ws = new WebSocket(url);
 
                 ws.addEventListener('open', () => {

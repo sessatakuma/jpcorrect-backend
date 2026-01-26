@@ -36,8 +36,9 @@ function createSocket() {
         intentionallyClosed = false;
         isReconnecting = true;
         
-        // Connect to the main API WebSocket endpoint
-        const url = 'ws://localhost:8080/ws';
+        // Connect to WebSocket through the proxy (使用當前頁面的 protocol 和 domain)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = `${protocol}//${window.location.host}/ws`;
 
         try {
             ws = new WebSocket(url);
