@@ -41,17 +41,7 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := a.validateToken(c)
 		if err != nil {
-			authErr, ok := err.(*domain.AuthError)
-			if ok {
-				c.JSON(authErr.StatusCode, gin.H{
-					"error":   authErr.Message,
-					"details": authErr.Details,
-				})
-			} else {
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": "internal server error",
-				})
-			}
+			a.respondAuthError(c, err)
 			c.Abort()
 			return
 		}
@@ -60,18 +50,41 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// respondAuthError handles authentication errors and returns appropriate HTTP response
+func (a *API) respondAuthError(c *gin.Context, err error) {
+	authErr, ok := err.(*domain.AuthError)
+	if ok {
+		c.JSON(authErr.StatusCode, gin.H{
+			"error":   authErr.Message,
+			"details": authErr.Details,
+		})
+	} else {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "internal server error",
+		})
+	}
+}
+
 // validateToken validates the JWT token and extracts user information
 func (a *API) validateToken(c *gin.Context) error {
 	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		return domain.ErrMissingAuthHeader
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"missing authorization header",
+			"",
+		)
 	}
 
 	// Extract the token from "Bearer <token>"
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		return domain.ErrInvalidAuthHeader
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid authorization header format",
+			"",
+		)
 	}
 
 	tokenString := parts[1]
@@ -80,7 +93,11 @@ func (a *API) validateToken(c *gin.Context) error {
 	jwksMutex.Lock()
 	if jwksErr != nil || jwksCache == nil {
 		jwksMutex.Unlock()
-		return domain.ErrJWKSNotInitialized
+		return domain.NewAuthError(
+			http.StatusInternalServerError,
+			"JWKS not initialized",
+			"",
+		)
 	}
 	kf := jwksCache
 	jwksMutex.Unlock()
@@ -88,22 +105,29 @@ func (a *API) validateToken(c *gin.Context) error {
 	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
 	if err != nil {
-		authErr := &domain.AuthError{
-			StatusCode: 401,
-			Message:    "invalid token",
-			Details:    err.Error(),
-		}
-		return authErr
+		return domain.NewAuthError(
+			http.StatusUnauthorized, 
+			"invalid token", 
+			err.Error(),
+		)
 	}
 
 	if !token.Valid {
-		return domain.ErrInvalidToken
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid token",
+			"",
+		)
 	}
 
 	// Extract claims
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
-		return domain.ErrInvalidTokenClaims
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid token claims",
+			"",
+		)
 	}
 
 	// Store the user ID (subject) in the context for downstream handlers
