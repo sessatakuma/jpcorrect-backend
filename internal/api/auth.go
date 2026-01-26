@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 
 	"jpcorrect-backend/internal/domain"
 
@@ -14,25 +13,19 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var (
-	jwksCache keyfunc.Keyfunc
-	jwksMutex sync.Mutex
-	jwksErr   error
-)
-
 // InitializeJWKS initializes the JWKS keyfunc for token validation
 func (a *API) InitializeJWKS(ctx context.Context) error {
-	jwksMutex.Lock()
-	defer jwksMutex.Unlock()
+	a.jwksMutex.Lock()
+	defer a.jwksMutex.Unlock()
 
 	var err error
-	jwksCache, err = keyfunc.NewDefaultCtx(ctx, []string{a.jwksURL})
+	a.jwksCache, err = keyfunc.NewDefaultCtx(ctx, []string{a.jwksURL})
 	if err != nil {
-		jwksErr = err
+		a.jwksErr = err
 		return fmt.Errorf("failed to initialize JWKS: %w", err)
 	}
 
-	jwksErr = nil
+	a.jwksErr = nil
 	return nil
 }
 
@@ -90,17 +83,17 @@ func (a *API) validateToken(c *gin.Context) error {
 	tokenString := parts[1]
 
 	// Check if JWKS is initialized
-	jwksMutex.Lock()
-	if jwksErr != nil || jwksCache == nil {
-		jwksMutex.Unlock()
+	a.jwksMutex.Lock()
+	if a.jwksErr != nil || a.jwksCache == nil {
+		a.jwksMutex.Unlock()
 		return domain.NewAuthError(
 			http.StatusInternalServerError,
 			"JWKS not initialized",
 			"",
 		)
 	}
-	kf := jwksCache
-	jwksMutex.Unlock()
+	kf := a.jwksCache
+	a.jwksMutex.Unlock()
 
 	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)

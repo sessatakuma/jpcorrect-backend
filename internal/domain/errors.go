@@ -6,7 +6,6 @@ import (
 
 // AuthError represents an authentication/authorization error with HTTP status code
 type AuthError struct {
-	Err        error
 	StatusCode int
 	Message    string
 	Details    string // Detailed error information (optional)
@@ -32,5 +31,4 @@ func NewAuthError(statusCode int, message, details string) *AuthError {
 var (
 	ErrNotFound       = errors.New("record not found")
 	ErrDuplicateEntry = errors.New("duplicate entry")
-	ErrForbidden      = errors.New("forbidden")
 )
