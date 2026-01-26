@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"jpcorrect-backend/internal/domain"
+
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -37,60 +39,75 @@ func (a *API) InitializeJWKS(ctx context.Context) error {
 // AuthMiddleware returns a Gin middleware that validates JWT tokens
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get the Authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authorization header"})
-			c.Abort()
-			return
-		}
-
-		// Extract the token from "Bearer <token>"
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		tokenString := parts[1]
-
-		// Check if JWKS is initialized
-		jwksMutex.Lock()
-		if jwksErr != nil || jwksCache == nil {
-			jwksMutex.Unlock()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "JWKS not initialized"})
-			c.Abort()
-			return
-		}
-		kf := jwksCache
-		jwksMutex.Unlock()
-
-		// Parse and validate the token
-		token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+		err := a.validateToken(c)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token: " + err.Error()})
+			authErr, ok := err.(*domain.AuthError)
+			if ok {
+				c.JSON(authErr.StatusCode, gin.H{
+					"error":   authErr.Message,
+					"details": authErr.Details,
+				})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "internal server error",
+				})
+			}
 			c.Abort()
 			return
 		}
-
-		if !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			c.Abort()
-			return
-		}
-
-		// Extract claims
-		claims, ok := token.Claims.(*jwt.RegisteredClaims)
-		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
-			c.Abort()
-			return
-		}
-
-		// Store the user ID (subject) in the context for downstream handlers
-		c.Set("userID", claims.Subject)
 
 		c.Next()
 	}
+}
+
+// validateToken validates the JWT token and extracts user information
+func (a *API) validateToken(c *gin.Context) error {
+	// Get the Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return domain.ErrMissingAuthHeader
+	}
+
+	// Extract the token from "Bearer <token>"
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return domain.ErrInvalidAuthHeader
+	}
+
+	tokenString := parts[1]
+
+	// Check if JWKS is initialized
+	jwksMutex.Lock()
+	if jwksErr != nil || jwksCache == nil {
+		jwksMutex.Unlock()
+		return domain.ErrJWKSNotInitialized
+	}
+	kf := jwksCache
+	jwksMutex.Unlock()
+
+	// Parse and validate the token
+	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+	if err != nil {
+		authErr := &domain.AuthError{
+			StatusCode: 401,
+			Message:    "invalid token",
+			Details:    err.Error(),
+		}
+		return authErr
+	}
+
+	if !token.Valid {
+		return domain.ErrInvalidToken
+	}
+
+	// Extract claims
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok {
+		return domain.ErrInvalidTokenClaims
+	}
+
+	// Store the user ID (subject) in the context for downstream handlers
+	c.Set("userID", claims.Subject)
+
+	return nil
 }
