@@ -2,7 +2,6 @@ package domain
 
 import (
 	"errors"
-	"net/http"
 )
 
 // AuthError represents an authentication/authorization error with HTTP status code
@@ -21,33 +20,17 @@ func (ae *AuthError) Error() string {
 	return ae.Message
 }
 
+// NewAuthError creates an AuthError with the given status code, message, and optional details
+func NewAuthError(statusCode int, message, details string) *AuthError {
+	return &AuthError{
+		StatusCode: statusCode,
+		Message:    message,
+		Details:    details,
+	}
+}
+
 var (
 	ErrNotFound       = errors.New("record not found")
 	ErrDuplicateEntry = errors.New("duplicate entry")
-
-	// Auth errors
-	ErrMissingAuthHeader = &AuthError{
-		StatusCode: http.StatusUnauthorized,
-		Message:    "missing authorization header",
-	}
-	ErrInvalidAuthHeader = &AuthError{
-		StatusCode: http.StatusUnauthorized,
-		Message:    "invalid authorization header format",
-	}
-	ErrInvalidToken = &AuthError{
-		StatusCode: http.StatusUnauthorized,
-		Message:    "invalid token",
-	}
-	ErrInvalidTokenClaims = &AuthError{
-		StatusCode: http.StatusUnauthorized,
-		Message:    "invalid token claims",
-	}
-	ErrJWKSNotInitialized = &AuthError{
-		StatusCode: http.StatusInternalServerError,
-		Message:    "JWKS not initialized",
-	}
-	ErrUnauthorized = &AuthError{
-		StatusCode: http.StatusUnauthorized,
-		Message:    "unauthorized",
-	}
+	ErrForbidden      = errors.New("forbidden")
 )
