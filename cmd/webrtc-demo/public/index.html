@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC 多人聊天室</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>WebRTC 多人語音聊天室</h1>
+            <div class="header-actions">
+                <div id="status">未連線</div>
+                <a href="/test" class="test-btn" title="診斷工具">
+                    <i class="fas fa-wrench"></i> 診斷工具
+                </a>
+            </div>
+        </header>
+
+        <main>
+            <div class="chat-area">
+                <div id="participants">
+                    <div class="participant-header">
+                        <h2>參與者</h2>
+                        <button id="joinBtn" class="add-btn" title="加入聊天"><i class="fas fa-plus"></i><span>加入通話</span></button>
+                    </div>
+                    <div id="participantList"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 加入聊天對話框 -->
+        <div id="joinModal" class="modal">
+            <div class="modal-content">
+                <h2>加入聊天室</h2>
+                <input type="text" id="userName" placeholder="請輸入你的名字" maxlength="20">
+                <div class="modal-actions">
+                    <button id="confirmJoin" class="btn-primary">加入</button>
+                    <button id="cancelJoin" class="btn-secondary">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 音訊流容器（隱藏） -->
+        <div id="audioStreams" style="display: none;"></div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>
