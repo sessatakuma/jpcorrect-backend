@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"jpcorrect-backend/internal/domain"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -30,18 +32,10 @@ type TargetPayload struct {
 	Data   json.RawMessage `json:"-"`
 }
 
-// Client represents a connected websocket client
-type Client struct {
-	id   string
-	conn *websocket.Conn
-	send chan []byte
-	name string
-}
-
 // Hub maintains set of clients
 type Hub struct {
 	mu      sync.RWMutex
-	clients map[string]*Client
+	clients map[string]*domain.Client
 }
 
 // Connection rate limiter per IP (simple sliding window)
@@ -51,13 +45,13 @@ var connWindow = 10 * time.Second
 var connMax = 15 // max new connections per IP per window
 
 func NewHub() *Hub {
-	return &Hub{clients: make(map[string]*Client)}
+	return &Hub{clients: make(map[string]*domain.Client)}
 }
 
-func (h *Hub) AddClient(c *Client) {
+func (h *Hub) AddClient(c *domain.Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.clients[c.id] = c
+	h.clients[c.ID] = c
 }
 
 func (h *Hub) RemoveClient(id string) {
@@ -66,7 +60,7 @@ func (h *Hub) RemoveClient(id string) {
 	delete(h.clients, id)
 }
 
-func (h *Hub) GetClient(id string) (*Client, bool) {
+func (h *Hub) GetClient(id string) (*domain.Client, bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	c, ok := h.clients[id]
@@ -78,10 +72,10 @@ func (h *Hub) ListUsers() []map[string]string {
 	defer h.mu.RUnlock()
 	out := make([]map[string]string, 0, len(h.clients))
 	for id, c := range h.clients {
-		if c.name == "" {
+		if c.Name == "" {
 			continue
 		}
-		out = append(out, map[string]string{"userId": id, "userName": c.name})
+		out = append(out, map[string]string{"userId": id, "userName": c.Name})
 	}
 	return out
 }
@@ -97,21 +91,21 @@ func (h *Hub) BroadcastExcept(senderId string, msgType string, payload interface
 			continue
 		}
 		select {
-		case c.send <- b:
+		case c.Send <- b:
 		default:
 			// drop
 		}
 	}
 }
 
-func sendToClient(c *Client, msgType string, payload interface{}) error {
+func sendToClient(c *domain.Client, msgType string, payload interface{}) error {
 	m := map[string]interface{}{"type": msgType, "payload": payload}
 	b, err := json.Marshal(m)
 	if err != nil {
 		return err
 	}
 	select {
-	case c.send <- b:
+	case c.Send <- b:
 		return nil
 	default:
 		return fmt.Errorf("client send channel full")
@@ -170,13 +164,13 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	}
 
 	id := uuid.New().String()
-	client := &Client{
-		id:   id,
-		conn: conn,
-		send: make(chan []byte, 16),
+	client := &domain.Client{
+		ID:   id,
+		Conn: conn,
+		Send: make(chan []byte, 16),
 	}
 
-	api.webrtcHub.AddClient(client)
+	api.webrtcRepo.AddClient(client)
 	log.Println("新使用者連線:", id)
 
 	// send connected message with assigned id
@@ -188,7 +182,7 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	// read loop
 	for {
 		var msg Message
-		if err := client.conn.ReadJSON(&msg); err != nil {
+		if err := client.Conn.ReadJSON(&msg); err != nil {
 			log.Println("read error:", err)
 			break
 		}
@@ -197,31 +191,31 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	}
 
 	// cleanup
-	api.webrtcHub.RemoveClient(client.id)
-	if client.name != "" {
-		api.webrtcHub.BroadcastExcept(client.id, "user-left", client.id)
+	api.webrtcRepo.RemoveClient(client.ID)
+	if client.Name != "" {
+		api.webrtcRepo.BroadcastExcept(client.ID, "user-left", client.ID)
 	}
-	client.conn.Close()
-	log.Println("使用者離線:", client.id)
+	client.Conn.Close()
+	log.Println("使用者離線:", client.ID)
 }
 
-func writer(c *Client) {
+func writer(c *domain.Client) {
 	for {
-		b, ok := <-c.send
+		b, ok := <-c.Send
 		if !ok {
 			return
 		}
-		if err := c.conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		if err := c.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
 			log.Println("write error:", err)
 			return
 		}
 	}
 }
 
-func (api *API) handleWebRTCMessage(c *Client, m Message) {
+func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 	switch m.Type {
 	case "get-online-users":
-		users := api.webrtcHub.ListUsers()
+		users := api.webrtcRepo.ListUsers()
 		_ = sendToClient(c, "online-users-list", users)
 
 	case "join-room":
@@ -235,14 +229,14 @@ func (api *API) handleWebRTCMessage(c *Client, m Message) {
 			_ = sendToClient(c, "error", map[string]string{"message": name})
 			return
 		}
-		c.name = name
+		c.Name = name
 		// notify others
-		api.webrtcHub.BroadcastExcept(c.id, "user-joined", map[string]string{"userId": c.id, "userName": c.name})
+		api.webrtcRepo.BroadcastExcept(c.ID, "user-joined", map[string]string{"userId": c.ID, "userName": c.Name})
 		// send current users (excluding self)
-		current := api.webrtcHub.ListUsers()
+		current := api.webrtcRepo.ListUsers()
 		filtered := make([]map[string]string, 0)
 		for _, u := range current {
-			if u["userId"] != c.id {
+			if u["userId"] != c.ID {
 				filtered = append(filtered, u)
 			}
 		}
@@ -262,13 +256,13 @@ func (api *API) handleWebRTCMessage(c *Client, m Message) {
 			_ = sendToClient(c, "error", map[string]string{"message": "missing target"})
 			return
 		}
-		target, ok := api.webrtcHub.GetClient(targetId)
+		target, ok := api.webrtcRepo.GetClient(targetId)
 		if !ok {
 			_ = sendToClient(c, "error", map[string]string{"message": "target not online"})
 			return
 		}
 		// Build forward payload: include sender and the rest
-		forward := map[string]interface{}{"sender": c.id}
+		forward := map[string]interface{}{"sender": c.ID}
 		// attach the actual data (offer/answer/candidate)
 		for k, v := range payload {
 			if k == "target" {
@@ -284,11 +278,11 @@ func (api *API) handleWebRTCMessage(c *Client, m Message) {
 		_ = sendToClient(target, m.Type, forward)
 
 	case "leave-room":
-		if c.name != "" {
-			name := c.name
-			c.name = ""
-			api.webrtcHub.BroadcastExcept(c.id, "user-left", c.id)
-			log.Println("使用者離開聊天室:", c.id, name)
+		if c.Name != "" {
+			name := c.Name
+			c.Name = ""
+			api.webrtcRepo.BroadcastExcept(c.ID, "user-left", c.ID)
+			log.Println("使用者離開聊天室:", c.ID, name)
 		}
 
 	default:
