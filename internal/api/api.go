@@ -18,6 +18,7 @@ type API struct {
 	practiceRepo     domain.PracticeRepository
 	transcriptRepo   domain.TranscriptRepository
 	userRepo         domain.UserRepository
+	webrtcRepo       domain.WebRTCRepository
 }
 
 func NewAPI(url string, transport *http.Transport, conn repository.Connection) *API {
@@ -27,6 +28,7 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection) *
 	practiceRepo := repository.NewPostgresPractice(conn)
 	transcriptRepo := repository.NewPostgresTranscript(conn)
 	userRepo := repository.NewPostgresUser(conn)
+	webrtcRepo := NewHub()
 
 	return &API{
 		apiToolsURL:      url,
@@ -37,11 +39,14 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection) *
 		practiceRepo:     practiceRepo,
 		transcriptRepo:   transcriptRepo,
 		userRepo:         userRepo,
+		webrtcRepo:       webrtcRepo,
 	}
 }
 
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+	// WebRTC WebSocket endpoint
+	r.GET("/ws", api.ServeWebSocket)
 
 	v1 := r.Group("/v1")
 	{
