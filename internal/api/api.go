@@ -28,7 +28,7 @@ type API struct {
 	practiceRepo     domain.PracticeRepository
 	transcriptRepo   domain.TranscriptRepository
 	userRepo         domain.UserRepository
-	webrtcHub        *Hub
+	webrtcRepo       domain.WebRTCRepository
 }
 
 func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string) *API {
@@ -38,6 +38,7 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection, j
 	practiceRepo := repository.NewPostgresPractice(conn)
 	transcriptRepo := repository.NewPostgresTranscript(conn)
 	userRepo := repository.NewPostgresUser(conn)
+	webrtcRepo := NewHub()
 
 	return &API{
 		apiToolsURL:      url,
@@ -49,7 +50,7 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection, j
 		practiceRepo:     practiceRepo,
 		transcriptRepo:   transcriptRepo,
 		userRepo:         userRepo,
-		webrtcHub:        NewHub(),
+		webrtcRepo:       webrtcRepo,
 	}
 }
 
