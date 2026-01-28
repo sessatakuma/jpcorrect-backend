@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -22,7 +23,11 @@ func setupMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 
 	gormDB, err := gorm.Open(postgres.New(postgres.Config{
 		Conn: db,
-	}), &gorm.Config{})
+	}), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{
+			SingularTable: true,
+		},
+	})
 	if err != nil {
 		t.Fatalf("failed to open gorm: %v", err)
 	}
