@@ -10,18 +10,39 @@ import (
 	"time"
 
 	"jpcorrect-backend/internal/api"
+	"jpcorrect-backend/internal/database"
+	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Execute() {
-	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	db, err := database.NewGormDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 		os.Exit(1)
 	}
-	defer dbpool.Close()
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get database instance: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		log.Printf("failed to close database connection: %v", err)
+	}
+
+	if err := db.AutoMigrate(
+		&domain.User{},
+		&domain.Event{},
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{},
+		&domain.Guild{},
+		&domain.GuildAttendee{},
+	); err != nil {
+		log.Fatalf("failed to run auto migrate: %v", err)
+		os.Exit(1)
+	}
 
 	transport := &http.Transport{
 		MaxIdleConns:        100,
@@ -34,9 +55,7 @@ func Execute() {
 		log.Fatalf("JWKS_URL environment variable is required")
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, jwksURL)
-
-	// Initialize JWKS for JWT validation
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db, jwksURL)
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer initCancel()
 	if err := a.InitializeJWKS(initCtx); err != nil {
