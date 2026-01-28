@@ -2,25 +2,41 @@ package domain
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-// Mistake represents the jpcorrect.mistake table
+// MistakeType represents the type of a mistake.
+type MistakeType string
+
+const (
+	MistakeTypeGrammar   MistakeType = "grammar"
+	MistakeTypeVocab     MistakeType = "vocab"
+	MistakeTypePronounce MistakeType = "pronounce"
+	MistakeTypeAdvanced  MistakeType = "advanced"
+)
+
+// Mistake represents a mistake in the jpcorrect system.
+// Maps to jpcorrect.mistake table.
 type Mistake struct {
-	MistakeID     int     `db:"mistake_id" json:"mistake_id"`
-	PracticeID    int     `db:"practice_id" json:"practice_id"`
-	UserID        int     `db:"user_id" json:"user_id"`
-	StartTime     float64 `db:"start_time" json:"start_time"`
-	EndTime       float64 `db:"end_time" json:"end_time"`
-	MistakeStatus string  `db:"mistake_status" json:"mistake_status"`
-	MistakeType   string  `db:"mistake_type" json:"mistake_type"`
+	ID         uuid.UUID   `gorm:"type:uuid;primaryKey" json:"mistake_id"`
+	EventID    uuid.UUID   `gorm:"type:uuid;index" json:"event_id"`
+	UserID     uuid.UUID   `gorm:"type:uuid;index" json:"user_id"`
+	Type       MistakeType `gorm:"default:grammar" json:"type"`
+	OriginText string      `json:"origin_text"`
+	FixedText  string      `json:"fixed_text"`
+	StartTime  float64     `json:"start_time"`
+	EndTime    float64     `json:"end_time"`
+	Comment    *string     `json:"comment"`
+	Note       *string     `json:"note"`
 }
 
 type MistakeRepository interface {
-	GetByID(ctx context.Context, mistakeID int) (*Mistake, error)
-	GetByPracticeID(ctx context.Context, practiceID int) ([]*Mistake, error)
-	GetByUserID(ctx context.Context, userID int) ([]*Mistake, error)
+	GetByID(ctx context.Context, mistakeID uuid.UUID) (*Mistake, error)
+	GetByEventID(ctx context.Context, eventID uuid.UUID) ([]*Mistake, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*Mistake, error)
 
 	Create(ctx context.Context, m *Mistake) error
 	Update(ctx context.Context, m *Mistake) error
-	Delete(ctx context.Context, mistakeID int) error
+	Delete(ctx context.Context, mistakeID uuid.UUID) error
 }
