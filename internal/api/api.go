@@ -11,43 +11,37 @@ import (
 	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type API struct {
-	apiToolsURL      string
-	proxyTransport   *http.Transport
-	jwksURL          string
-	jwksCache        keyfunc.Keyfunc
-	jwksCtx          context.Context
-	jwksCancel       context.CancelFunc
-	jwksMutex        sync.Mutex
-	jwksErr          error
-	aiCorrectionRepo domain.AICorrectionRepository
-	mistakeRepo      domain.MistakeRepository
-	noteRepo         domain.NoteRepository
-	practiceRepo     domain.PracticeRepository
-	transcriptRepo   domain.TranscriptRepository
-	userRepo         domain.UserRepository
+	db                *gorm.DB
+	apiToolsURL       string
+	proxyTransport    *http.Transport
+	jwksURL           string
+	jwksCache         keyfunc.Keyfunc
+	jwksCtx           context.Context
+	jwksCancel        context.CancelFunc
+	jwksMutex         sync.Mutex
+	jwksErr           error
+	userRepo          domain.UserRepository
+	eventRepo         domain.EventRepository
+	eventAttendeeRepo domain.EventAttendeeRepository
+	transcriptRepo    domain.TranscriptRepository
+	mistakeRepo       domain.MistakeRepository
 }
 
-func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string) *API {
-	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
-	mistakeRepo := repository.NewPostgresMistake(conn)
-	noteRepo := repository.NewPostgresNote(conn)
-	practiceRepo := repository.NewPostgresPractice(conn)
-	transcriptRepo := repository.NewPostgresTranscript(conn)
-	userRepo := repository.NewPostgresUser(conn)
-
+func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string) *API {
 	return &API{
-		apiToolsURL:      url,
-		proxyTransport:   transport,
-		jwksURL:          jwksURL,
-		aiCorrectionRepo: aiCorrectionRepo,
-		mistakeRepo:      mistakeRepo,
-		noteRepo:         noteRepo,
-		practiceRepo:     practiceRepo,
-		transcriptRepo:   transcriptRepo,
-		userRepo:         userRepo,
+		db:                db,
+		apiToolsURL:       url,
+		proxyTransport:    transport,
+		jwksURL:           jwksURL,
+		userRepo:          repository.NewGormUserRepository(db),
+		eventRepo:         repository.NewGormEventRepository(db),
+		eventAttendeeRepo: repository.NewGormEventAttendeeRepository(db),
+		transcriptRepo:    repository.NewGormTranscriptRepository(db),
+		mistakeRepo:       repository.NewGormMistakeRepository(db),
 	}
 }
 
@@ -66,16 +60,6 @@ func Register(r *gin.Engine, api *API) {
 		v1.POST("/dict-query", api.DictQueryHandler)
 		v1.POST("/sentence-query", api.SentenceQueryHandler)
 
-		// AI Corrections
-		aiCorrections := v1.Group("/ai-corrections")
-		{
-			aiCorrections.POST("", api.AICorrectionCreateHandler)
-			aiCorrections.GET("/:id", api.AICorrectionGetHandler)
-			aiCorrections.PUT("/:id", api.AICorrectionUpdateHandler)
-			aiCorrections.DELETE("/:id", api.AICorrectionDeleteHandler)
-			aiCorrections.GET("/mistake/:mistake_id", api.AICorrectionGetByMistakeHandler)
-		}
-
 		// Mistakes
 		mistakes := v1.Group("/mistakes")
 		{
@@ -83,21 +67,11 @@ func Register(r *gin.Engine, api *API) {
 			mistakes.GET("/:id", api.MistakeGetHandler)
 			mistakes.PUT("/:id", api.MistakeUpdateHandler)
 			mistakes.DELETE("/:id", api.MistakeDeleteHandler)
-			mistakes.GET("/practice/:practice_id", api.MistakeGetByPracticeHandler)
+			mistakes.GET("/event/:event_id", api.MistakeGetByPracticeHandler)
 			mistakes.GET("/user/:user_id", api.MistakeGetByUserHandler)
 		}
 
-		// Notes
-		notes := v1.Group("/notes")
-		{
-			notes.POST("", api.NoteCreateHandler)
-			notes.GET("/:id", api.NoteGetHandler)
-			notes.PUT("/:id", api.NoteUpdateHandler)
-			notes.DELETE("/:id", api.NoteDeleteHandler)
-			notes.GET("/practice/:practice_id", api.NoteGetByPracticeHandler)
-		}
-
-		// Practices
+		// Practices (keep old route for backward compatibility)
 		practices := v1.Group("/practices")
 		{
 			practices.POST("", api.PracticeCreateHandler)
