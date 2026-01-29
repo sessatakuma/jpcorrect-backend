@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
@@ -17,6 +18,8 @@ type API struct {
 	proxyTransport   *http.Transport
 	jwksURL          string
 	jwksCache        keyfunc.Keyfunc
+	jwksCtx          context.Context
+	jwksCancel       context.CancelFunc
 	jwksMutex        sync.Mutex
 	jwksErr          error
 	aiCorrectionRepo domain.AICorrectionRepository

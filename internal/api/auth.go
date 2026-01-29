@@ -18,15 +18,33 @@ func (a *API) InitializeJWKS(ctx context.Context) error {
 	a.jwksMutex.Lock()
 	defer a.jwksMutex.Unlock()
 
+	// Create a long-lived context for the JWKS refresh goroutine
+	a.jwksCtx, a.jwksCancel = context.WithCancel(context.Background())
+
 	var err error
-	a.jwksCache, err = keyfunc.NewDefaultCtx(ctx, []string{a.jwksURL})
+	a.jwksCache, err = keyfunc.NewDefaultCtx(a.jwksCtx, []string{a.jwksURL})
 	if err != nil {
+		a.jwksCancel() // Clean up the context if initialization fails
 		a.jwksErr = err
 		return fmt.Errorf("failed to initialize JWKS: %w", err)
 	}
 
 	a.jwksErr = nil
 	return nil
+}
+
+// ShutdownJWKS gracefully shuts down the JWKS keyfunc to clean up resources
+func (a *API) ShutdownJWKS() {
+	a.jwksMutex.Lock()
+	defer a.jwksMutex.Unlock()
+
+	// Cancel the context to stop the JWKS refresh goroutine
+	if a.jwksCancel != nil {
+		a.jwksCancel()
+	}
+
+	// Set jwksCache to nil to allow garbage collection
+	a.jwksCache = nil
 }
 
 // AuthMiddleware returns a Gin middleware that validates JWT tokens
@@ -80,7 +98,14 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	tokenString := parts[1]
+	tokenString := strings.TrimSpace(parts[1])
+	if tokenString == "" {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid authorization header format",
+			"",
+		)
+	}
 
 	// Check if JWKS is initialized
 	a.jwksMutex.Lock()
@@ -99,8 +124,8 @@ func (a *API) validateToken(c *gin.Context) error {
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
 	if err != nil {
 		return domain.NewAuthError(
-			http.StatusUnauthorized, 
-			"invalid token", 
+			http.StatusUnauthorized,
+			"invalid token",
 			err.Error(),
 		)
 	}
