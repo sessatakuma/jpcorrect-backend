@@ -29,16 +29,19 @@ func Execute() {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, os.Getenv("JWKS_URL"))
-	
+	jwksURL := os.Getenv("JWKS_URL")
+	if jwksURL == "" {
+		log.Fatalf("JWKS_URL environment variable is required")
+	}
+
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, jwksURL)
+
 	// Initialize JWKS for JWT validation
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer initCancel()
 	if err := a.InitializeJWKS(initCtx); err != nil {
-		initCancel()
 		log.Fatalf("failed to initialize JWKS: %v", err)
-		os.Exit(1)
 	}
-	initCancel()
 
 	r := gin.Default()
 	api.Register(r, a)
@@ -70,6 +73,9 @@ func Execute() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
+
+	// Clean up JWKS resources
+	a.ShutdownJWKS()
 
 	// The context is used to inform the server it has 5 seconds to finish
 	// the request it is currently handling
