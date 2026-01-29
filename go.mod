@@ -3,7 +3,9 @@ module jpcorrect-backend
 go 1.25
 
 require (
+	github.com/MicahParks/keyfunc/v3 v3.7.0
 	github.com/gin-gonic/gin v1.10.1
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
 )
@@ -36,6 +38,7 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.53.0 // indirect
+	github.com/MicahParks/jwkset v0.11.0 // indirect
 	github.com/air-verse/air v1.63.4 // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
