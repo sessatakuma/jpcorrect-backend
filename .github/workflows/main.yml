@@ -1,0 +1,17 @@
+---
+name: Quality Checks
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  quality-gate:
+    uses: sessatakuma/org-workflows/.github/workflows/entrypoint.yml@main
+    secrets:
+      CHECKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    with:
+      run-basic-checks: true
+      run-python-checks: false
+      run-frontend-checks: false
+      run-go-checks: true
+      run-config-checks: true
