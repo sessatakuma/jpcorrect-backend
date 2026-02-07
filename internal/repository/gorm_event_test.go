@@ -19,7 +19,7 @@ func TestGormEventRepository_GetByID(t *testing.T) {
 	eventID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "events" WHERE id = $1 ORDER BY "events"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "event" WHERE id = $1 ORDER BY "event"."id" LIMIT $2`)).
 			WithArgs(eventID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).
 				AddRow(eventID, "Test Event"))
@@ -33,7 +33,7 @@ func TestGormEventRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "events" WHERE id = $1 ORDER BY "events"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "event" WHERE id = $1 ORDER BY "event"."id" LIMIT $2`)).
 			WithArgs(eventID, 1).
 			WillReturnError(gorm.ErrRecordNotFound)
 
@@ -50,7 +50,7 @@ func TestGormEventRepository_GetByUserID(t *testing.T) {
 	userID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "events"."id","events"."title","events"."description","events"."start_time","events"."exp_duration","events"."act_duration","events"."record_link","events"."mode","events"."note" FROM "events" JOIN event_attendees ON event_attendees.event_id = events.id WHERE event_attendees.user_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT "event"."id","event"."title","event"."description","event"."start_time","event"."exp_duration","event"."act_duration","event"."record_link","event"."mode","event"."note" FROM "event" JOIN event_attendee ON event_attendee.event_id = event.id WHERE event_attendee.user_id = $1`)).
 			WithArgs(userID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "title"}).
 				AddRow(uuid.New(), "Event 1").
@@ -73,7 +73,7 @@ func TestGormEventRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "events"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "event"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -96,7 +96,7 @@ func TestGormEventRepository_Update(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "events"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "event"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -112,18 +112,18 @@ func TestGormEventRepository_Delete(t *testing.T) {
 	eventID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendees" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendee" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcripts" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcript" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "mistakes" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "mistake" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "events" WHERE id = $1`)).
+		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "event" WHERE id = $1`)).
 			WithArgs(eventID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
@@ -134,7 +134,7 @@ func TestGormEventRepository_Delete(t *testing.T) {
 	})
 
 	t.Run("RestrictAttendees", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendees" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendee" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -145,10 +145,10 @@ func TestGormEventRepository_Delete(t *testing.T) {
 	})
 
 	t.Run("RestrictTranscripts", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendees" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendee" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcripts" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcript" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
@@ -159,13 +159,13 @@ func TestGormEventRepository_Delete(t *testing.T) {
 	})
 
 	t.Run("RestrictMistakes", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendees" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "event_attendee" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcripts" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "transcript" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "mistakes" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT count(*) FROM "mistake" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 

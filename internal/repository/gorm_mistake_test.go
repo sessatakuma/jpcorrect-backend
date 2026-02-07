@@ -18,7 +18,7 @@ func TestGormMistakeRepository_GetByID(t *testing.T) {
 	mistakeID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistakes" WHERE id = $1 ORDER BY "mistakes"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE id = $1 ORDER BY "mistake"."id" LIMIT $2`)).
 			WithArgs(mistakeID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "user_id", "type", "origin_text", "fixed_text"}).
 				AddRow(mistakeID, uuid.New(), uuid.New(), "grammar", "origin", "fixed"))
@@ -37,7 +37,7 @@ func TestGormMistakeRepository_GetByEventID(t *testing.T) {
 	eventID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistakes" WHERE event_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE event_id = $1`)).
 			WithArgs(eventID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id"}).
 				AddRow(uuid.New(), eventID).
@@ -56,7 +56,7 @@ func TestGormMistakeRepository_GetByUserID(t *testing.T) {
 	userID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistakes" WHERE user_id = $1`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "mistake" WHERE user_id = $1`)).
 			WithArgs(userID).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id"}).
 				AddRow(uuid.New(), userID))
@@ -82,7 +82,7 @@ func TestGormMistakeRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "mistakes"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "mistake"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -105,7 +105,7 @@ func TestGormMistakeRepository_Update(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "mistakes"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "mistake"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -122,7 +122,7 @@ func TestGormMistakeRepository_Delete(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "mistakes" WHERE id = $1`)).
+		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "mistake" WHERE id = $1`)).
 			WithArgs(mistakeID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
