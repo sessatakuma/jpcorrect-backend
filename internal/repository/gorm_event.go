@@ -30,8 +30,8 @@ func (r *gormEventRepository) GetByID(ctx context.Context, eventID uuid.UUID) (*
 func (r *gormEventRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Event, error) {
 	var events []*domain.Event
 	err := r.db.WithContext(ctx).
-		Joins("JOIN event_attendees ON event_attendees.event_id = events.id").
-		Where("event_attendees.user_id = ?", userID).
+		Joins("JOIN event_attendee ON event_attendee.event_id = event.id").
+		Where("event_attendee.user_id = ?", userID).
 		Find(&events).Error
 	if err != nil {
 		return nil, MapGormError(err)

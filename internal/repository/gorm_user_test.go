@@ -41,7 +41,7 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 	userID := uuid.New()
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 AND "users"."deleted_at" IS NULL ORDER BY "users"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
 			WithArgs(userID, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
 				AddRow(userID, "test@example.com", "Test User"))
@@ -55,7 +55,7 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE id = $1 AND "users"."deleted_at" IS NULL ORDER BY "users"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
 			WithArgs(userID, 1).
 			WillReturnError(gorm.ErrRecordNotFound)
 
@@ -72,7 +72,7 @@ func TestGormUserRepository_GetByEmail(t *testing.T) {
 	email := "test@example.com"
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE email = $1 AND "users"."deleted_at" IS NULL ORDER BY "users"."id" LIMIT $2`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE email = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
 			WithArgs(email, 1).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
 				AddRow(uuid.New(), email, "Test User"))
@@ -91,7 +91,7 @@ func TestGormUserRepository_GetByName(t *testing.T) {
 	name := "Test User"
 
 	t.Run("Success", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "users" WHERE name = $1 AND "users"."deleted_at" IS NULL`)).
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE name = $1 AND "user"."deleted_at" IS NULL`)).
 			WithArgs(name).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}).
 				AddRow(uuid.New(), "test1@example.com", name).
@@ -115,7 +115,7 @@ func TestGormUserRepository_Create(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "users"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -139,7 +139,7 @@ func TestGormUserRepository_Update(t *testing.T) {
 		}
 
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users"`)).
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user"`)).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
@@ -156,7 +156,7 @@ func TestGormUserRepository_Delete(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectBegin()
-		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "users" SET "deleted_at"=$1 WHERE id = $2 AND "users"."deleted_at" IS NULL`)).
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user" SET "deleted_at"=$1 WHERE id = $2 AND "user"."deleted_at" IS NULL`)).
 			WithArgs(sqlmock.AnyArg(), userID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
