@@ -1,25 +1,26 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (a *API) UserGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	user, err := a.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
@@ -47,16 +48,15 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 
 func (a *API) UserUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	// Check if record exists first
 	_, err = a.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
@@ -70,13 +70,12 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	user.UserID = id
+	user.ID = id
 	if err := a.userRepo.Update(c.Request.Context(), &user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Return updated object
 	updated, err := a.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -88,16 +87,15 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 
 func (a *API) UserDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	// Check if record exists first
 	_, err = a.userRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
@@ -118,7 +116,7 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 
 	users, err := a.userRepo.GetByName(c.Request.Context(), name)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Users not found"})
 			return
 		}

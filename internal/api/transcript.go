@@ -1,25 +1,26 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (a *API) TranscriptGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	transcript, err := a.transcriptRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
 			return
 		}
@@ -47,16 +48,16 @@ func (a *API) TranscriptCreateHandler(c *gin.Context) {
 
 func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
 	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
 			return
 		}
@@ -70,7 +71,7 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	transcript.TranscriptID = id
+	transcript.ID = id
 	if err := a.transcriptRepo.Update(c.Request.Context(), &transcript); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,16 +89,16 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 
 func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
 	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
 			return
 		}
@@ -114,22 +115,24 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 }
 
 func (a *API) TranscriptGetByMistakeHandler(c *gin.Context) {
-	mistakeIDStr := c.Param("mistake_id")
-	mistakeID, err := strconv.Atoi(mistakeIDStr)
+	// Transcript now links to Event, not Mistake
+	// Route uses mistake_id for backward compatibility, but it's actually event_id
+	eventIDStr := c.Param("mistake_id")
+	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Mistake ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	transcript, err := a.transcriptRepo.GetByMistakeID(c.Request.Context(), mistakeID)
+	transcripts, err := a.transcriptRepo.GetByEventID(c.Request.Context(), eventID)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Transcripts not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, transcript)
+	c.JSON(http.StatusOK, transcripts)
 }

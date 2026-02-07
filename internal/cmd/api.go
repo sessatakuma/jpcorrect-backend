@@ -10,18 +10,35 @@ import (
 	"time"
 
 	"jpcorrect-backend/internal/api"
+	"jpcorrect-backend/internal/database"
+	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Execute() {
-	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	db, err := database.NewGormDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 		os.Exit(1)
 	}
-	defer dbpool.Close()
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get database instance: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if err := db.AutoMigrate(
+		&domain.User{},
+		&domain.Event{},
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{},
+	); err != nil {
+		log.Fatalf("failed to run auto migrate: %v", err)
+		os.Exit(1)
+	}
 
 	transport := &http.Transport{
 		MaxIdleConns:        100,
@@ -29,7 +46,7 @@ func Execute() {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool)
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db)
 	r := gin.Default()
 	api.Register(r, a)
 
