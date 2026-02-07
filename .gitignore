@@ -34,7 +34,8 @@ go.work.sum
 # Temporary files
 tmp/
 
-# Sisyphus workspace
+# AGENTS workspace
+.opencode/
 .sisyphus/
 
 # Build output
