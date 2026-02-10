@@ -19,7 +19,7 @@ type API struct {
 	eventAttendeeRepo domain.EventAttendeeRepository
 	transcriptRepo    domain.TranscriptRepository
 	mistakeRepo       domain.MistakeRepository
-	webrtcRepo        domain.WebRTCRepository
+	//webrtcRepo        domain.WebRTCRepository
 }
 
 func NewAPI(url string, transport *http.Transport, db *gorm.DB) *API {
@@ -32,7 +32,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB) *API {
 		eventAttendeeRepo: repository.NewGormEventAttendeeRepository(db),
 		transcriptRepo:    repository.NewGormTranscriptRepository(db),
 		mistakeRepo:       repository.NewGormMistakeRepository(db),
-		webrtcRepo:        NewHub(),
+		//webrtcRepo:        NewHub(),
 	}
 }
 
