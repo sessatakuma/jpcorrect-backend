@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,7 +30,18 @@ func Execute() {
 		IdleConnTimeout:     90 * time.Second,
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool)
+	// 限制來源其他部分也要實作?
+	allowedOrigins := []string{}
+	if originsEnv := os.Getenv("ALLOWED_ORIGINS"); originsEnv != "" {
+		allowedOrigins = strings.Split(originsEnv, ",")
+		for i, origin := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(origin)
+		}
+	}
+
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, allowedOrigins)
+	defer a.Close()
+
 	r := gin.Default()
 	api.Register(r, a)
 

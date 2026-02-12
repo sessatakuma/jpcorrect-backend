@@ -2,11 +2,13 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type API struct {
@@ -19,9 +21,11 @@ type API struct {
 	transcriptRepo   domain.TranscriptRepository
 	userRepo         domain.UserRepository
 	webrtcRepo       domain.WebRTCRepository
+	rateLimiter      *RateLimiter
+	upgrader         websocket.Upgrader
 }
 
-func NewAPI(url string, transport *http.Transport, conn repository.Connection) *API {
+func NewAPI(url string, transport *http.Transport, conn repository.Connection, allowedOrigins []string) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)
@@ -29,6 +33,23 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection) *
 	transcriptRepo := repository.NewPostgresTranscript(conn)
 	userRepo := repository.NewPostgresUser(conn)
 	webrtcRepo := NewHub()
+	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
+
+	// 配置 WebSocket upgrader 的來源驗證
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			if len(allowedOrigins) == 0 {
+				return true // 開發模式：允許所有來源
+			}
+			origin := r.Header.Get("Origin")
+			for _, allowed := range allowedOrigins {
+				if allowed == "*" || allowed == origin {
+					return true
+				}
+			}
+			return false
+		},
+	}
 
 	return &API{
 		apiToolsURL:      url,
@@ -40,6 +61,15 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection) *
 		transcriptRepo:   transcriptRepo,
 		userRepo:         userRepo,
 		webrtcRepo:       webrtcRepo,
+		rateLimiter:      rateLimiter,
+		upgrader:         upgrader,
+	}
+}
+
+// Close stops the RateLimiter's cleanup goroutine
+func (api *API) Close() {
+	if api.rateLimiter != nil {
+		api.rateLimiter.Close()
 	}
 }
 
