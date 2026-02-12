@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -32,17 +33,95 @@ type TargetPayload struct {
 	Data   json.RawMessage `json:"-"`
 }
 
+// RateLimiter struct to track connection attempts per IP
+type RateLimiter struct {
+	mu       sync.Mutex
+	attempts map[string][]time.Time
+	window   time.Duration
+	max      int
+	ctx      context.Context
+	cancel   context.CancelFunc
+}
+
 // Hub maintains set of clients
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[string]*domain.Client
 }
 
-// Connection rate limiter per IP (simple sliding window)
-var connLimitMu sync.Mutex
-var connAttempts = make(map[string][]time.Time)
-var connWindow = 10 * time.Second
-var connMax = 15 // max new connections per IP per window
+// Builds a new RateLimiter
+func NewRateLimiter(window time.Duration, max int) *RateLimiter {
+	ctx, cancel := context.WithCancel(context.Background())
+	rl := &RateLimiter{
+		attempts: make(map[string][]time.Time),
+		window:   window,
+		max:      max,
+		ctx:      ctx,
+		cancel:   cancel,
+	}
+	go rl.cleanup()
+	return rl
+}
+
+// IsAllowed checks if a new connection is allowed for the given IP
+func (rl *RateLimiter) IsAllowed(ip string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	times := rl.attempts[ip]
+
+	// Filter out expired timestamps
+	newTimes := make([]time.Time, 0, len(times))
+	for _, t := range times {
+		if now.Sub(t) <= rl.window {
+			newTimes = append(newTimes, t)
+		}
+	}
+
+	// Add the current timestamp
+	newTimes = append(newTimes, now)
+	rl.attempts[ip] = newTimes
+
+	return len(newTimes) <= rl.max
+}
+
+// cleanup periodically cleans up expired IP records to prevent memory leaks
+func (rl *RateLimiter) cleanup() {
+	ticker := time.NewTicker(rl.window * 2) // 每隔兩個窗口期清理一次
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-rl.ctx.Done():
+			return
+		case <-ticker.C:
+			rl.mu.Lock()
+			now := time.Now()
+			for ip, times := range rl.attempts {
+				// 過濾出有效的時間戳
+				validTimes := make([]time.Time, 0, len(times))
+				for _, t := range times {
+					if now.Sub(t) <= rl.window {
+						validTimes = append(validTimes, t)
+					}
+				}
+				// 如果沒有有效時間戳，刪除該 IP
+				if len(validTimes) == 0 {
+					delete(rl.attempts, ip)
+				} else {
+					rl.attempts[ip] = validTimes
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}
+}
+
+// Close RateLimiter and stop cleanup goroutine
+func (rl *RateLimiter) Close() {
+	rl.cancel()
+}
 
 func NewHub() *Hub {
 	return &Hub{clients: make(map[string]*domain.Client)}
@@ -112,10 +191,6 @@ func sendToClient(c *domain.Client, msgType string, payload interface{}) error {
 	}
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
 // Simple validation for WebRTC username (can be overridden)
 func defaultValidateUserName(name string) (bool, string) {
 	if name == "" {
@@ -133,31 +208,16 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	if ip == "" {
 		ip = c.Request.RemoteAddr
 	}
-	now := time.Now()
-	connLimitMu.Lock()
-	times := connAttempts[ip]
-	// drop old
-	newTimes := make([]time.Time, 0, len(times))
-	for _, t := range times {
-		if now.Sub(t) <= connWindow {
-			newTimes = append(newTimes, t)
-		}
-	}
-	newTimes = append(newTimes, now)
-	connAttempts[ip] = newTimes
-	if len(newTimes) > connMax {
-		connLimitMu.Unlock()
-		log.Printf("拒絕來自 %s 的連線：短時間內連線數過多 (%d)", ip, len(newTimes))
-		// respond with 429-like behavior: upgrade and immediately close
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err == nil {
-			conn.Close()
-		}
+
+	if !api.rateLimiter.IsAllowed(ip) {
+		log.Printf("拒絕來自 %s 的連線：短時間內連線數過多", ip)
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+			"error": "too many connections",
+		})
 		return
 	}
-	connLimitMu.Unlock()
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := api.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		log.Println("websocket upgrade error:", err)
 		return
@@ -168,13 +228,16 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 		ID:   id,
 		Conn: conn,
 		Send: make(chan []byte, 16),
+		Done: make(chan struct{}),
 	}
 
 	api.webrtcRepo.AddClient(client)
 	log.Println("新使用者連線:", id)
 
 	// send connected message with assigned id
-	_ = sendToClient(client, "connected", map[string]string{"id": id})
+	if err := sendToClient(client, "connected", map[string]string{"id": id}); err != nil {
+		log.Printf("傳送連線確認訊息失敗 (user: %s): %v", id, err)
+	}
 
 	// start writer
 	go writer(client)
@@ -195,19 +258,28 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	if client.Name != "" {
 		api.webrtcRepo.BroadcastExcept(client.ID, "user-left", client.ID)
 	}
+
+	// cleanup 時
+	close(client.Done) // 先關閉 done
+	close(client.Send) // 再關閉 send
 	client.Conn.Close()
 	log.Println("使用者離線:", client.ID)
 }
 
 func writer(c *domain.Client) {
 	for {
-		b, ok := <-c.Send
-		if !ok {
+		select {
+		case <-c.Done:
 			return
-		}
-		if err := c.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
-			log.Println("write error:", err)
-			return
+		case b, ok := <-c.Send:
+			if !ok {
+				return
+			}
+			if err := c.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
+				log.Println("write error:", err)
+				c.Conn.Close()
+				return
+			}
 		}
 	}
 }
@@ -216,17 +288,23 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 	switch m.Type {
 	case "get-online-users":
 		users := api.webrtcRepo.ListUsers()
-		_ = sendToClient(c, "online-users-list", users)
+		if err := sendToClient(c, "online-users-list", users); err != nil {
+			log.Printf("傳送線上使用者列表失敗 (user: %s): %v", c.ID, err)
+		}
 
 	case "join-room":
 		var p JoinPayload
 		if err := json.Unmarshal(m.Payload, &p); err != nil {
-			_ = sendToClient(c, "error", map[string]string{"message": "invalid payload"})
+			if err := sendToClient(c, "error", map[string]string{"message": "invalid payload"}); err != nil {
+				log.Printf("傳送錯誤訊息失敗 (user: %s): %v", c.ID, err)
+			}
 			return
 		}
 		valid, name := defaultValidateUserName(p.UserName)
 		if !valid {
-			_ = sendToClient(c, "error", map[string]string{"message": name})
+			if err := sendToClient(c, "error", map[string]string{"message": name}); err != nil {
+				log.Printf("傳送使用者名稱驗證錯誤失敗 (user: %s): %v", c.ID, err)
+			}
 			return
 		}
 		c.Name = name
@@ -240,42 +318,59 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 				filtered = append(filtered, u)
 			}
 		}
-		_ = sendToClient(c, "current-users", filtered)
+		if err := sendToClient(c, "current-users", filtered); err != nil {
+			log.Printf("傳送當前使用者列表失敗 (user: %s): %v", c.ID, err)
+		}
 
 	case "offer", "answer", "ice-candidate":
 		// forward to target
 		var payload map[string]json.RawMessage
 		if err := json.Unmarshal(m.Payload, &payload); err != nil {
-			_ = sendToClient(c, "error", map[string]string{"message": "invalid payload"})
+			if err := sendToClient(c, "error", map[string]string{"message": "invalid payload"}); err != nil {
+				log.Printf("傳送錯誤訊息失敗 (user: %s): %v", c.ID, err)
+			}
 			return
 		}
 		var targetId string
 		if t, ok := payload["target"]; ok {
-			json.Unmarshal(t, &targetId)
+			if err := json.Unmarshal(t, &targetId); err != nil {
+				if err := sendToClient(c, "error", map[string]string{"message": "invalid target"}); err != nil {
+					log.Printf("傳送錯誤訊息失敗 (user: %s): %v", c.ID, err)
+				}
+				return
+			}
 		} else {
-			_ = sendToClient(c, "error", map[string]string{"message": "missing target"})
+			if err := sendToClient(c, "error", map[string]string{"message": "missing target"}); err != nil {
+				log.Printf("傳送錯誤訊息失敗 (user: %s): %v", c.ID, err)
+			}
 			return
 		}
 		target, ok := api.webrtcRepo.GetClient(targetId)
 		if !ok {
-			_ = sendToClient(c, "error", map[string]string{"message": "target not online"})
+			if err := sendToClient(c, "error", map[string]string{"message": "target not online"}); err != nil {
+				log.Printf("傳送目標離線錯誤失敗 (user: %s, target: %s): %v", c.ID, targetId, err)
+			}
 			return
 		}
-		// Build forward payload: include sender and the rest
-		forward := map[string]interface{}{"sender": c.ID}
-		// attach the actual data (offer/answer/candidate)
+		// Build forward payload: preserve original JSON format for WebRTC compatibility
+		// Critical for iOS - any data format changes can break WebRTC connections
+		forward := make(map[string]json.RawMessage)
+		senderJSON, _ := json.Marshal(c.ID)
+		forward["sender"] = senderJSON
+		// Copy all fields except "target", preserving original JSON format
 		for k, v := range payload {
-			if k == "target" {
-				continue
-			}
-			var raw interface{}
-			if err := json.Unmarshal(v, &raw); err == nil {
-				forward[k] = raw
-			} else {
-				forward[k] = nil
+			if k != "target" {
+				forward[k] = v
 			}
 		}
-		_ = sendToClient(target, m.Type, forward)
+		// Convert to interface{} for sendToClient
+		var forwardData interface{}
+		forwardBytes, _ := json.Marshal(forward)
+		json.Unmarshal(forwardBytes, &forwardData)
+
+		if err := sendToClient(target, m.Type, forwardData); err != nil {
+			log.Printf("轉發 %s 訊息失敗 (from: %s, to: %s): %v", m.Type, c.ID, target.ID, err)
+		}
 
 	case "leave-room":
 		if c.Name != "" {
@@ -286,6 +381,8 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 		}
 
 	default:
-		_ = sendToClient(c, "error", map[string]string{"message": "unknown type"})
+		if err := sendToClient(c, "error", map[string]string{"message": "unknown type"}); err != nil {
+			log.Printf("傳送未知訊息類型錯誤失敗 (user: %s, type: %s): %v", c.ID, m.Type, err)
+		}
 	}
 }

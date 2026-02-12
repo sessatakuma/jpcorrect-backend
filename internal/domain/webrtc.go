@@ -9,6 +9,7 @@ type Client struct {
 	ID   string
 	Conn *websocket.Conn
 	Send chan []byte
+	Done chan struct{}
 	Name string
 }
 

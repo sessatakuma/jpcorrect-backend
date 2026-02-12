@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,9 +35,17 @@ func Execute() {
 		log.Fatalf("JWKS_URL environment variable is required")
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, jwksURL)
+	allowedOrigins := []string{}
+	if originsEnv := os.Getenv("ALLOWED_ORIGINS"); originsEnv != "" {
+		allowedOrigins = strings.Split(originsEnv, ",")
+		for i, origin := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(origin)
+		}
+	}
 
-	// Initialize JWKS for JWT validation
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, jwksURL, allowedOrigins)
+	defer a.Close()
+
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer initCancel()
 	if err := a.InitializeJWKS(initCtx); err != nil {
@@ -51,7 +60,6 @@ func Execute() {
 		port = "8080"
 	}
 
-	// HTTPS configuration
 	certPath := os.Getenv("API_CERT_PATH")
 	if certPath == "" {
 		certPath = "./certs/cert.pem"
@@ -67,14 +75,11 @@ func Execute() {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	// Check if cert and key files exist
 	fileExists := func(p string) bool {
 		_, err := os.Stat(p)
 		return err == nil
 	}
 
-	// Initializing the server in a goroutine so that
-	// it won't block the graceful shutdown handling below
 	go func() {
 		if fileExists(certPath) && fileExists(keyPath) {
 			log.Println("🔒 使用 HTTPS 模式")
@@ -93,21 +98,13 @@ func Execute() {
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server with
-	// a timeout of 5 seconds.
 	quit := make(chan os.Signal, 1)
-	// kill (no params) by default sends syscall.SIGTERM
-	// kill -2 is syscall.SIGINT
-	// kill -9 is syscall.SIGKILL but can't be caught, so don't need add it
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down server...")
 
-	// Clean up JWKS resources
 	a.ShutdownJWKS()
 
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
