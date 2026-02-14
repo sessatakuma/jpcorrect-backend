@@ -26,7 +26,7 @@ func (a *API) handlerHelper(c *gin.Context, target string) {
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadGateway)
-			w.Write([]byte(`{"error": "Failed to contact external API"}`))
+			_, _ = w.Write([]byte(`{"error": "Failed to contact external API"}`))
 		},
 	}
 
