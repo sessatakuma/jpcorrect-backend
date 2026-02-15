@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -123,10 +124,11 @@ func (a *API) validateToken(c *gin.Context) error {
 	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
 	if err != nil {
+		log.Printf("invalid token error: %v", err)
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"invalid token",
-			err.Error(),
+			"",
 		)
 	}
 
