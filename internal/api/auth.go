@@ -15,23 +15,38 @@ import (
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
-func (a *API) InitializeJWKS(ctx context.Context) error {
+func (a *API) InitializeJWKS(initCtx context.Context) error {
 	a.jwksMutex.Lock()
 	defer a.jwksMutex.Unlock()
 
 	// Create a long-lived context for the JWKS refresh goroutine
 	a.jwksCtx, a.jwksCancel = context.WithCancel(context.Background())
 
-	var err error
-	a.jwksCache, err = keyfunc.NewDefaultCtx(a.jwksCtx, []string{a.jwksURL})
-	if err != nil {
-		a.jwksCancel() // Clean up the context if initialization fails
-		a.jwksErr = err
-		return fmt.Errorf("failed to initialize JWKS: %w", err)
+	type initResult struct {
+		kf  keyfunc.Keyfunc
+		err error
 	}
+	resultCh := make(chan initResult, 1)
 
-	a.jwksErr = nil
-	return nil
+	go func() {
+		kf, err := keyfunc.NewDefaultCtx(a.jwksCtx, []string{a.jwksURL})
+		resultCh <- initResult{kf: kf, err: err}
+	}()
+
+	select {
+	case <-initCtx.Done():
+		a.jwksCancel()
+		return fmt.Errorf("JWKS initialization timeout: %w", initCtx.Err())
+	case result := <-resultCh:
+		if result.err != nil {
+			a.jwksCancel() // Clean up the context if initialization fails
+			a.jwksErr = result.err
+			return fmt.Errorf("failed to initialize JWKS: %w", result.err)
+		}
+		a.jwksCache = result.kf
+		a.jwksErr = nil
+		return nil
+	}
 }
 
 // ShutdownJWKS gracefully shuts down the JWKS keyfunc to clean up resources
