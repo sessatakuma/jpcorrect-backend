@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# TLS/SSL certificates (正式部屬時請注意憑證位置)
+certs/
+
 # Editor/IDE
 .idea/
 .vscode/
