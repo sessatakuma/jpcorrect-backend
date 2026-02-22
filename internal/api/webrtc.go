@@ -262,7 +262,9 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	// cleanup 時
 	close(client.Done) // 先關閉 done
 	close(client.Send) // 再關閉 send
-	client.Conn.Close()
+	if err := client.Conn.Close(); err != nil {
+		log.Printf("關閉連線失敗 (user: %s): %v", client.ID, err)
+	}
 	log.Println("使用者離線:", client.ID)
 }
 
@@ -277,7 +279,9 @@ func writer(c *domain.Client) {
 			}
 			if err := c.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
 				log.Println("write error:", err)
-				c.Conn.Close()
+				if err := c.Conn.Close(); err != nil {
+					log.Println("關閉連線失敗:", err)
+				}
 				return
 			}
 		}
@@ -366,7 +370,10 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 		// Convert to interface{} for sendToClient
 		var forwardData interface{}
 		forwardBytes, _ := json.Marshal(forward)
-		json.Unmarshal(forwardBytes, &forwardData)
+		if err := json.Unmarshal(forwardBytes, &forwardData); err != nil {
+			log.Printf("unmarshal forward data 失敗: %v", err)
+			return
+		}
 
 		if err := sendToClient(target, m.Type, forwardData); err != nil {
 			log.Printf("轉發 %s 訊息失敗 (from: %s, to: %s): %v", m.Type, c.ID, target.ID, err)

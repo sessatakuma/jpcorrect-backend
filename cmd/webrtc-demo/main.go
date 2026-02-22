@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"time"
 
@@ -28,21 +27,21 @@ var (
 	connMax    = 15               // Max connections per IP per window
 )
 
-// Username validation pattern and function
-var usernamePattern = regexp.MustCompile(`^[\p{L}0-9_-]+$`)
+// // Username validation pattern and function
+// var usernamePattern = regexp.MustCompile(`^[\p{L}0-9_-]+$`)
 
-func validateUserName(name string) (bool, string) {
-	if name == "" {
-		return false, "名稱不可為空"
-	}
-	if len([]rune(name)) > 20 {
-		return false, "名稱長度不可超過 20 個字元"
-	}
-	if !usernamePattern.MatchString(name) {
-		return false, "名稱只能包含字母、數字、連字號或底線"
-	}
-	return true, name
-}
+// func validateUserName(name string) (bool, string) {
+// 	if name == "" {
+// 		return false, "名稱不可為空"
+// 	}
+// 	if len([]rune(name)) > 20 {
+// 		return false, "名稱長度不可超過 20 個字元"
+// 	}
+// 	if !usernamePattern.MatchString(name) {
+// 		return false, "名稱只能包含字母、數字、連字號或底線"
+// 	}
+// 	return true, name
+// }
 
 // WebSocket upgrader 用於升級 HTTP 連接為 WebSocket
 var upgrader = websocket.Upgrader{
@@ -165,14 +164,16 @@ func proxyWebSocket(w http.ResponseWriter, r *http.Request, apiPort string) {
 		log.Printf("❌ 升級客戶端連接失敗: %v", err)
 		return
 	}
-	defer clientConn.Close()
+	defer func() {
+		if err := clientConn.Close(); err != nil {
+			log.Printf("關閉 clientConn 失敗: %v", err)
+		}
+	}()
 
 	// 構建後端 WebSocket URL，根據主機模式決定 ws/wss
-	scheme := "wss"
+	scheme := "ws"
 	if proxyWebSocketUseHTTPS {
 		scheme = "wss"
-	} else {
-		scheme = "ws"
 	}
 
 	backendURL := url.URL{
@@ -186,11 +187,17 @@ func proxyWebSocket(w http.ResponseWriter, r *http.Request, apiPort string) {
 	backendConn, _, err := dialer.Dial(backendURL.String(), nil)
 	if err != nil {
 		log.Printf("❌ 連接後端 WebSocket 失敗: %v", err)
-		clientConn.WriteMessage(websocket.CloseMessage,
-			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Backend connection failed"))
+		if err := clientConn.WriteMessage(websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "Backend connection failed")); err != nil {
+			log.Printf("傳送 close message 失敗: %v", err)
+		}
 		return
 	}
-	defer backendConn.Close()
+	defer func() {
+		if err := backendConn.Close(); err != nil {
+			log.Printf("關閉 backendConn 失敗: %v", err)
+		}
+	}()
 
 	log.Println("✅ WebSocket 代理連接已建立")
 
