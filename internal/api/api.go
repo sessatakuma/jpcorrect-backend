@@ -49,7 +49,12 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection, j
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			if len(allowedOrigins) == 0 {
-				return true // 開發模式：允許所有來源
+				// 開發模式：允許所有來源
+				if gin.IsDebugging() {
+					return true
+				}
+				// 生產模式：必須設定 ALLOWED_ORIGINS
+				return false
 			}
 			origin := r.Header.Get("Origin")
 			for _, allowed := range allowedOrigins {
