@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC 診斷工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            padding: 20px;
+            padding-top: 100px;
+            background: #f5f5f5;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        h1 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            margin: 0;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+        }
+        button:hover { background: #5568d3; }
+        .home-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: inherit;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background 0.3s;
+            z-index: 1001;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .home-btn:hover { background: #5568d3; }
+        #log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="home-btn">
+        ← 回到首頁
+    </a>
+
+    <h1>🔍 WebRTC 診斷工具</h1>
+    
+    <div class="test-section">
+        <h2>1. 瀏覽器支援檢查</h2>
+        <div id="browser-support"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 麥克風權限測試</h2>
+        <button onclick="testMicrophone()">測試麥克風</button>
+        <div id="mic-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. WebSocket 連線測試</h2>
+        <button id="wsConnectBtn" onclick="testSocket()">測試 WebSocket</button>
+        <div id="socket-status"></div>
+        <!---
+        <div style="margin-top:10px;">
+            <label>目標 userId: <input id="targetId" type="text" placeholder="填入目標 userId"></label>
+            <button onclick="sendTestOffer()">送出 offer</button>
+            <button onclick="sendTestAnswer()">送出 answer</button>
+            <button onclick="sendTestCandidate()">送出 ice-candidate</button>
+            <button onclick="requestOnlineUsers()">取得線上使用者</button>
+            <button onclick="joinAsTester()">以 Tester 加入房間</button>
+        </div>
+        ---->
+    </div>
+    
+    <div class="test-section">
+        <h2>4. WebRTC 連線測試</h2>
+        <button onclick="testWebRTC()">測試 WebRTC</button>
+        <div id="webrtc-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>5. 音訊分析器測試</h2>
+        <button onclick="testAudioAnalyser()">測試音訊分析</button>
+        <button onclick="stopAudioTest()">停止測試</button>
+        <div id="analyser-status"></div>
+        <canvas id="visualizer" width="600" height="100" style="background: #000; margin-top: 10px;"></canvas>
+    </div>
+    
+    <div class="test-section">
+        <h2>6. 音訊播放測試</h2>
+        <button onclick="testAudioPlayback()">播放測試音效</button>
+        <button onclick="testMicPlayback()">播放麥克風音訊</button>
+        <button onclick="stopPlayback()">停止播放</button>
+        <div id="playback-status"></div>
+        <div style="margin-top: 10px;">
+            <label>音量: <input type="range" id="volumeControl" min="0" max="100" value="50" style="width: 300px;"></label>
+            <span id="volumeValue">50%</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📋 詳細日誌</h2>
+        <button onclick="clearLog()">清除日誌</button>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        let localStream = null;
+        let audioContext = null;
+        let analyser = null;
+        let animationId = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div style="color: ${type === 'error' ? '#ff6b6b' : type === 'success' ? '#51cf66' : '#74c0fc'}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 1. 瀏覽器支援檢查
+        function checkBrowserSupport() {
+            const support = document.getElementById('browser-support');
+            let html = '';
+            
+            const checks = [
+                { name: 'getUserMedia', supported: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) },
+                { name: 'RTCPeerConnection', supported: !!window.RTCPeerConnection },
+                { name: 'WebSocket', supported: !!window.WebSocket },
+                { name: 'AudioContext', supported: !!(window.AudioContext || window.webkitAudioContext) }
+            ];
+            
+            checks.forEach(check => {
+                const className = check.supported ? 'success' : 'error';
+                html += `<div class="status ${className}">${check.name}: ${check.supported ? '✓ 支援' : '✗ 不支援'}</div>`;
+                log(`${check.name}: ${check.supported ? '支援' : '不支援'}`, check.supported ? 'success' : 'error');
+            });
+            
+            support.innerHTML = html;
+        }
+
+        // 2. 麥克風測試
+        async function testMicrophone() {
+            const status = document.getElementById('mic-status');
+            try {
+                log('請求麥克風權限...');
+                status.innerHTML = '<div class="status info">⏳ 請求麥克風權限...</div>';
+                
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const tracks = localStream.getAudioTracks();
+                log(`麥克風權限獲取成功！音軌數量: ${tracks.length}`, 'success');
+                
+                let html = '<div class="status success">✓ 麥克風訪問成功</div>';
+                tracks.forEach((track, i) => {
+                    const settings = track.getSettings();
+                    html += `<div class="status info">音軌 ${i+1}: ${track.label}<br>`;
+                    html += `- 採樣率: ${settings.sampleRate || 'N/A'} Hz<br>`;
+                    html += `- 聲道: ${settings.channelCount || 'N/A'}<br>`;
+                    html += `- 狀態: ${track.readyState}</div>`;
+                    log(`音軌 ${i+1}: ${track.label}, 狀態: ${track.readyState}`, 'success');
+                });
+                
+                status.innerHTML = html;
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ 錯誤: ${error.message}</div>`;
+                log(`麥克風測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+
+
+        // 4. WebRTC 測試
+        async function testWebRTC() {
+            const status = document.getElementById('webrtc-status');
+            try {
+                log('測試 WebRTC 連線...');
+                status.innerHTML = '<div class="status info">⏳ 測試中...</div>';
+                
+                // 創建兩個 peer connection 進行本機迴環測試
+                const pc1 = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                });
+                
+                const pc2 = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' }
+                    ]
+                });
+                
+                log('創建兩個 RTCPeerConnection 實例');
+                
+                // 添加音訊流
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
+                
+                localStream.getTracks().forEach(track => {
+                    pc1.addTrack(track, localStream);
+                    log(`添加音軌到 PC1: ${track.kind}`);
+                });
+                
+                // ICE 候選交換
+                pc1.onicecandidate = e => {
+                    if (e.candidate) {
+                        pc2.addIceCandidate(e.candidate);
+                        log('PC1 -> PC2: ICE candidate');
+                    }
+                };
+                
+                pc2.onicecandidate = e => {
+                    if (e.candidate) {
+                        pc1.addIceCandidate(e.candidate);
+                        log('PC2 -> PC1: ICE candidate');
+                    }
+                };
+                
+                // 監聽連線狀態
+                pc1.onconnectionstatechange = () => {
+                    log(`PC1 連線狀態: ${pc1.connectionState}`);
+                };
+                
+                pc2.onconnectionstatechange = () => {
+                    log(`PC2 連線狀態: ${pc2.connectionState}`);
+                };
+                
+                // 接收遠端流
+                pc2.ontrack = (e) => {
+                    log('PC2 收到音軌', 'success');
+                };
+                
+                // 創建 offer
+                const offer = await pc1.createOffer();
+                await pc1.setLocalDescription(offer);
+                log('PC1 創建並設置 local description (offer)');
+                
+                await pc2.setRemoteDescription(offer);
+                log('PC2 設置 remote description (offer)');
+                
+                // 創建 answer
+                const answer = await pc2.createAnswer();
+                await pc2.setLocalDescription(answer);
+                log('PC2 創建並設置 local description (answer)');
+                
+                await pc1.setRemoteDescription(answer);
+                log('PC1 設置 remote description (answer)');
+                
+                // 等待連線
+                setTimeout(() => {
+                    const state1 = pc1.connectionState;
+                    const state2 = pc2.connectionState;
+                    
+                    if (state1 === 'connected' && state2 === 'connected') {
+                        status.innerHTML = '<div class="status success">✓ WebRTC 連線成功！</div>';
+                        log('WebRTC 測試成功！', 'success');
+                    } else {
+                        status.innerHTML = `<div class="status error">連線狀態: PC1=${state1}, PC2=${state2}</div>`;
+                        log(`WebRTC 連線狀態不理想: PC1=${state1}, PC2=${state2}`, 'error');
+                    }
+                    
+                    // 清理
+                    setTimeout(() => {
+                        pc1.close();
+                        pc2.close();
+                        log('關閉測試連線');
+                    }, 2000);
+                }, 3000);
+                
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ 錯誤: ${error.message}</div>`;
+                log(`WebRTC 測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        // 5. 音訊分析器測試
+        async function testAudioAnalyser() {
+            const status = document.getElementById('analyser-status');
+            try {
+                log('測試音訊分析器...');
+                
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(localStream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+                
+                log('音訊分析器創建成功', 'success');
+                status.innerHTML = '<div class="status success">✓ 音訊分析器運作中... (請對著麥克風說話)</div>';
+                
+                visualize();
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ 錯誤: ${error.message}</div>`;
+                log(`音訊分析器測試失敗: ${error.message}`, 'error');
+            }
+        }
+
+        function visualize() {
+            const canvas = document.getElementById('visualizer');
+            const ctx = canvas.getContext('2d');
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            function draw() {
+                if (!analyser) return;
+                
+                animationId = requestAnimationFrame(draw);
+                
+                analyser.getByteTimeDomainData(dataArray);
+                
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#00ff00';
+                ctx.beginPath();
+                
+                const sliceWidth = canvas.width / bufferLength;
+                let x = 0;
+                
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    const y = v * canvas.height / 2;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                    
+                    x += sliceWidth;
+                }
+                
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
+                
+                // 計算音量
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    const normalized = (dataArray[i] - 128) / 128;
+                    sum += normalized * normalized;
+                }
+                const rms = Math.sqrt(sum / bufferLength);
+                const volume = Math.min(100, rms * 200);
+                
+                // 顯示音量條
+                ctx.fillStyle = volume > 50 ? '#ff5722' : volume > 20 ? '#ffeb3b' : '#4caf50';
+                ctx.fillRect(10, 10, volume * 5.8, 20);
+                ctx.strokeStyle = '#fff';
+                ctx.strokeRect(10, 10, 580, 20);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px monospace';
+                ctx.fillText(`音量: ${volume.toFixed(1)}%`, 15, 24);
+            }
+            
+            draw();
+        }
+
+        function stopAudioTest() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            analyser = null;
+            log('停止音訊測試');
+            document.getElementById('analyser-status').innerHTML = '<div class="status info">已停止</div>';
+        }
+
+        // 6. 音訊播放測試
+        let audioElement = null;
+        let micAudioContext = null;
+        let gainNode = null;
+        
+        // 生成測試音效（440Hz 正弦波）
+        function generateTestTone(duration = 2) {
+            const sampleRate = 44100;
+            const numSamples = sampleRate * duration;
+            const audioBuffer = new AudioContext().createBuffer(1, numSamples, sampleRate);
+            const channelData = audioBuffer.getChannelData(0);
+            
+            const frequency = 440; // A4 音符
+            for (let i = 0; i < numSamples; i++) {
+                channelData[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.3;
+            }
+            
+            return audioBuffer;
+        }
+        
+        async function testAudioPlayback() {
+            const status = document.getElementById('playback-status');
+            try {
+                log('生成測試音效...');
+                status.innerHTML = '<div class="status info">⏳ 生成測試音效...</div>';
+                
+                if (!audioContext || audioContext.state === 'closed') {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // 生成測試音效
+                const audioBuffer = generateTestTone(2);
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                
+                // 創建增益節點控制音量
+                gainNode = audioContext.createGain();
+                const volumeControl = document.getElementById('volumeControl');
+                gainNode.gain.value = volumeControl.value / 100;
+                
+                source.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                log('播放 440Hz 測試音效（2秒）', 'success');
+                status.innerHTML = '<div class="status success">🔊 播放測試音效中...</div>';
+                
+                source.start(0);
+                
+                source.onended = () => {
+                    status.innerHTML = '<div class="status info">✓ 播放完成</div>';
+                    log('測試音效播放完成');
+                };
+                
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ 錯誤: ${error.message}</div>`;
+                log(`音訊播放測試失敗: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testMicPlayback() {
+            const status = document.getElementById('playback-status');
+            try {
+                log('開始播放麥克風音訊...');
+                status.innerHTML = '<div class="status info">⏳ 獲取麥克風權限...</div>';
+                
+                // 獲取麥克風
+                if (!localStream) {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                }
+                
+                // 創建音訊上下文
+                if (!micAudioContext || micAudioContext.state === 'closed') {
+                    micAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // 創建音訊源
+                const source = micAudioContext.createMediaStreamSource(localStream);
+                
+                // 創建增益節點控制音量
+                gainNode = micAudioContext.createGain();
+                const volumeControl = document.getElementById('volumeControl');
+                gainNode.gain.value = volumeControl.value / 100;
+                
+                // 連線音訊節點
+                source.connect(gainNode);
+                gainNode.connect(micAudioContext.destination);
+                
+                log('麥克風音訊播放中（可能會產生回音）', 'success');
+                status.innerHTML = '<div class="status success">🎤 播放麥克風音訊中...<br><small>⚠️ 建議使用耳機以避免回音</small></div>';
+                
+            } catch (error) {
+                status.innerHTML = `<div class="status error">✗ 錯誤: ${error.message}</div>`;
+                log(`麥克風播放失敗: ${error.message}`, 'error');
+            }
+        }
+        
+        function stopPlayback() {
+            if (micAudioContext && micAudioContext.state !== 'closed') {
+                micAudioContext.close();
+                micAudioContext = null;
+            }
+            if (audioContext && audioContext.state !== 'closed') {
+                // 不關閉 audioContext，因為其他測試可能還在使用
+            }
+            gainNode = null;
+            log('停止音訊播放');
+            document.getElementById('playback-status').innerHTML = '<div class="status info">已停止</div>';
+        }
+        
+        // 音量控制
+        document.addEventListener('DOMContentLoaded', () => {
+            const volumeControl = document.getElementById('volumeControl');
+            const volumeValue = document.getElementById('volumeValue');
+            
+            volumeControl.addEventListener('input', (e) => {
+                const volume = e.target.value;
+                volumeValue.textContent = volume + '%';
+                
+                // 如果有增益節點，即時更新音量
+                if (gainNode) {
+                    gainNode.gain.value = volume / 100;
+                    log(`音量調整為: ${volume}%`);
+                }
+            });
+        });
+
+        // WebSocket 測試輕量 wrapper & 事件
+        function createSocketForTest() {
+            let ws;
+            let connected = false;
+            let id = null;
+            const handlers = new Map();
+
+            function connect() {
+                // Connect to WebSocket through the proxy (使用當前頁面的 protocol 和 domain)
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const url = `${protocol}//${window.location.host}/ws`;
+                log(`連線到: ${url}`, 'info');
+                ws = new WebSocket(url);
+
+                ws.addEventListener('open', () => {
+                    log('WebSocket: open', 'success');
+                });
+
+                ws.addEventListener('message', (ev) => {
+                    try {
+                        const msg = JSON.parse(ev.data);
+                        const type = msg.type;
+                        const payload = msg.payload;
+
+                        if (type === 'connected') {
+                            id = payload.id;
+                            connected = true;
+                            if (handlers.has('connect')) handlers.get('connect')(id);
+                            return;
+                        }
+
+                        if (handlers.has(type)) {
+                            handlers.get(type)(payload);
+                        } else {
+                            log(`收到未綁定事件: ${type} -> ${JSON.stringify(payload)}`);
+                        }
+                    } catch (e) {
+                        log('WebSocket: invalid message ' + e, 'error');
+                    }
+                });
+
+                ws.addEventListener('close', () => {
+                    connected = false;
+                    if (handlers.has('disconnect')) handlers.get('disconnect')();
+                    log('WebSocket: closed', 'info');
+                });
+
+                ws.addEventListener('error', (e) => {
+                    connected = false;
+                    if (handlers.has('error')) handlers.get('error')(e);
+                    log('WebSocket: error', 'error');
+                });
+            }
+
+            connect();
+
+            return {
+                on: (event, cb) => handlers.set(event, cb),
+                emit: (event, payload) => {
+                    try {
+                        ws.send(JSON.stringify({ type: event, payload: payload || null }));
+                    } catch (e) {
+                        log('WebSocket send error: ' + e, 'error');
+                    }
+                },
+                close: () => { if (ws) ws.close(); },
+                get connected() { return connected; },
+                get id() { return id; }
+            };
+        }
+
+        let testSocketObj = null;
+
+        function testSocket() {
+            const status = document.getElementById('socket-status');
+            if (testSocketObj && testSocketObj.connected) {
+                status.innerHTML = '<div class="status success">✓ 已連線</div>';
+                return;
+            }
+
+            log('建立 WebSocket 連線...');
+            status.innerHTML = '<div class="status info">⏳ 連線中...</div>';
+
+            testSocketObj = createSocketForTest();
+
+            testSocketObj.on('connect', (id) => {
+                status.innerHTML = `<div class="status success">✓ 連線成功，ID: ${id}</div>`;
+                log(`WebSocket connect id=${id}`, 'success');
+            });
+
+            testSocketObj.on('online-users-list', (users) => {
+                log('online-users-list: ' + JSON.stringify(users), 'info');
+            });
+
+            testSocketObj.on('user-joined', (data) => {
+                log('user-joined: ' + JSON.stringify(data), 'info');
+            });
+
+            testSocketObj.on('current-users', (users) => {
+                log('current-users: ' + JSON.stringify(users), 'info');
+            });
+
+            testSocketObj.on('user-left', (id) => {
+                log('user-left: ' + id, 'info');
+            });
+
+            testSocketObj.on('offer', (data) => {
+                log('收到 offer: ' + JSON.stringify(data), 'info');
+            });
+
+            testSocketObj.on('answer', (data) => {
+                log('收到 answer: ' + JSON.stringify(data), 'info');
+            });
+
+            testSocketObj.on('ice-candidate', (data) => {
+                log('收到 ice-candidate: ' + JSON.stringify(data), 'info');
+            });
+
+            testSocketObj.on('error', (e) => {
+                // 區分伺服器回傳的 error payload 與 transport error event
+                if (e && e.message) {
+                    log(`伺服器錯誤: ${e.message}`, 'error');
+                    status.innerHTML = `<div class="status error">✗ 伺服器錯誤: ${e.message}</div>`;
+                } else {
+                    try {
+                        log('WebSocket transport error: ' + JSON.stringify(e), 'error');
+                    } catch (err) {
+                        log('WebSocket transport error', 'error');
+                    }
+                    status.innerHTML = `<div class="status error">✗ 連線錯誤</div>`;
+                }
+            });
+
+            testSocketObj.on('disconnect', () => {
+                status.innerHTML = '<div class="status error">✗ 已斷線</div>';
+            });
+        }
+
+        function requestOnlineUsers() {
+            if (!testSocketObj) { alert('請先連線'); return; }
+            testSocketObj.emit('get-online-users');
+            log('已請求線上使用者列表');
+        }
+
+        function joinAsTester() {
+            if (!testSocketObj) { alert('請先連線'); return; }
+            const name = 'Tester-' + Math.floor(Math.random() * 1000);
+            testSocketObj.emit('join-room', { userName: name });
+            log('join-room -> ' + name);
+        }
+
+        function sendTestOffer() {
+            const target = document.getElementById('targetId').value.trim();
+            if (!testSocketObj) { alert('請先連線'); return; }
+            if (!target) { alert('請填入 target userId'); return; }
+            testSocketObj.emit('offer', { target: target, offer: { sdp: 'dummy-offer' } });
+            log('發送 offer 到 ' + target);
+        }
+
+        function sendTestAnswer() {
+            const target = document.getElementById('targetId').value.trim();
+            if (!testSocketObj) { alert('請先連線'); return; }
+            if (!target) { alert('請填入 target userId'); return; }
+            testSocketObj.emit('answer', { target: target, answer: { sdp: 'dummy-answer' } });
+            log('發送 answer 到 ' + target);
+        }
+
+        function sendTestCandidate() {
+            const target = document.getElementById('targetId').value.trim();
+            if (!testSocketObj) { alert('請先連線'); return; }
+            if (!target) { alert('請填入 target userId'); return; }
+            testSocketObj.emit('ice-candidate', { target: target, candidate: { candidate: 'dummy-candidate' } });
+            log('發送 ice-candidate 到 ' + target);
+        }
+
+        // 頁面載入時自動檢查瀏覽器支援
+        window.onload = () => {
+            checkBrowserSupport();
+            log('=== WebRTC 診斷工具已就緒 ===', 'success');
+        };
+    </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 
@@ -11,6 +12,7 @@ import (
 	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 type API struct {
@@ -28,15 +30,41 @@ type API struct {
 	practiceRepo     domain.PracticeRepository
 	transcriptRepo   domain.TranscriptRepository
 	userRepo         domain.UserRepository
+	webrtcRepo       domain.WebRTCRepository
+	rateLimiter      *RateLimiter
+	upgrader         websocket.Upgrader
 }
 
-func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string) *API {
+func NewAPI(url string, transport *http.Transport, conn repository.Connection, jwksURL string, allowedOrigins []string) *API {
 	aiCorrectionRepo := repository.NewPostgresAICorrection(conn)
 	mistakeRepo := repository.NewPostgresMistake(conn)
 	noteRepo := repository.NewPostgresNote(conn)
 	practiceRepo := repository.NewPostgresPractice(conn)
 	transcriptRepo := repository.NewPostgresTranscript(conn)
 	userRepo := repository.NewPostgresUser(conn)
+	webrtcRepo := NewHub()
+	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
+
+	// 配置 WebSocket upgrader 的來源驗證
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			if len(allowedOrigins) == 0 {
+				// 開發模式：允許所有來源
+				if gin.IsDebugging() {
+					return true
+				}
+				// 生產模式：必須設定 ALLOWED_ORIGINS
+				return false
+			}
+			origin := r.Header.Get("Origin")
+			for _, allowed := range allowedOrigins {
+				if allowed == "*" || allowed == origin {
+					return true
+				}
+			}
+			return false
+		},
+	}
 
 	return &API{
 		apiToolsURL:      url,
@@ -48,11 +76,23 @@ func NewAPI(url string, transport *http.Transport, conn repository.Connection, j
 		practiceRepo:     practiceRepo,
 		transcriptRepo:   transcriptRepo,
 		userRepo:         userRepo,
+		webrtcRepo:       webrtcRepo,
+		rateLimiter:      rateLimiter,
+		upgrader:         upgrader,
+	}
+}
+
+// Close stops the RateLimiter's cleanup goroutine
+func (api *API) Close() {
+	if api.rateLimiter != nil {
+		api.rateLimiter.Close()
 	}
 }
 
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+	// WebRTC WebSocket endpoint
+	r.GET("/ws", api.ServeWebSocket)
 
 	v1 := r.Group("/v1")
 	v1.Use(api.AuthMiddleware())
