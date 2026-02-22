@@ -2,22 +2,29 @@ package domain
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
-// Transcript represents the jpcorrect.transcript table
+// Transcript represents a transcript in the jpcorrect system.
+// Maps to jpcorrect.transcript table.
 type Transcript struct {
-	TranscriptID int    `db:"transcript_id" json:"transcript_id"`
-	MistakeID    int    `db:"mistake_id" json:"mistake_id"`
-	Content      string `db:"content" json:"content"`
-	Furigana     string `db:"furigana" json:"furigana"`
-	Accent       string `db:"accent" json:"accent"`
+	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"transcript_id"`
+	EventID    uuid.UUID `gorm:"type:uuid;index" json:"event_id"`
+	UserID     uuid.UUID `gorm:"type:uuid;index" json:"user_id"`
+	Transcript string    `json:"transcript"`
+	Accent     string    `gorm:"type:jsonb" json:"accent"`
+	StartTime  float64   `json:"start_time"`
+	EndTime    float64   `json:"end_time"`
+	Note       *string   `json:"note"`
 }
 
 type TranscriptRepository interface {
-	GetByID(ctx context.Context, transcriptID int) (*Transcript, error)
-	GetByMistakeID(ctx context.Context, mistakeID int) (*Transcript, error)
+	GetByID(ctx context.Context, transcriptID uuid.UUID) (*Transcript, error)
+	GetByEventID(ctx context.Context, eventID uuid.UUID) ([]*Transcript, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*Transcript, error)
 
 	Create(ctx context.Context, transcript *Transcript) error
 	Update(ctx context.Context, transcript *Transcript) error
-	Delete(ctx context.Context, transcriptID int) error
+	Delete(ctx context.Context, transcriptID uuid.UUID) error
 }
