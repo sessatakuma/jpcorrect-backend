@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (a *API) TranscriptGetHandler(c *gin.Context) {
+func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -18,39 +18,39 @@ func (a *API) TranscriptGetHandler(c *gin.Context) {
 		return
 	}
 
-	transcript, err := a.transcriptRepo.GetByID(c.Request.Context(), id)
+	attendee, err := a.eventAttendeeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "EventAttendee not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, transcript)
+	c.JSON(http.StatusOK, attendee)
 }
 
-func (a *API) TranscriptCreateHandler(c *gin.Context) {
-	var transcript domain.Transcript
-	if err := c.ShouldBindJSON(&transcript); err != nil {
+func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
+	var attendee domain.EventAttendee
+	if err := c.ShouldBindJSON(&attendee); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.transcriptRepo.Create(c.Request.Context(), &transcript); err != nil {
+	if err := a.eventAttendeeRepo.Create(c.Request.Context(), &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
-			c.JSON(http.StatusConflict, gin.H{"error": "Transcript already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "EventAttendee already exists"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, transcript)
+	c.JSON(http.StatusCreated, attendee)
 }
 
-func (a *API) TranscriptUpdateHandler(c *gin.Context) {
+func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -58,35 +58,33 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
+	_, err = a.eventAttendeeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "EventAttendee not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var transcript domain.Transcript
-	if err := c.ShouldBindJSON(&transcript); err != nil {
+	var attendee domain.EventAttendee
+	if err := c.ShouldBindJSON(&attendee); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	transcript.ID = id
-	if err := a.transcriptRepo.Update(c.Request.Context(), &transcript); err != nil {
+	attendee.ID = id
+	if err := a.eventAttendeeRepo.Update(c.Request.Context(), &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
-			c.JSON(http.StatusConflict, gin.H{"error": "Transcript already exists"})
+			c.JSON(http.StatusConflict, gin.H{"error": "EventAttendee already exists"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Return updated object
-	updated, err := a.transcriptRepo.GetByID(c.Request.Context(), id)
+	updated, err := a.eventAttendeeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -95,7 +93,7 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-func (a *API) TranscriptDeleteHandler(c *gin.Context) {
+func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
 	if err != nil {
@@ -103,20 +101,19 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
+	_, err = a.eventAttendeeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "EventAttendee not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.transcriptRepo.Delete(c.Request.Context(), id); err != nil {
+	if err := a.eventAttendeeRepo.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, domain.ErrHasRelatedRecords) {
-			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete transcript: has related records"})
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete event attendee: has related records"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -126,7 +123,7 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
+func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
 	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
@@ -134,16 +131,16 @@ func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 		return
 	}
 
-	transcripts, err := a.transcriptRepo.GetByEventID(c.Request.Context(), eventID)
+	attendees, err := a.eventAttendeeRepo.GetByEventID(c.Request.Context(), eventID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, transcripts)
+	c.JSON(http.StatusOK, attendees)
 }
 
-func (a *API) TranscriptGetByUserHandler(c *gin.Context) {
+func (a *API) EventAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
@@ -151,11 +148,11 @@ func (a *API) TranscriptGetByUserHandler(c *gin.Context) {
 		return
 	}
 
-	transcripts, err := a.transcriptRepo.GetByUserID(c.Request.Context(), userID)
+	attendees, err := a.eventAttendeeRepo.GetByUserID(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, transcripts)
+	c.JSON(http.StatusOK, attendees)
 }

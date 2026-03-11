@@ -29,6 +29,7 @@ func NewAuthError(statusCode int, message, details string) *AuthError {
 }
 
 var (
-	ErrNotFound       = errors.New("record not found")
-	ErrDuplicateEntry = errors.New("duplicate entry")
+	ErrNotFound          = errors.New("record not found")
+	ErrDuplicateEntry    = errors.New("duplicate entry")
+	ErrHasRelatedRecords = errors.New("record has related records")
 )
