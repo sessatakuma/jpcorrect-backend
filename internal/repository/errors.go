@@ -2,8 +2,8 @@ package repository
 
 import (
 	"errors"
-	"strings"
 
+	"github.com/jackc/pgconn"
 	"gorm.io/gorm"
 
 	"jpcorrect-backend/internal/domain"
@@ -19,9 +19,15 @@ func MapGormError(err error) error {
 		return domain.ErrNotFound
 	}
 
-	// PostgreSQL unique violation usually contains "duplicate key" in the error message
-	if strings.Contains(err.Error(), "duplicate key") {
-		return domain.ErrDuplicateEntry
+	// PostgreSQL errors
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23505": // Unique violation
+			return domain.ErrDuplicateEntry
+		case "23503": // Foreign key violation
+			return domain.ErrHasRelatedRecords
+		}
 	}
 
 	return err

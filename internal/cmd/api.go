@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,16 +24,10 @@ func Execute() {
 		os.Exit(1)
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Fatalf("failed to get database instance: %v", err)
-	}
-	if err := sqlDB.Close(); err != nil {
-		log.Printf("failed to close database connection: %v", err)
-	}
-
 	if err := db.AutoMigrate(
 		&domain.User{},
+		&domain.Guild{},
+		&domain.GuildAttendee{},
 		&domain.Event{},
 		&domain.EventAttendee{},
 		&domain.Transcript{},
@@ -53,7 +48,17 @@ func Execute() {
 		log.Fatalf("JWKS_URL environment variable is required")
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db, jwksURL)
+	allowedOrigins := []string{}
+	if originsEnv := os.Getenv("ALLOWED_ORIGINS"); originsEnv != "" {
+		allowedOrigins = strings.Split(originsEnv, ",")
+		for i, origin := range allowedOrigins {
+			allowedOrigins[i] = strings.TrimSpace(origin)
+		}
+	}
+
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db, jwksURL, allowedOrigins)
+	defer a.Close()
+
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer initCancel()
 	if err := a.InitializeJWKS(initCtx); err != nil {
@@ -88,6 +93,8 @@ func Execute() {
 		return err == nil
 	}
 
+	// Initializing the server in a goroutine so that
+	// it won't block the graceful shutdown handling below
 	go func() {
 		if fileExists(certPath) && fileExists(keyPath) {
 			log.Println("🔒 使用 HTTPS 模式")

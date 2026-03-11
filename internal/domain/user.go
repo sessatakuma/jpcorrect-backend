@@ -8,19 +8,42 @@ import (
 	"gorm.io/gorm"
 )
 
+// UserRole represents the role of a user.
+type UserRole string
+
+const (
+	UserRoleUser  UserRole = "user"
+	UserRoleAdmin UserRole = "admin"
+	UserRoleStaff UserRole = "staff"
+)
+
+// UserStatus represents the status of a user account.
+type UserStatus string
+
+const (
+	UserStatusActive    UserStatus = "active"
+	UserStatusBanned    UserStatus = "banned"
+	UserStatusSuspended UserStatus = "suspended"
+)
+
 // User represents a user in the jpcorrect system.
 // Maps to jpcorrect.user table.
 type User struct {
-	ID         uuid.UUID      `gorm:"type:uuid;primaryKey" json:"user_id"`
-	Email      string         `gorm:"uniqueIndex" json:"email"`
-	Name       string         `json:"name"`
-	AvatarURL  *string        `json:"avatar_url"`
-	Timezone   string         `gorm:"default:Asia/Taipei" json:"timezone"`
-	LateStreak int            `gorm:"default:0" json:"late_streak"`
-	Points     int            `gorm:"default:0" json:"points"`
-	Level      int            `gorm:"default:0" json:"level"`
-	CreatedAt  time.Time      `json:"created_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"user_id"`
+	Email           string         `gorm:"uniqueIndex" json:"email"`
+	Name            string         `json:"name"`
+	AvatarURL       *string        `json:"avatar_url"`
+	PasswordHash    *string        `gorm:"column:password_hash" json:"-"`
+	IsEmailVerified bool           `gorm:"default:false" json:"is_email_verified"`
+	Role            UserRole       `gorm:"default:user" json:"role"`
+	Status          UserStatus     `gorm:"default:active" json:"status"`
+	Timezone        string         `gorm:"default:Asia/Taipei" json:"timezone"`
+	LateStreak      int            `gorm:"default:0" json:"late_streak"`
+	Points          int            `gorm:"default:0" json:"points"`
+	Level           int            `gorm:"default:0" json:"level"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+	DeletedAt       gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
 
 type UserRepository interface {

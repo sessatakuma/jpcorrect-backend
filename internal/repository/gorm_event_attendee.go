@@ -45,6 +45,9 @@ func (r *gormEventAttendeeRepository) GetByUserID(ctx context.Context, userID uu
 }
 
 func (r *gormEventAttendeeRepository) Create(ctx context.Context, attendee *domain.EventAttendee) error {
+	if attendee.ID == uuid.Nil {
+		attendee.ID = uuid.New()
+	}
 	err := r.db.WithContext(ctx).Create(attendee).Error
 	return MapGormError(err)
 }

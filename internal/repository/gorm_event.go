@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -51,32 +50,34 @@ func (r *gormEventRepository) Update(ctx context.Context, event *domain.Event) e
 }
 
 func (r *gormEventRepository) Delete(ctx context.Context, eventID uuid.UUID) error {
-	var attendeeCount int64
-	err := r.db.WithContext(ctx).Model(&domain.EventAttendee{}).Where("event_id = ?", eventID).Count(&attendeeCount).Error
-	if err != nil {
-		return MapGormError(err)
-	}
-	if attendeeCount > 0 {
-		return errors.New("cannot delete event: has attendees")
-	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var attendeeCount int64
+		err := tx.Model(&domain.EventAttendee{}).Where("event_id = ?", eventID).Count(&attendeeCount).Error
+		if err != nil {
+			return MapGormError(err)
+		}
+		if attendeeCount > 0 {
+			return domain.ErrHasRelatedRecords
+		}
 
-	var transcriptCount int64
-	err = r.db.WithContext(ctx).Model(&domain.Transcript{}).Where("event_id = ?", eventID).Count(&transcriptCount).Error
-	if err != nil {
-		return MapGormError(err)
-	}
-	if transcriptCount > 0 {
-		return errors.New("cannot delete event: has transcripts")
-	}
+		var transcriptCount int64
+		err = tx.Model(&domain.Transcript{}).Where("event_id = ?", eventID).Count(&transcriptCount).Error
+		if err != nil {
+			return MapGormError(err)
+		}
+		if transcriptCount > 0 {
+			return domain.ErrHasRelatedRecords
+		}
 
-	var mistakeCount int64
-	err = r.db.WithContext(ctx).Model(&domain.Mistake{}).Where("event_id = ?", eventID).Count(&mistakeCount).Error
-	if err != nil {
-		return MapGormError(err)
-	}
-	if mistakeCount > 0 {
-		return errors.New("cannot delete event: has mistakes")
-	}
+		var mistakeCount int64
+		err = tx.Model(&domain.Mistake{}).Where("event_id = ?", eventID).Count(&mistakeCount).Error
+		if err != nil {
+			return MapGormError(err)
+		}
+		if mistakeCount > 0 {
+			return domain.ErrHasRelatedRecords
+		}
 
-	return MapGormError(r.db.WithContext(ctx).Delete(&domain.Event{}, "id = ?", eventID).Error)
+		return MapGormError(tx.Delete(&domain.Event{}, "id = ?", eventID).Error)
+	})
 }

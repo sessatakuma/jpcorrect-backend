@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -10,25 +11,27 @@ import (
 type MistakeType string
 
 const (
-	MistakeTypeGrammar   MistakeType = "grammar"
-	MistakeTypeVocab     MistakeType = "vocab"
-	MistakeTypePronounce MistakeType = "pronounce"
-	MistakeTypeAdvanced  MistakeType = "advanced"
+	MistakeTypeGrammar       MistakeType = "grammar"
+	MistakeTypeVocab         MistakeType = "vocab"
+	MistakeTypePronunciation MistakeType = "pronunciation"
+	MistakeTypeAdvanced      MistakeType = "advanced"
 )
 
 // Mistake represents a mistake in the jpcorrect system.
 // Maps to jpcorrect.mistake table.
 type Mistake struct {
-	ID         uuid.UUID   `gorm:"type:uuid;primaryKey" json:"mistake_id"`
-	EventID    uuid.UUID   `gorm:"type:uuid;index" json:"event_id"`
-	UserID     uuid.UUID   `gorm:"type:uuid;index" json:"user_id"`
-	Type       MistakeType `gorm:"default:grammar" json:"type"`
-	OriginText string      `json:"origin_text"`
-	FixedText  string      `json:"fixed_text"`
-	StartTime  float64     `json:"start_time"`
-	EndTime    float64     `json:"end_time"`
-	Comment    *string     `json:"comment"`
-	Note       *string     `json:"note"`
+	ID             uuid.UUID   `gorm:"type:uuid;primaryKey" json:"mistake_id"`
+	EventID        uuid.UUID   `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_id"`
+	UserID         uuid.UUID   `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_id"`
+	Type           MistakeType `gorm:"default:grammar" json:"type"`
+	OriginText     string      `gorm:"type:text" json:"origin_text"`
+	FixedText      string      `gorm:"type:text" json:"fixed_text"`
+	StartOffsetSec float64     `json:"start_offset_sec"`
+	EndOffsetSec   float64     `json:"end_offset_sec"`
+	Comment        *string     `gorm:"type:text" json:"comment"`
+	Note           *string     `gorm:"type:text" json:"note"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 type MistakeRepository interface {

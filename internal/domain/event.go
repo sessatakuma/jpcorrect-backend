@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // EventMode represents the mode of an event.
@@ -20,15 +21,18 @@ const (
 // Event represents an event in the jpcorrect system.
 // Maps to jpcorrect.event table.
 type Event struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"event_id"`
-	Title       string    `json:"title"`
-	Description *string   `json:"description"`
-	StartTime   time.Time `json:"start_time"`
-	ExpDuration float64   `json:"exp_duration"`
-	ActDuration *float64  `json:"act_duration"`
-	RecordLink  *string   `json:"record_link"`
-	Mode        EventMode `gorm:"default:report" json:"mode"`
-	Note        *string   `json:"note"`
+	ID               uuid.UUID      `gorm:"type:uuid;primaryKey" json:"event_id"`
+	Title            string         `json:"title"`
+	Description      *string        `gorm:"type:text" json:"description"`
+	StartTime        time.Time      `json:"start_time"`
+	ExpectedDuration float64        `json:"expected_duration"`
+	ActualDuration   *float64       `json:"actual_duration"`
+	RecordLink       *string        `json:"record_link"`
+	Mode             EventMode      `gorm:"default:report" json:"mode"`
+	Note             *string        `gorm:"type:text" json:"note"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
 
 type EventRepository interface {

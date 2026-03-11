@@ -2,21 +2,25 @@ package domain
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
 // Transcript represents a transcript in the jpcorrect system.
 // Maps to jpcorrect.transcript table.
 type Transcript struct {
-	ID         uuid.UUID `gorm:"type:uuid;primaryKey" json:"transcript_id"`
-	EventID    uuid.UUID `gorm:"type:uuid;index" json:"event_id"`
-	UserID     uuid.UUID `gorm:"type:uuid;index" json:"user_id"`
-	Transcript string    `json:"transcript"`
-	Accent     string    `gorm:"type:jsonb" json:"accent"`
-	StartTime  float64   `json:"start_time"`
-	EndTime    float64   `json:"end_time"`
-	Note       *string   `json:"note"`
+	ID             uuid.UUID      `gorm:"type:uuid;primaryKey" json:"transcript_id"`
+	EventID        uuid.UUID      `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_id"`
+	UserID         uuid.UUID      `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_id"`
+	Content        string         `gorm:"type:text" json:"content"`
+	Accent         datatypes.JSON `gorm:"type:jsonb" json:"accent"`
+	StartOffsetSec float64        `json:"start_offset_sec"`
+	EndOffsetSec   float64        `json:"end_offset_sec"`
+	Note           *string        `gorm:"type:text" json:"note"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 type TranscriptRepository interface {

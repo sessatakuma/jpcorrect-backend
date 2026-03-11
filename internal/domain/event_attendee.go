@@ -12,18 +12,19 @@ type EventAttendeeRole string
 
 const (
 	EventAttendeeRoleMember EventAttendeeRole = "member"
-	EventAttendeeRoleEmcee  EventAttendeeRole = "emcee"
+	// Emcee is the event host who manages the practice session flow
+	EventAttendeeRoleEmcee EventAttendeeRole = "emcee"
 )
 
 // EventAttendee represents an attendee of an event.
 // Maps to jpcorrect.event_attendee table.
 type EventAttendee struct {
-	ID       uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
-	EventID  uuid.UUID         `gorm:"type:uuid;index" json:"event_id"`
-	UserID   uuid.UUID         `gorm:"type:uuid;index" json:"user_id"`
+	ID       uuid.UUID         `gorm:"type:uuid;primaryKey" json:"event_attendee_id"`
+	EventID  uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_event_attendee_event_user,priority:1;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_id"`
+	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_event_attendee_event_user,priority:2;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_id"`
 	Role     EventAttendeeRole `gorm:"default:member" json:"role"`
 	JoinedAt *time.Time        `json:"joined_at"`
-	LeavedAt *time.Time        `json:"leaved_at"`
+	LeftAt   *time.Time        `json:"left_at"`
 }
 
 type EventAttendeeRepository interface {
