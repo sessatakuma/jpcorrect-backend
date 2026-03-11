@@ -43,9 +43,3 @@ certs/
 
 # Temporary files
 tmp/
-
-# AGENTS workspace
-.sisyphus/
-
-# Build output
-bin/
