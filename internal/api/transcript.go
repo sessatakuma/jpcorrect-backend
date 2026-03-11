@@ -39,6 +39,10 @@ func (a *API) TranscriptCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.transcriptRepo.Create(c.Request.Context(), &transcript); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Transcript already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -73,6 +77,10 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 
 	transcript.ID = id
 	if err := a.transcriptRepo.Update(c.Request.Context(), &transcript); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Transcript already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -107,17 +115,19 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	}
 
 	if err := a.transcriptRepo.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrHasRelatedRecords) {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete transcript: has related records"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
-func (a *API) TranscriptGetByMistakeHandler(c *gin.Context) {
-	// Transcript now links to Event, not Mistake
-	// Route uses mistake_id for backward compatibility, but it's actually event_id
-	eventIDStr := c.Param("mistake_id")
+func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
+	eventIDStr := c.Param("event_id")
 	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
@@ -126,10 +136,23 @@ func (a *API) TranscriptGetByMistakeHandler(c *gin.Context) {
 
 	transcripts, err := a.transcriptRepo.GetByEventID(c.Request.Context(), eventID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcripts not found"})
-			return
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, transcripts)
+}
+
+func (a *API) TranscriptGetByUserHandler(c *gin.Context) {
+	userIDStr := c.Param("user_id")
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+		return
+	}
+
+	transcripts, err := a.transcriptRepo.GetByUserID(c.Request.Context(), userID)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -39,6 +39,10 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.eventRepo.Create(c.Request.Context(), &practice); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Event already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -73,6 +77,10 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 
 	practice.ID = id
 	if err := a.eventRepo.Update(c.Request.Context(), &practice); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Event already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -107,11 +115,15 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 	}
 
 	if err := a.eventRepo.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrHasRelatedRecords) {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete event: has related records"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 func (a *API) PracticeGetByUserHandler(c *gin.Context) {
@@ -124,10 +136,6 @@ func (a *API) PracticeGetByUserHandler(c *gin.Context) {
 
 	practices, err := a.eventRepo.GetByUserID(c.Request.Context(), userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Practices not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

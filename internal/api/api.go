@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 
@@ -11,6 +12,7 @@ import (
 	"jpcorrect-backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 )
 
@@ -25,23 +27,71 @@ type API struct {
 	jwksMutex         sync.Mutex
 	jwksErr           error
 	userRepo          domain.UserRepository
+	guildRepo         domain.GuildRepository
+	guildAttendeeRepo domain.GuildAttendeeRepository
 	eventRepo         domain.EventRepository
 	eventAttendeeRepo domain.EventAttendeeRepository
 	transcriptRepo    domain.TranscriptRepository
 	mistakeRepo       domain.MistakeRepository
+	webrtcHub         domain.WebRTCHub
+	rateLimiter       *RateLimiter
+	upgrader          websocket.Upgrader
 }
 
-func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string) *API {
+func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
+	userRepo := repository.NewGormUserRepository(db)
+	guildRepo := repository.NewGormGuildRepository(db)
+	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
+	eventRepo := repository.NewGormEventRepository(db)
+	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
+	transcriptRepo := repository.NewGormTranscriptRepository(db)
+	mistakeRepo := repository.NewGormMistakeRepository(db)
+	webrtcHub := NewHub()
+	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
+
+	// 配置 WebSocket upgrader 的來源驗證
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			if len(allowedOrigins) == 0 {
+				// 開發模式：允許所有來源
+				if gin.IsDebugging() {
+					return true
+				}
+				// 生產模式：必須設定 ALLOWED_ORIGINS
+				return false
+			}
+			origin := r.Header.Get("Origin")
+			for _, allowed := range allowedOrigins {
+				if allowed == "*" || allowed == origin {
+					return true
+				}
+			}
+			return false
+		},
+	}
+
 	return &API{
 		db:                db,
 		apiToolsURL:       url,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
-		userRepo:          repository.NewGormUserRepository(db),
-		eventRepo:         repository.NewGormEventRepository(db),
-		eventAttendeeRepo: repository.NewGormEventAttendeeRepository(db),
-		transcriptRepo:    repository.NewGormTranscriptRepository(db),
-		mistakeRepo:       repository.NewGormMistakeRepository(db),
+		userRepo:          userRepo,
+		guildRepo:         guildRepo,
+		guildAttendeeRepo: guildAttendeeRepo,
+		eventRepo:         eventRepo,
+		eventAttendeeRepo: eventAttendeeRepo,
+		transcriptRepo:    transcriptRepo,
+		mistakeRepo:       mistakeRepo,
+		webrtcHub:         webrtcHub,
+		rateLimiter:       rateLimiter,
+		upgrader:          upgrader,
+	}
+}
+
+// Close stops the RateLimiter's cleanup goroutine
+func (api *API) Close() {
+	if api.rateLimiter != nil {
+		api.rateLimiter.Close()
 	}
 }
 
@@ -69,7 +119,7 @@ func Register(r *gin.Engine, api *API) {
 			mistakes.GET("/:id", api.MistakeGetHandler)
 			mistakes.PUT("/:id", api.MistakeUpdateHandler)
 			mistakes.DELETE("/:id", api.MistakeDeleteHandler)
-			mistakes.GET("/event/:event_id", api.MistakeGetByPracticeHandler)
+			mistakes.GET("/event/:event_id", api.MistakeGetByEventHandler)
 			mistakes.GET("/user/:user_id", api.MistakeGetByUserHandler)
 		}
 
@@ -83,6 +133,26 @@ func Register(r *gin.Engine, api *API) {
 			practices.GET("/user/:user_id", api.PracticeGetByUserHandler)
 		}
 
+		// Guilds
+		guilds := v1.Group("/guilds")
+		{
+			guilds.POST("", api.GuildCreateHandler)
+			guilds.GET("/:id", api.GuildGetHandler)
+			guilds.PUT("/:id", api.GuildUpdateHandler)
+			guilds.DELETE("/:id", api.GuildDeleteHandler)
+		}
+
+		// Guild Attendees
+		guildAttendees := v1.Group("/guild-attendees")
+		{
+			guildAttendees.POST("", api.GuildAttendeeCreateHandler)
+			guildAttendees.GET("/:id", api.GuildAttendeeGetHandler)
+			guildAttendees.PUT("/:id", api.GuildAttendeeUpdateHandler)
+			guildAttendees.DELETE("/:id", api.GuildAttendeeDeleteHandler)
+			guildAttendees.GET("/guild/:guild_id", api.GuildAttendeeGetByGuildHandler)
+			guildAttendees.GET("/user/:user_id", api.GuildAttendeeGetByUserHandler)
+		}
+
 		// Transcripts
 		transcripts := v1.Group("/transcripts")
 		{
@@ -90,7 +160,19 @@ func Register(r *gin.Engine, api *API) {
 			transcripts.GET("/:id", api.TranscriptGetHandler)
 			transcripts.PUT("/:id", api.TranscriptUpdateHandler)
 			transcripts.DELETE("/:id", api.TranscriptDeleteHandler)
-			transcripts.GET("/mistake/:mistake_id", api.TranscriptGetByMistakeHandler)
+			transcripts.GET("/event/:event_id", api.TranscriptGetByEventHandler)
+			transcripts.GET("/user/:user_id", api.TranscriptGetByUserHandler)
+		}
+
+		// Event Attendees
+		eventAttendees := v1.Group("/event-attendees")
+		{
+			eventAttendees.POST("", api.EventAttendeeCreateHandler)
+			eventAttendees.GET("/:id", api.EventAttendeeGetHandler)
+			eventAttendees.PUT("/:id", api.EventAttendeeUpdateHandler)
+			eventAttendees.DELETE("/:id", api.EventAttendeeDeleteHandler)
+			eventAttendees.GET("/event/:event_id", api.EventAttendeeGetByEventHandler)
+			eventAttendees.GET("/user/:user_id", api.EventAttendeeGetByUserHandler)
 		}
 
 		// Users
@@ -101,6 +183,7 @@ func Register(r *gin.Engine, api *API) {
 			users.PUT("/:id", api.UserUpdateHandler)
 			users.DELETE("/:id", api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
+			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}
 	}
 }

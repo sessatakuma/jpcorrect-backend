@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
@@ -21,16 +23,16 @@ func TestGormTranscriptRepository_GetByID(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE id = $1 ORDER BY "transcript"."id" LIMIT $2`)).
 			WithArgs(transcriptID, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "transcript"}).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "content"}).
 				AddRow(transcriptID, "test transcript"))
 
 		transcript, err := repo.GetByID(context.Background(), transcriptID)
 
 		assert.NoError(t, err)
-		if transcript != nil {
-			assert.Equal(t, transcriptID, transcript.ID)
-			assert.Equal(t, "test transcript", transcript.Transcript)
-		}
+		assert.NotNil(t, transcript)
+		assert.Equal(t, transcriptID, transcript.ID)
+		assert.Equal(t, "test transcript", transcript.Content)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -41,6 +43,18 @@ func TestGormTranscriptRepository_GetByID(t *testing.T) {
 		transcript, err := repo.GetByID(context.Background(), transcriptID)
 
 		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.Nil(t, transcript)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE id = $1 ORDER BY "transcript"."id" LIMIT $2`)).
+			WithArgs(transcriptID, 1).
+			WillReturnError(fmt.Errorf("db error"))
+
+		transcript, err := repo.GetByID(context.Background(), transcriptID)
+
+		assert.Error(t, err)
 		assert.Nil(t, transcript)
 	})
 }
@@ -62,6 +76,30 @@ func TestGormTranscriptRepository_GetByEventID(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, transcripts, 2)
 		assert.Equal(t, eventID, transcripts[0].EventID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("EmptyResult", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE event_id = $1`)).
+			WithArgs(eventID).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "event_id", "transcript"}))
+
+		transcripts, err := repo.GetByEventID(context.Background(), eventID)
+
+		assert.NoError(t, err)
+		assert.Empty(t, transcripts)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE event_id = $1`)).
+			WithArgs(eventID).
+			WillReturnError(fmt.Errorf("db error"))
+
+		transcripts, err := repo.GetByEventID(context.Background(), eventID)
+
+		assert.Error(t, err)
+		assert.Nil(t, transcripts)
 	})
 }
 
@@ -81,6 +119,30 @@ func TestGormTranscriptRepository_GetByUserID(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Len(t, transcripts, 1)
 		assert.Equal(t, userID, transcripts[0].UserID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("EmptyResult", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE user_id = $1`)).
+			WithArgs(userID).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "transcript"}))
+
+		transcripts, err := repo.GetByUserID(context.Background(), userID)
+
+		assert.NoError(t, err)
+		assert.Empty(t, transcripts)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "transcript" WHERE user_id = $1`)).
+			WithArgs(userID).
+			WillReturnError(fmt.Errorf("db error"))
+
+		transcripts, err := repo.GetByUserID(context.Background(), userID)
+
+		assert.Error(t, err)
+		assert.Nil(t, transcripts)
 	})
 }
 
@@ -90,9 +152,9 @@ func TestGormTranscriptRepository_Create(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		transcript := &domain.Transcript{
-			EventID:    uuid.New(),
-			UserID:     uuid.New(),
-			Transcript: "new transcript",
+			EventID: uuid.New(),
+			UserID:  uuid.New(),
+			Content: "new transcript",
 		}
 
 		mock.ExpectBegin()
@@ -104,6 +166,44 @@ func TestGormTranscriptRepository_Create(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotEqual(t, uuid.Nil, transcript.ID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DuplicateEntry", func(t *testing.T) {
+		transcript := &domain.Transcript{
+			EventID: uuid.New(),
+			UserID:  uuid.New(),
+			Content: "new transcript",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "transcript"`)).
+			WillReturnError(&pgconn.PgError{
+				Code: "23505",
+			})
+		mock.ExpectRollback()
+
+		err := repo.Create(context.Background(), transcript)
+
+		assert.ErrorIs(t, err, domain.ErrDuplicateEntry)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		transcript := &domain.Transcript{
+			EventID: uuid.New(),
+			UserID:  uuid.New(),
+			Content: "db error transcript",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "transcript"`)).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Create(context.Background(), transcript)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -114,8 +214,8 @@ func TestGormTranscriptRepository_Update(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		transcript := &domain.Transcript{
-			ID:         transcriptID,
-			Transcript: "updated transcript",
+			ID:      transcriptID,
+			Content: "updated transcript",
 		}
 
 		mock.ExpectBegin()
@@ -126,6 +226,23 @@ func TestGormTranscriptRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), transcript)
 
 		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		transcript := &domain.Transcript{
+			ID:      transcriptID,
+			Content: "db error transcript",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "transcript"`)).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Update(context.Background(), transcript)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -144,5 +261,18 @@ func TestGormTranscriptRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), transcriptID)
 
 		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`DELETE FROM "transcript" WHERE id = $1`)).
+			WithArgs(transcriptID).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Delete(context.Background(), transcriptID)
+
+		assert.Error(t, err)
 	})
 }

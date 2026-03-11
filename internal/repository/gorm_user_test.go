@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -52,6 +54,7 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 		assert.NotNil(t, user)
 		assert.Equal(t, userID, user.ID)
 		assert.Equal(t, "test@example.com", user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -62,6 +65,18 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 		user, err := repo.GetByID(context.Background(), userID)
 
 		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE id = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(userID, 1).
+			WillReturnError(fmt.Errorf("db error"))
+
+		user, err := repo.GetByID(context.Background(), userID)
+
+		assert.Error(t, err)
 		assert.Nil(t, user)
 	})
 }
@@ -82,6 +97,30 @@ func TestGormUserRepository_GetByEmail(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, user)
 		assert.Equal(t, email, user.Email)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE email = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(email, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		user, err := repo.GetByEmail(context.Background(), email)
+
+		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE email = $1 AND "user"."deleted_at" IS NULL ORDER BY "user"."id" LIMIT $2`)).
+			WithArgs(email, 1).
+			WillReturnError(fmt.Errorf("db error"))
+
+		user, err := repo.GetByEmail(context.Background(), email)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
 	})
 }
 
@@ -101,6 +140,30 @@ func TestGormUserRepository_GetByName(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, users, 2)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("EmptyResult", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE name = $1 AND "user"."deleted_at" IS NULL`)).
+			WithArgs(name).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "email", "name"}))
+
+		users, err := repo.GetByName(context.Background(), name)
+
+		assert.NoError(t, err)
+		assert.Len(t, users, 0)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "user" WHERE name = $1 AND "user"."deleted_at" IS NULL`)).
+			WithArgs(name).
+			WillReturnError(fmt.Errorf("db error"))
+
+		users, err := repo.GetByName(context.Background(), name)
+
+		assert.Error(t, err)
+		assert.Nil(t, users)
 	})
 }
 
@@ -123,6 +186,42 @@ func TestGormUserRepository_Create(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.NotEqual(t, uuid.Nil, user.ID)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DuplicateEntry", func(t *testing.T) {
+		user := &domain.User{
+			Email: "test@example.com",
+			Name:  "Test User",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user"`)).
+			WillReturnError(&pgconn.PgError{
+				Code: "23505",
+			})
+		mock.ExpectRollback()
+
+		err := repo.Create(context.Background(), user)
+
+		assert.ErrorIs(t, err, domain.ErrDuplicateEntry)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		user := &domain.User{
+			Email: "dberror@example.com",
+			Name:  "DB Error User",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`INSERT INTO "user"`)).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Create(context.Background(), user)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -146,6 +245,24 @@ func TestGormUserRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), user)
 
 		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		user := &domain.User{
+			ID:    userID,
+			Email: "dberror@example.com",
+			Name:  "DB Error User",
+		}
+
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user"`)).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Update(context.Background(), user)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -164,5 +281,18 @@ func TestGormUserRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), userID)
 
 		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DBError", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(regexp.QuoteMeta(`UPDATE "user" SET "deleted_at"=$1 WHERE id = $2 AND "user"."deleted_at" IS NULL`)).
+			WithArgs(sqlmock.AnyArg(), userID).
+			WillReturnError(fmt.Errorf("db error"))
+		mock.ExpectRollback()
+
+		err := repo.Delete(context.Background(), userID)
+
+		assert.Error(t, err)
 	})
 }

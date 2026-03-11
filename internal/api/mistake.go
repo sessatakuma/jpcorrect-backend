@@ -39,6 +39,10 @@ func (a *API) MistakeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.mistakeRepo.Create(c.Request.Context(), &mistake); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Mistake already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -73,6 +77,10 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 
 	mistake.ID = id
 	if err := a.mistakeRepo.Update(c.Request.Context(), &mistake); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Mistake already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -107,15 +115,18 @@ func (a *API) MistakeDeleteHandler(c *gin.Context) {
 	}
 
 	if err := a.mistakeRepo.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrHasRelatedRecords) {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete mistake: has related records"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
-func (a *API) MistakeGetByPracticeHandler(c *gin.Context) {
-	// Route uses practice_id for backward compatibility, but it's actually event_id
+func (a *API) MistakeGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
 	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
@@ -125,10 +136,6 @@ func (a *API) MistakeGetByPracticeHandler(c *gin.Context) {
 
 	mistakes, err := a.mistakeRepo.GetByEventID(c.Request.Context(), eventID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mistakes not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -146,10 +153,6 @@ func (a *API) MistakeGetByUserHandler(c *gin.Context) {
 
 	mistakes, err := a.mistakeRepo.GetByUserID(c.Request.Context(), userID)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mistakes not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

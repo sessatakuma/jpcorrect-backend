@@ -2,8 +2,11 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
 	"jpcorrect-backend/internal/domain"
@@ -26,14 +29,33 @@ func TestMapGormError(t *testing.T) {
 			expected: domain.ErrNotFound,
 		},
 		{
-			name:     "duplicate key error message returns domain.ErrDuplicateEntry",
-			input:    errors.New("ERROR: duplicate key value violates unique constraint \"users_email_key\" (SQLSTATE 23505)"),
+			name:     "wrapped gorm.ErrRecordNotFound returns domain.ErrNotFound",
+			input:    fmt.Errorf("wrap: %w", gorm.ErrRecordNotFound),
+			expected: domain.ErrNotFound,
+		},
+		{
+			name: "pgconn unique violation returns domain.ErrDuplicateEntry",
+			input: &pgconn.PgError{
+				Code:    "23505",
+				Message: "duplicate key value violates unique constraint \"users_email_key\"",
+			},
 			expected: domain.ErrDuplicateEntry,
 		},
 		{
-			name:     "unknown error returns original error",
-			input:    errors.New("some random error"),
-			expected: errors.New("some random error"),
+			name: "wrapped pgconn unique violation returns domain.ErrDuplicateEntry",
+			input: fmt.Errorf("wrap: %w", &pgconn.PgError{
+				Code:    "23505",
+				Message: "duplicate key value violates unique constraint \"users_email_key\"",
+			}),
+			expected: domain.ErrDuplicateEntry,
+		},
+		{
+			name: "pgconn foreign key violation returns domain.ErrHasRelatedRecords",
+			input: &pgconn.PgError{
+				Code:    "23503",
+				Message: "insert or update on table violates foreign key constraint",
+			},
+			expected: domain.ErrHasRelatedRecords,
 		},
 	}
 
@@ -41,18 +63,16 @@ func TestMapGormError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := MapGormError(tt.input)
 			if tt.expected == nil {
-				if actual != nil {
-					t.Errorf("expected nil, got %v", actual)
-				}
-			} else if tt.name == "unknown error returns original error" {
-				if actual.Error() != tt.expected.Error() {
-					t.Errorf("expected %v, got %v", tt.expected, actual)
-				}
+				assert.Nil(t, actual, "expected nil")
 			} else {
-				if !errors.Is(actual, tt.expected) {
-					t.Errorf("expected %v, got %v", tt.expected, actual)
-				}
+				assert.ErrorIs(t, actual, tt.expected, "expected %v, got %v", tt.expected, actual)
 			}
 		})
 	}
+
+	t.Run("unknown error returns original error", func(t *testing.T) {
+		unknownErr := errors.New("some random error")
+		actual := MapGormError(unknownErr)
+		assert.Same(t, unknownErr, actual, "expected original error to be returned")
+	})
 }
