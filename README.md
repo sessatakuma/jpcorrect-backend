@@ -20,6 +20,8 @@ Create `.env` for configuration (in project root):
 PORT=8080
 DATABASE_URL=postgresql://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
 API_TOOLS_URL=your_api_tools_url
+JWKS_URL=your_jwks_url
+ALLOWED_ORIGINS=http://localhost:5173,https://your-frontend.com
 GIN_MODE=debug
 ```
 
@@ -71,36 +73,3 @@ docker-compose up backend -e API_TOOLS_URL="your_custom_url"
 
 ### Hot Reload
 The docker-compose.yml includes volume mounting for hot code reload in development.
-
-### Environment Variables
-Create `.env` for configuration (in project root).
-```ini
-DATABASE_URL=postgresql://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
-API_TOOLS_URL=your_api_tools_url
-GIN_MODE=debug
-JWKS_URL=your_jwks_url
-```
-
-### Run
-```bash
-go run cmd/jpcorrect/main.go
-```
-
-### Development
-Run with [air](https://github.com/air-verse/air) for live reloading:
-```bash
-make air
-```
-Generate repository codes using [sqlc](https://github.com/sqlc-dev/sqlc):
-```bash
-make sqlc
-```
-Create migration files using [migrate](https://github.com/golang-migrate/migrate):
-```bash
-make migrate-create name=<your_migration_name>
-```
-Migrate database up or down:
-```bash
-make migrate-up
-make migrate-down
-```

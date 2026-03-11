@@ -1,91 +1,54 @@
 # jpcorrect-backend Agent Guide
 
-This guide provides essential information for AI coding agents working in this repository.
+Essential information for AI coding agents working in this repository.
 
 ## Project Overview
 
-Japanese language correction platform backend built with Go (1.25+), Gin, PostgreSQL, and GORM.
+Japanese language correction platform backend: Go (1.25+), Gin, PostgreSQL, GORM.
 
-**Architecture**: Clean architecture with layered structure
-- `cmd/jpcorrect/`: Application entry point
+**Architecture**: Clean architecture
+- `cmd/jpcorrect/`: Entry point
 - `internal/api/`: HTTP handlers (Gin)
 - `internal/domain/`: Domain models and repository interfaces
-- `internal/repository/`: GORM-based repository implementations
-- `internal/cmd/`: Command execution logic and server setup
-- `internal/database/`: Database connection and GORM configuration
-- `db/`: Database schema reference (migrations are minimal, uses AutoMigrate)
+- `internal/repository/`: GORM implementations
+- `internal/cmd/`: Command execution and server setup
+- `internal/database/`: Database connection and GORM config
 
-## Build, Run, and Test Commands
+## Build, Run, Test
 
 ### Development
 ```bash
-# Run with live reload (uses go tool air)
-make air
-
-# Run directly
-go run cmd/jpcorrect/main.go
-
-# Install dependencies
-go mod download
+make air                              # Live reload
+go run cmd/jpcorrect/main.go         # Run directly
+go mod download                       # Install deps
 ```
 
-### Database Operations
-**Primary Method**: GORM `AutoMigrate` is used in `internal/cmd/api.go`.
-Modify domain models in `internal/domain/` to change schema.
-
-**Secondary/Manual Tools** (Available via `go tool` but not primary):
-```bash
-# Create migration file (if needed for manual fixes)
-make migrate-create name=<migration_name>
-
-# Run migrations manual
-make migrate-up
-
-# Rollback migrations manual
-make migrate-down
-```
+### Database
+GORM `AutoMigrate` is used for schema management in `internal/cmd/api.go`. Modify domain models in `internal/domain/` and add them to the AutoMigrate call.
 
 ### Testing
 ```bash
-# Run all tests
-go test ./...
-
-# Run tests in specific package
-go test ./internal/repository/...
-
-# Run single test
-go test -v ./internal/repository -run TestUserCreate
-
-# Run with coverage
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
+go test ./...                         # All tests
+go test ./internal/repository/...      # Specific package
+go test -v ./internal/repository -run TestUserCreate  # Single test
+go test -coverprofile=coverage.out ./...; go tool cover -html=coverage.out  # Coverage
 ```
 
-### Build
+**Testing Patterns**: `sqlmock` for DB mocking, `testify/assert`, `setupMockDB(t)`, `t.Run()` sub-cases, `mock.ExpectationsWereMet()`.
+
+### Build & Lint
 ```bash
-# Build binary
 go build -o bin/jpcorrect cmd/jpcorrect/main.go
+go fmt ./...; go vet ./...; golangci-lint run
 ```
 
-### Linting
-```bash
-# Format code
-go fmt ./...
-
-# Run go vet
-go vet ./...
-```
-
-## Code Style Guidelines
+## Code Style
 
 ### Go Version
-- **Go 1.25+** required (uses `tool` directive in `go.mod`)
+**Go 1.25+** required (tool directive in go.mod).
 
-### Import Organization
-Organize imports in THREE groups separated by blank lines:
-1. Standard library
-2. Third-party packages
-3. Local project packages
+### Imports
+Three groups separated by blank lines: stdlib → third-party → local.
 
 ```go
 import (
@@ -94,24 +57,16 @@ import (
 
     "github.com/gin-gonic/gin"
     "github.com/google/uuid"
-    "gorm.io/gorm"
 
     "jpcorrect-backend/internal/domain"
-    "jpcorrect-backend/internal/repository"
 )
 ```
 
-### Naming Conventions
-- **Packages**: Lowercase, single word (e.g., `api`, `domain`)
-- **Types/Structs**: PascalCase (e.g., `User`, `EventRepository`)
-- **Functions**: PascalCase (Exported), camelCase (internal)
-- **Variables**: camelCase
-- **UUIDs**: Use `uuid.UUID` type, not string
+### Naming
+Packages: lowercase single word. Types: PascalCase. Functions: PascalCase (exported), camelCase (internal). Variables: camelCase. UUIDs: `uuid.UUID` type.
 
-### Domain Models (`internal/domain/`)
-- Define structs with `gorm` and `json` tags.
-- Use `uuid.UUID` for IDs with `gorm:"type:uuid;primaryKey"`.
-- Include `CreatedAt`, `UpdatedAt`, and `DeletedAt` (for soft deletes).
+### Domain Models
+Structs with `gorm` and `json` tags. `uuid.UUID` IDs with `gorm:"type:uuid;primaryKey"`. Include `CreatedAt`, `UpdatedAt`, `DeletedAt`.
 
 ```go
 type User struct {
@@ -122,57 +77,39 @@ type User struct {
 }
 ```
 
-### Repository Implementation (`internal/repository/`)
-- Implement interfaces defined in `domain`.
-- Use **GORM** directly.
-- **Context**: Always pass `context.Context` as first argument and use `.WithContext(ctx)`.
-- **Error Handling**: Wrap ALL GORM errors with `MapGormError(err)` before returning.
-- **UUID Generation**: Generate new UUIDs in `Create` methods if not provided.
+### Repository Implementation
+Implement domain interfaces. Use GORM directly. Pass `context.Context` first, use `.WithContext(ctx)`. Wrap ALL GORM errors with `MapGormError(err)`. Generate UUIDs in `Create` if missing.
 
 ```go
 func (r *gormUserRepository) Create(ctx context.Context, user *User) error {
-    if user.ID == uuid.Nil {
-        user.ID = uuid.New()
-    }
+    if user.ID == uuid.Nil { user.ID = uuid.New() }
     return MapGormError(r.db.WithContext(ctx).Create(user).Error)
 }
 ```
 
 ### Error Handling
-- Sentinel errors in `internal/domain/errors.go` (e.g., `ErrNotFound`).
-- Map implementation-specific errors (GORM) to domain errors in repository layer.
-- API Handlers check for domain errors and return appropriate HTTP status codes.
+Sentinel errors in `internal/domain/errors.go` (e.g., `ErrNotFound`). Map GORM/PG errors to domain errors in repository. API handlers check domain errors and return appropriate HTTP status codes.
 
-### API Handler Conventions
-- Handlers on `*API` struct in `internal/api/`.
-- Parse UUIDs safely: `uuid.Parse(c.Param("id"))`.
-- Return `c.JSON(status, gin.H{"error": ...})` on failure.
+### API Handlers
+Handlers on `*API` struct. Parse UUIDs: `uuid.Parse(c.Param("id"))`. Return `c.JSON(status, gin.H{"error": ...})` on failure.
 
-## Project-Specific Conventions
+## Project Conventions
 
 ### Database
-- **PostgreSQL** via GORM.
-- **Connection**: Managed in `internal/database/`.
-- **Schema**: Auto-migrated. Add new models to `AutoMigrate` call in `internal/cmd/api.go`.
+PostgreSQL via GORM. Connection in `internal/database/`. Auto-migrate: add models to `AutoMigrate` in `internal/cmd/api.go`.
 
 ### Environment Variables
-- `DATABASE_URL`: Postgres connection string.
-- `API_TOOLS_URL`: External tools service.
-- `PORT`: Service port.
+`DATABASE_URL` (Postgres), `API_TOOLS_URL`, `PORT` (default 8080), `JWKS_URL`, `ALLOWED_ORIGINS` (comma-separated), `API_CERT_PATH`, `API_KEY_PATH`, `GIN_MODE` (debug/release).
 
 ### Tools
-- `go tool air`: Live reload.
-- `go tool migrate`: Database migrations (golang-migrate).
-- `go tool sqlc`: SQL generation (configured in `go.mod` but currently unused/secondary to GORM).
+`go tool air`: Live reload. `go tool migrate`: Migrations (golang-migrate). `go tool sqlc`: SQL gen (configured, secondary to GORM).
 
-## Git Guidelines
-
-**Conventional Commits**: Use conventional commit format for PR titles.
+### Git
+Use conventional commit format for PR titles.
 
 ## Common Gotchas
-
-1. **AutoMigrate**: Primary schema management tool.
-2. **UUIDs**: Always use `uuid.UUID`, not strings or ints.
-3. **Context**: Pass it down everywhere.
-4. **GORM Errors**: Always map them to domain errors.
-5. **Soft Delete**: `Unscoped()` if you really need to delete.
+1. **AutoMigrate**: Primary schema tool.
+2. **UUIDs**: Always `uuid.UUID`, never strings/ints.
+3. **Context**: Pass down everywhere.
+4. **GORM Errors**: Always map to domain errors.
+5. **Soft Delete**: Use `Unscoped()` for hard delete.
