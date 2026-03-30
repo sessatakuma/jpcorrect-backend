@@ -13,10 +13,15 @@ type Client struct {
 	Name string
 }
 
-type WebRTCRepository interface {
+type OnlineUser struct {
+	UserID   string `json:"userId"`
+	UserName string `json:"userName"`
+}
+
+type WebRTCHub interface {
 	AddClient(c *Client)
 	RemoveClient(id string)
 	GetClient(id string) (*Client, bool)
-	ListUsers() []map[string]string
-	BroadcastExcept(senderId string, msgType string, payload interface{})
+	ListUsers() []OnlineUser
+	BroadcastExcept(senderID string, msgType string, payload interface{})
 }

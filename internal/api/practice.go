@@ -1,25 +1,26 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (a *API) PracticeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	practice, err := a.practiceRepo.GetByID(c.Request.Context(), id)
+	practice, err := a.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
 			return
 		}
@@ -31,13 +32,17 @@ func (a *API) PracticeGetHandler(c *gin.Context) {
 }
 
 func (a *API) PracticeCreateHandler(c *gin.Context) {
-	var practice domain.Practice
+	var practice domain.Event
 	if err := c.ShouldBindJSON(&practice); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.practiceRepo.Create(c.Request.Context(), &practice); err != nil {
+	if err := a.eventRepo.Create(c.Request.Context(), &practice); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Event already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -47,16 +52,16 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 
 func (a *API) PracticeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
-	_, err = a.practiceRepo.GetByID(c.Request.Context(), id)
+	_, err = a.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
 			return
 		}
@@ -64,20 +69,24 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	var practice domain.Practice
+	var practice domain.Event
 	if err := c.ShouldBindJSON(&practice); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	practice.PracticeID = id
-	if err := a.practiceRepo.Update(c.Request.Context(), &practice); err != nil {
+	practice.ID = id
+	if err := a.eventRepo.Update(c.Request.Context(), &practice); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Event already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	// Return updated object
-	updated, err := a.practiceRepo.GetByID(c.Request.Context(), id)
+	updated, err := a.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -88,16 +97,16 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 
 func (a *API) PracticeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
-	_, err = a.practiceRepo.GetByID(c.Request.Context(), id)
+	_, err = a.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
 			return
 		}
@@ -105,28 +114,28 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	if err := a.practiceRepo.Delete(c.Request.Context(), id); err != nil {
+	if err := a.eventRepo.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrHasRelatedRecords) {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete event: has related records"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
 func (a *API) PracticeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	practices, err := a.practiceRepo.GetByUserID(c.Request.Context(), userID)
+	practices, err := a.eventRepo.GetByUserID(c.Request.Context(), userID)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Practices not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

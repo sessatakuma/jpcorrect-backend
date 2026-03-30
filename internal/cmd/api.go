@@ -11,18 +11,29 @@ import (
 	"time"
 
 	"jpcorrect-backend/internal/api"
+	"jpcorrect-backend/internal/database"
+	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func Execute() {
-	dbpool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	db, err := database.NewGormDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
-		os.Exit(1)
 	}
-	defer dbpool.Close()
+
+	if err := db.AutoMigrate(
+		&domain.User{},
+		&domain.Guild{},
+		&domain.GuildAttendee{},
+		&domain.Event{},
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{},
+	); err != nil {
+		log.Fatalf("failed to run auto migrate: %v", err)
+	}
 
 	transport := &http.Transport{
 		MaxIdleConns:        100,
@@ -43,7 +54,7 @@ func Execute() {
 		}
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, dbpool, jwksURL, allowedOrigins)
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db, jwksURL, allowedOrigins)
 	defer a.Close()
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -80,6 +91,8 @@ func Execute() {
 		return err == nil
 	}
 
+	// Initializing the server in a goroutine so that
+	// it won't block the graceful shutdown handling below
 	go func() {
 		if fileExists(certPath) && fileExists(keyPath) {
 			log.Println("🔒 使用 HTTPS 模式")

@@ -2,25 +2,44 @@ package domain
 
 import (
 	"context"
+	"time"
+
+	"github.com/google/uuid"
 )
 
-// Mistake represents the jpcorrect.mistake table
+// MistakeType represents the type of a mistake.
+type MistakeType string
+
+const (
+	MistakeTypeGrammar       MistakeType = "grammar"
+	MistakeTypeVocab         MistakeType = "vocab"
+	MistakeTypePronunciation MistakeType = "pronunciation"
+	MistakeTypeAdvanced      MistakeType = "advanced"
+)
+
+// Mistake represents a mistake in the jpcorrect system.
+// Maps to jpcorrect.mistake table.
 type Mistake struct {
-	MistakeID     int     `db:"mistake_id" json:"mistake_id"`
-	PracticeID    int     `db:"practice_id" json:"practice_id"`
-	UserID        int     `db:"user_id" json:"user_id"`
-	StartTime     float64 `db:"start_time" json:"start_time"`
-	EndTime       float64 `db:"end_time" json:"end_time"`
-	MistakeStatus string  `db:"mistake_status" json:"mistake_status"`
-	MistakeType   string  `db:"mistake_type" json:"mistake_type"`
+	ID             uuid.UUID   `gorm:"type:uuid;primaryKey" json:"mistake_id"`
+	EventID        uuid.UUID   `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_id"`
+	UserID         uuid.UUID   `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_id"`
+	Type           MistakeType `gorm:"default:grammar" json:"type"`
+	OriginText     string      `gorm:"type:text" json:"origin_text"`
+	FixedText      string      `gorm:"type:text" json:"fixed_text"`
+	StartOffsetSec float64     `json:"start_offset_sec"`
+	EndOffsetSec   float64     `json:"end_offset_sec"`
+	Comment        *string     `gorm:"type:text" json:"comment"`
+	Note           *string     `gorm:"type:text" json:"note"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 type MistakeRepository interface {
-	GetByID(ctx context.Context, mistakeID int) (*Mistake, error)
-	GetByPracticeID(ctx context.Context, practiceID int) ([]*Mistake, error)
-	GetByUserID(ctx context.Context, userID int) ([]*Mistake, error)
+	GetByID(ctx context.Context, mistakeID uuid.UUID) (*Mistake, error)
+	GetByEventID(ctx context.Context, eventID uuid.UUID) ([]*Mistake, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*Mistake, error)
 
 	Create(ctx context.Context, m *Mistake) error
 	Update(ctx context.Context, m *Mistake) error
-	Delete(ctx context.Context, mistakeID int) error
+	Delete(ctx context.Context, mistakeID uuid.UUID) error
 }

@@ -146,27 +146,27 @@ func (h *Hub) GetClient(id string) (*domain.Client, bool) {
 	return c, ok
 }
 
-func (h *Hub) ListUsers() []map[string]string {
+func (h *Hub) ListUsers() []domain.OnlineUser {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	out := make([]map[string]string, 0, len(h.clients))
+	out := make([]domain.OnlineUser, 0, len(h.clients))
 	for id, c := range h.clients {
 		if c.Name == "" {
 			continue
 		}
-		out = append(out, map[string]string{"userId": id, "userName": c.Name})
+		out = append(out, domain.OnlineUser{UserID: id, UserName: c.Name})
 	}
 	return out
 }
 
-func (h *Hub) BroadcastExcept(senderId string, msgType string, payload interface{}) {
+func (h *Hub) BroadcastExcept(senderID string, msgType string, payload interface{}) {
 	m := map[string]interface{}{"type": msgType, "payload": payload}
 	b, _ := json.Marshal(m)
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for id, c := range h.clients {
-		if id == senderId {
+		if id == senderID {
 			continue
 		}
 		select {
@@ -231,7 +231,7 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 		Done: make(chan struct{}),
 	}
 
-	api.webrtcRepo.AddClient(client)
+	api.webrtcHub.AddClient(client)
 	log.Println("新使用者連線:", id)
 
 	// send connected message with assigned id
@@ -254,9 +254,9 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	}
 
 	// cleanup
-	api.webrtcRepo.RemoveClient(client.ID)
+	api.webrtcHub.RemoveClient(client.ID)
 	if client.Name != "" {
-		api.webrtcRepo.BroadcastExcept(client.ID, "user-left", client.ID)
+		api.webrtcHub.BroadcastExcept(client.ID, "user-left", client.ID)
 	}
 
 	// cleanup 時
@@ -291,7 +291,7 @@ func writer(c *domain.Client) {
 func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 	switch m.Type {
 	case "get-online-users":
-		users := api.webrtcRepo.ListUsers()
+		users := api.webrtcHub.ListUsers()
 		if err := sendToClient(c, "online-users-list", users); err != nil {
 			log.Printf("傳送線上使用者列表失敗 (user: %s): %v", c.ID, err)
 		}
@@ -313,12 +313,12 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 		}
 		c.Name = name
 		// notify others
-		api.webrtcRepo.BroadcastExcept(c.ID, "user-joined", map[string]string{"userId": c.ID, "userName": c.Name})
+		api.webrtcHub.BroadcastExcept(c.ID, "user-joined", map[string]string{"userId": c.ID, "userName": c.Name})
 		// send current users (excluding self)
-		current := api.webrtcRepo.ListUsers()
-		filtered := make([]map[string]string, 0)
+		current := api.webrtcHub.ListUsers()
+		filtered := make([]domain.OnlineUser, 0)
 		for _, u := range current {
-			if u["userId"] != c.ID {
+			if u.UserID != c.ID {
 				filtered = append(filtered, u)
 			}
 		}
@@ -335,9 +335,9 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 			}
 			return
 		}
-		var targetId string
+		var targetID string
 		if t, ok := payload["target"]; ok {
-			if err := json.Unmarshal(t, &targetId); err != nil {
+			if err := json.Unmarshal(t, &targetID); err != nil {
 				if err := sendToClient(c, "error", map[string]string{"message": "invalid target"}); err != nil {
 					log.Printf("傳送錯誤訊息失敗 (user: %s): %v", c.ID, err)
 				}
@@ -349,10 +349,10 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 			}
 			return
 		}
-		target, ok := api.webrtcRepo.GetClient(targetId)
+		target, ok := api.webrtcHub.GetClient(targetID)
 		if !ok {
 			if err := sendToClient(c, "error", map[string]string{"message": "target not online"}); err != nil {
-				log.Printf("傳送目標離線錯誤失敗 (user: %s, target: %s): %v", c.ID, targetId, err)
+				log.Printf("傳送目標離線錯誤失敗 (user: %s, target: %s): %v", c.ID, targetID, err)
 			}
 			return
 		}
@@ -383,7 +383,7 @@ func (api *API) handleWebRTCMessage(c *domain.Client, m Message) {
 		if c.Name != "" {
 			name := c.Name
 			c.Name = ""
-			api.webrtcRepo.BroadcastExcept(c.ID, "user-left", c.ID)
+			api.webrtcHub.BroadcastExcept(c.ID, "user-left", c.ID)
 			log.Println("使用者離開聊天室:", c.ID, name)
 		}
 
