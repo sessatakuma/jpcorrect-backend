@@ -21,7 +21,6 @@ func Execute() {
 	db, err := database.NewGormDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
-		os.Exit(1)
 	}
 
 	if err := db.AutoMigrate(
@@ -34,7 +33,6 @@ func Execute() {
 		&domain.Mistake{},
 	); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
-		os.Exit(1)
 	}
 
 	transport := &http.Transport{
