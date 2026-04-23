@@ -1,25 +1,26 @@
 package api
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func (a *API) MistakeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	mistake, err := a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mistake not found"})
 			return
 		}
@@ -38,6 +39,10 @@ func (a *API) MistakeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.mistakeRepo.Create(c.Request.Context(), &mistake); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Mistake already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -47,16 +52,16 @@ func (a *API) MistakeCreateHandler(c *gin.Context) {
 
 func (a *API) MistakeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
 	_, err = a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mistake not found"})
 			return
 		}
@@ -70,8 +75,12 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	mistake.MistakeID = id
+	mistake.ID = id
 	if err := a.mistakeRepo.Update(c.Request.Context(), &mistake); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "Mistake already exists"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -88,16 +97,16 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 
 func (a *API) MistakeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	// Check if record exists first
 	_, err = a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
-		if err == domain.ErrNotFound {
+		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Mistake not found"})
 			return
 		}
@@ -106,27 +115,27 @@ func (a *API) MistakeDeleteHandler(c *gin.Context) {
 	}
 
 	if err := a.mistakeRepo.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, domain.ErrHasRelatedRecords) {
+			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete mistake: has related records"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusNoContent, nil)
+	c.Status(http.StatusNoContent)
 }
 
-func (a *API) MistakeGetByPracticeHandler(c *gin.Context) {
-	practiceIDStr := c.Param("practice_id")
-	practiceID, err := strconv.Atoi(practiceIDStr)
+func (a *API) MistakeGetByEventHandler(c *gin.Context) {
+	eventIDStr := c.Param("event_id")
+	eventID, err := uuid.Parse(eventIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Practice ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
-	mistakes, err := a.mistakeRepo.GetByPracticeID(c.Request.Context(), practiceID)
+	mistakes, err := a.mistakeRepo.GetByEventID(c.Request.Context(), eventID)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mistakes not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -136,18 +145,14 @@ func (a *API) MistakeGetByPracticeHandler(c *gin.Context) {
 
 func (a *API) MistakeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid User ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
 		return
 	}
 
 	mistakes, err := a.mistakeRepo.GetByUserID(c.Request.Context(), userID)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Mistakes not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
