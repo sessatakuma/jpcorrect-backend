@@ -1,0 +1,1973 @@
+basePath: /
+definitions:
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
+    type: object
+  jpcorrect-backend_internal_domain.Event:
+    properties:
+      actual_duration:
+        type: number
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      event_id:
+        type: string
+      expected_duration:
+        type: number
+      mode:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.EventMode'
+      note:
+        type: string
+      record_link:
+        type: string
+      start_time:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.EventAttendee:
+    properties:
+      event_attendee_id:
+        type: string
+      event_id:
+        type: string
+      joined_at:
+        type: string
+      left_at:
+        type: string
+      role:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendeeRole'
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.EventAttendeeRole:
+    enum:
+    - member
+    - emcee
+    type: string
+    x-enum-varnames:
+    - EventAttendeeRoleMember
+    - EventAttendeeRoleEmcee
+  jpcorrect-backend_internal_domain.EventMode:
+    enum:
+    - report
+    - conversation
+    - discussion
+    - review
+    type: string
+    x-enum-varnames:
+    - EventModeReport
+    - EventModeConversation
+    - EventModeDiscussion
+    - EventModeReview
+  jpcorrect-backend_internal_domain.Guild:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      description:
+        type: string
+      guild_id:
+        type: string
+      level:
+        type: integer
+      name:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.GuildAttendee:
+    properties:
+      guild_attendee_id:
+        type: string
+      guild_id:
+        type: string
+      joined_at:
+        type: string
+      left_at:
+        type: string
+      role:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendeeRole'
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.GuildAttendeeRole:
+    enum:
+    - member
+    - master
+    type: string
+    x-enum-varnames:
+    - GuildAttendeeRoleMember
+    - GuildAttendeeRoleMaster
+  jpcorrect-backend_internal_domain.Mistake:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      end_offset_sec:
+        type: number
+      event_id:
+        type: string
+      fixed_text:
+        type: string
+      mistake_id:
+        type: string
+      note:
+        type: string
+      origin_text:
+        type: string
+      start_offset_sec:
+        type: number
+      type:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.MistakeType'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.MistakeType:
+    enum:
+    - grammar
+    - vocab
+    - pronunciation
+    - advanced
+    type: string
+    x-enum-varnames:
+    - MistakeTypeGrammar
+    - MistakeTypeVocab
+    - MistakeTypePronunciation
+    - MistakeTypeAdvanced
+  jpcorrect-backend_internal_domain.Transcript:
+    properties:
+      accent:
+        items:
+          type: integer
+        type: array
+      content:
+        type: string
+      created_at:
+        type: string
+      end_offset_sec:
+        type: number
+      event_id:
+        type: string
+      note:
+        type: string
+      start_offset_sec:
+        type: number
+      transcript_id:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.User:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      email:
+        type: string
+      is_email_verified:
+        type: boolean
+      late_streak:
+        type: integer
+      level:
+        type: integer
+      name:
+        type: string
+      points:
+        type: integer
+      role:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.UserRole'
+      status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.UserStatus'
+      timezone:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.UserRole:
+    enum:
+    - user
+    - admin
+    - staff
+    type: string
+    x-enum-varnames:
+    - UserRoleUser
+    - UserRoleAdmin
+    - UserRoleStaff
+  jpcorrect-backend_internal_domain.UserStatus:
+    enum:
+    - active
+    - banned
+    - suspended
+    type: string
+    x-enum-varnames:
+    - UserStatusActive
+    - UserStatusBanned
+    - UserStatusSuspended
+host: localhost:8080
+info:
+  contact: {}
+  description: Japanese language correction platform backend API
+  title: jpcorrect API
+  version: "1.0"
+paths:
+  /v1/dict-query:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for dictionary queries
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Dictionary query
+      tags:
+      - api-tools
+  /v1/event-attendees:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: EventAttendee data
+        in: body
+        name: attendee
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create an event attendee
+      tags:
+      - event-attendees
+  /v1/event-attendees/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: EventAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete an event attendee
+      tags:
+      - event-attendees
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: EventAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get an event attendee by ID
+      tags:
+      - event-attendees
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: EventAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: EventAttendee data
+        in: body
+        name: attendee
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update an event attendee
+      tags:
+      - event-attendees
+  /v1/event-attendees/event/{event_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event ID
+        in: path
+        name: event_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get event attendees by event ID
+      tags:
+      - event-attendees
+  /v1/event-attendees/user/{user_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get event attendees by user ID
+      tags:
+      - event-attendees
+  /v1/guild-attendees:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: GuildAttendee data
+        in: body
+        name: attendee
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a guild attendee
+      tags:
+      - guild-attendees
+  /v1/guild-attendees/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: GuildAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a guild attendee
+      tags:
+      - guild-attendees
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: GuildAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a guild attendee by ID
+      tags:
+      - guild-attendees
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: GuildAttendee ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: GuildAttendee data
+        in: body
+        name: attendee
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a guild attendee
+      tags:
+      - guild-attendees
+  /v1/guild-attendees/guild/{guild_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID
+        in: path
+        name: guild_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get guild attendees by guild ID
+      tags:
+      - guild-attendees
+  /v1/guild-attendees/user/{user_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get guild attendees by user ID
+      tags:
+      - guild-attendees
+  /v1/guilds:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild data
+        in: body
+        name: guild
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a guild
+      tags:
+      - guilds
+  /v1/guilds/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a guild
+      tags:
+      - guilds
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a guild by ID
+      tags:
+      - guilds
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Guild data
+        in: body
+        name: guild
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a guild
+      tags:
+      - guilds
+  /v1/mark-accent:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for marking accent
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Mark Japanese accent
+      tags:
+      - api-tools
+  /v1/mark-furigana:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for marking furigana
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Mark furigana
+      tags:
+      - api-tools
+  /v1/mistakes:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mistake data
+        in: body
+        name: mistake
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a mistake
+      tags:
+      - mistakes
+  /v1/mistakes/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mistake ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a mistake
+      tags:
+      - mistakes
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mistake ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a mistake by ID
+      tags:
+      - mistakes
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Mistake ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Mistake data
+        in: body
+        name: mistake
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a mistake
+      tags:
+      - mistakes
+  /v1/mistakes/event/{event_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event ID
+        in: path
+        name: event_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get mistakes by event ID
+      tags:
+      - mistakes
+  /v1/mistakes/user/{user_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get mistakes by user ID
+      tags:
+      - mistakes
+  /v1/practices:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Practice data
+        in: body
+        name: practice
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a practice
+      tags:
+      - practices
+  /v1/practices/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Practice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a practice
+      tags:
+      - practices
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Practice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a practice by ID
+      tags:
+      - practices
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Practice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Practice data
+        in: body
+        name: practice
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a practice
+      tags:
+      - practices
+  /v1/practices/user/{user_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get practices by user ID
+      tags:
+      - practices
+  /v1/sentence-query:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for sentence queries
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Sentence query
+      tags:
+      - api-tools
+  /v1/transcripts:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Transcript data
+        in: body
+        name: transcript
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a transcript
+      tags:
+      - transcripts
+  /v1/transcripts/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Transcript ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a transcript
+      tags:
+      - transcripts
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Transcript ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a transcript by ID
+      tags:
+      - transcripts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Transcript ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Transcript data
+        in: body
+        name: transcript
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a transcript
+      tags:
+      - transcripts
+  /v1/transcripts/event/{event_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event ID
+        in: path
+        name: event_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get transcripts by event ID
+      tags:
+      - transcripts
+  /v1/transcripts/user/{user_id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get transcripts by user ID
+      tags:
+      - transcripts
+  /v1/usage-query/headwords:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for usage query headwords
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Query usage headwords
+      tags:
+      - api-tools
+  /v1/usage-query/id-details:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for usage query by ID details
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Query usage by ID details
+      tags:
+      - api-tools
+  /v1/usage-query/url:
+    post:
+      consumes:
+      - application/json
+      description: Proxy to external API tools service for usage query by URL
+      parameters:
+      - description: Request body (forwarded to API tools)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Query usage by URL
+      tags:
+      - api-tools
+  /v1/users:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create a user
+      tags:
+      - users
+  /v1/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a user
+      tags:
+      - users
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a user by ID
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a user
+      tags:
+      - users
+  /v1/users/email/{email}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User email
+        in: path
+        name: email
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get a user by email
+      tags:
+      - users
+  /v1/users/name/{name}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User name
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get users by name
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
