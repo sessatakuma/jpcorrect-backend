@@ -24,11 +24,8 @@ services:
         container_name: jpcorrect-backend
         depends_on:
             - postgres
-        environment:
-            DATABASE_URL: postgres://jpcorrect:jpcorrect_password@postgres:5432/jpcorrect?sslmode=disable # yamllint disable-line rule:line-length
-            API_TOOLS_URL: http://localhost:8000
-            GIN_MODE: debug
-            JWKS_URL: http://localhost:8080/.well-known/jwks.json
+        env_file:
+            - .env
         ports:
             - "8080:8080"
 
