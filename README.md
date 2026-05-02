@@ -45,6 +45,59 @@ Run with [air](https://github.com/air-verse/air) for live reloading:
 make air
 ```
 
+### Swagger / API Documentation
+
+Generate Swagger docs with:
+```bash
+make swag
+```
+
+This runs `swag init` and outputs to `docs/swagger/`. The Swagger UI is served at `/swagger/index.html`.
+
+When adding or modifying API handlers, update the Swagger annotations on each handler function. Annotations are written as Go comments above the handler. Reference: [swaggo/swag declarative comments format](https://github.com/swaggo/swag#declarative-comments-format).
+
+**General API info** is declared in `cmd/jpcorrect/main.go`:
+```go
+// @title jpcorrect API
+// @version 1.0
+// @description Japanese language correction platform backend API
+// @host localhost:8080
+// @BasePath /
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+```
+
+**Per-handler annotations** example:
+```go
+// @Summary Create a user
+// @Description Create a new user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body domain.User true "User data"
+// @Success 201 {object} domain.User
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users [post]
+func (a *API) UserCreateHandler(c *gin.Context) { ... }
+```
+
+Common annotations:
+
+| Annotation | Description |
+| --- | --- |
+| `@Summary` | Short summary of the operation |
+| `@Description` | Detailed description |
+| `@Tags` | Group operations under a tag |
+| `@Accept` | Request content type (`json`, `xml`, etc.) |
+| `@Produce` | Response content type |
+| `@Param` | Parameter: `{name} {in} {type} {required} "{desc}"` |
+| `@Success` / `@Failure` | Response: `{status} {type} {model} "{desc}"` |
+| `@Router` | Route: `{path} [{method}]` |
+| `@Security` | Security definition to apply (e.g., `BearerAuth`) |
+
 ## Docker Support
 
 ### Quick Start
