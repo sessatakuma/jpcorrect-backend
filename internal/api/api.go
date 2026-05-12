@@ -101,7 +101,11 @@ func (api *API) Close() {
 
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Only register Swagger endpoint in development mode
+	if gin.IsDebugging() {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
