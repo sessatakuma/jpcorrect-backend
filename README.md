@@ -25,14 +25,18 @@ Variables:
 | --- | --- |
 | `PORT` | Server port (default `8080`) |
 | `DATABASE_URL` | PostgreSQL connection string |
-| `API_TOOLS_URL` | External API tools service URL |
+| `API_TOOLS_URL` | API tools service URL |
+| `API_TOOLS_KEY` | API key forwarded as `X-API-KEY` header to API tools service |
 | `JWKS_URL` | JWKS endpoint for JWT verification |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins (empty = allow all in debug mode) |
 | `GIN_MODE` | `debug` or `release` |
 | `API_CERT_PATH` | TLS certificate path (optional; enables HTTPS if both cert and key exist) |
 | `API_KEY_PATH` | TLS key path (optional) |
+| `YAHOO_API_KEY` | Yahoo API key for the API-tools service |
+| `API_TOOLS_ALLOW_ORIGINS` | CORS origins for the API-tools service (default `*`) |
+| `API_TOOLS_ALLOWED_HOSTS` | Trusted hosts for the API-tools service (default `*`) |
 
-> **Docker note:** `DATABASE_URL` must use the Docker hostname `postgres` instead of `localhost` when running via `docker compose`. See `.env` for the default value.
+> **Docker note:** `DATABASE_URL` must use the Docker hostname `postgres` instead of `localhost` when running via `docker compose`. `API_TOOLS_URL` must use the Docker hostname `api-tools` instead of `localhost`. See `.env.example` for default values.
 
 ### Run
 ```bash
@@ -102,7 +106,7 @@ Common annotations:
 
 ### Quick Start
 ```bash
-# Start all services (postgres + backend)
+# Start all services (postgres + api-tools + backend)
 docker compose up -d
 
 # Build and start (use after code changes)
@@ -117,10 +121,13 @@ docker compose down
 ### Access Services
 - **Backend API**: http://localhost:8080
 - **Swagger UI**: http://localhost:8080/swagger/index.html
+- **API Tools** (internal only, proxied through backend): http://api-tools:8000
 - **PostgreSQL**: localhost:5432
   - User: `jpcorrect`
   - Password: `jpcorrect_password`
   - Database: `jpcorrect`
 
 ### Docker Environment Variables
-The backend service reads `.env` via `env_file` in `docker-compose.yml`, so all variables are automatically injected into the container. Make sure `DATABASE_URL` in `.env` uses the Docker hostname `postgres` (not `localhost`).
+The backend service reads `.env` via `env_file` in `docker-compose.yml`, so all variables are automatically injected into the container. Make sure `DATABASE_URL` in `.env` uses the Docker hostname `postgres` (not `localhost`), and `API_TOOLS_URL` uses the Docker hostname `api-tools` (not `localhost`).
+
+The API-tools service requires `YAHOO_API_KEY` (obtained from [Yahoo Japan Developer](https://developer.yahoo.co.jp/)), `X_API_KEY` (set via `API_TOOLS_KEY` in `.env`), `ALLOW_ORIGINS`, and `ALLOWED_HOSTS`. These are configured in `docker-compose.yml` from `.env` variables.

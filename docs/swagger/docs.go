@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/v1/dict-query": {
             "post": {
-                "description": "Proxy to external API tools service for dictionary queries",
+                "description": "Look up words in JMdict (Japanese-Multilingual Dictionary). Returns kanji forms, furigana readings, parts of speech, and English definitions. Supports searching by kanji, kana, or romaji.",
                 "consumes": [
                     "application/json"
                 ],
@@ -30,12 +30,12 @@ const docTemplate = `{
                 "summary": "Dictionary query",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to look up in the dictionary",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.DictQueryRequest"
                         }
                     }
                 ],
@@ -43,7 +43,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.DictQueryResponse"
                         }
                     },
                     "502": {
@@ -1030,7 +1030,7 @@ const docTemplate = `{
         },
         "/v1/mark-accent": {
             "post": {
-                "description": "Proxy to external API tools service for marking accent",
+                "description": "Analyze Japanese text and return accent (pitch) patterns for each word. The accent_marking_type values: 0=no accent, 1=heiban (flat), 2=fall down. Supports kanji-kana mixed input. Requires text input.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1043,12 +1043,12 @@ const docTemplate = `{
                 "summary": "Mark Japanese accent",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Japanese text to analyze for accent patterns",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1056,7 +1056,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.MarkAccentResponse"
                         }
                     },
                     "502": {
@@ -1073,7 +1073,7 @@ const docTemplate = `{
         },
         "/v1/mark-furigana": {
             "post": {
-                "description": "Proxy to external API tools service for marking furigana",
+                "description": "Annotate Japanese text with furigana (reading aid) readings. Breaks input into words, providing furigana and optional sub-word decomposition for mixed kanji-kana words. Requires text input.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1086,12 +1086,12 @@ const docTemplate = `{
                 "summary": "Mark furigana",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Japanese text to annotate with furigana",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.MarkFuriganaRequest"
                         }
                     }
                 ],
@@ -1099,7 +1099,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.MarkFuriganaResponse"
                         }
                     },
                     "502": {
@@ -1780,7 +1780,7 @@ const docTemplate = `{
         },
         "/v1/sentence-query": {
             "post": {
-                "description": "Proxy to external API tools service for sentence queries",
+                "description": "Find example sentences containing a given word from JMdict. Requires both the word and its JMdict entry ID (obtained from the dict-query endpoint). Returns bilingual Japanese-English sentence pairs.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1793,12 +1793,12 @@ const docTemplate = `{
                 "summary": "Sentence query",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word and its JMdict entry ID",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.SentenceQueryRequest"
                         }
                     }
                 ],
@@ -1806,7 +1806,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.SentenceQueryResponse"
                         }
                     },
                     "502": {
@@ -2181,7 +2181,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/headwords": {
             "post": {
-                "description": "Proxy to external API tools service for usage query headwords",
+                "description": "Search for headwords in Japanese language corpora. Supports lookup by kanji, kana, or romaji. Returns matching headword entries with readings and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba Web Corpus).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2194,12 +2194,12 @@ const docTemplate = `{
                 "summary": "Query usage headwords",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to search (kanji, kana, or romaji) and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2207,7 +2207,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsResponse"
                         }
                     },
                     "502": {
@@ -2224,7 +2224,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/id-details": {
             "post": {
-                "description": "Proxy to external API tools service for usage query by ID details",
+                "description": "Retrieve detailed usage information for a specific headword by its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei), and collocation data. The headword_id must be obtained from the headwords endpoint first.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2237,12 +2237,12 @@ const docTemplate = `{
                 "summary": "Query usage by ID details",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Headword ID and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsRequest"
                         }
                     }
                 ],
@@ -2250,7 +2250,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsResponse"
                         }
                     },
                     "502": {
@@ -2267,7 +2267,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/url": {
             "post": {
-                "description": "Proxy to external API tools service for usage query by URL",
+                "description": "Given a word, return URLs to the corresponding headword detail pages in the selected corpus (NLB or NLT). Uses the same request format as the headwords endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2280,12 +2280,12 @@ const docTemplate = `{
                 "summary": "Query usage by URL",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to search and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2293,7 +2293,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/internal_api.UsageQueryURLResponse"
                         }
                     },
                     "502": {
@@ -2665,6 +2665,463 @@ const docTemplate = `{
                 "valid": {
                     "description": "Valid is true if Time is not NULL",
                     "type": "boolean"
+                }
+            }
+        },
+        "internal_api.APIToolsError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "message": {
+                    "type": "string",
+                    "example": "HTTP error 500"
+                }
+            }
+        },
+        "internal_api.AccentInfo": {
+            "type": "object",
+            "properties": {
+                "accent_marking_type": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "furigana": {
+                    "type": "string",
+                    "example": "か"
+                },
+                "length": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "internal_api.Definition": {
+            "type": "object",
+            "properties": {
+                "meanings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "teacher"
+                    ]
+                },
+                "pos": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "noun"
+                    ]
+                }
+            }
+        },
+        "internal_api.DictQueryRequest": {
+            "type": "object",
+            "properties": {
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "internal_api.DictQueryResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.DictQueryWordResult"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.DictQueryWordResult": {
+            "type": "object",
+            "properties": {
+                "definitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.Definition"
+                    }
+                },
+                "furigana": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "せんせい"
+                    ]
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "kanji": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "先生"
+                    ]
+                }
+            }
+        },
+        "internal_api.HeadWord": {
+            "type": "object",
+            "properties": {
+                "freq": {
+                    "type": "integer",
+                    "example": 1234
+                },
+                "headword": {
+                    "type": "string",
+                    "example": "走る"
+                },
+                "headword_id": {
+                    "type": "string",
+                    "example": "V.00093"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "romaji_display": {
+                    "type": "string",
+                    "example": "hashiru"
+                },
+                "yomi_display": {
+                    "type": "string",
+                    "example": "ハシ・ル"
+                }
+            }
+        },
+        "internal_api.IdDetails": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "katuyokei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "patternfreqorder": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "setuzoku": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "shojikei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "subcorpus": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "subcorpus_shojikei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "internal_api.MarkAccentRequest": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "example": "お金を稼ぐ"
+                }
+            }
+        },
+        "internal_api.MarkAccentResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordAccentResult"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.MarkFuriganaRequest": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "example": "漢字かな交じり文"
+                }
+            }
+        },
+        "internal_api.MarkFuriganaResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordResult"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.SentenceQueryRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "internal_api.SentenceQueryResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "result": {
+                    "$ref": "#/definitions/internal_api.SentenceQueryWordResult"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.SentenceQueryWordResult": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "sentence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordSentence"
+                    }
+                },
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "internal_api.UsageQueryHeadWordsRequest": {
+            "type": "object",
+            "properties": {
+                "site": {
+                    "type": "string",
+                    "example": "NLB"
+                },
+                "word": {
+                    "type": "string",
+                    "example": "走る"
+                }
+            }
+        },
+        "internal_api.UsageQueryHeadWordsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.HeadWord"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.UsageQueryIDDetailsRequest": {
+            "type": "object",
+            "properties": {
+                "headword_id": {
+                    "type": "string",
+                    "example": "V.00093"
+                },
+                "site": {
+                    "type": "string",
+                    "example": "NLB"
+                }
+            }
+        },
+        "internal_api.UsageQueryIDDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "$ref": "#/definitions/internal_api.IdDetails"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.UsageQueryURLResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.UsageQueryWordURL"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "internal_api.UsageQueryWordURL": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "example": "https://nlb.ninjal.ac.jp/headword/V.00093/"
+                },
+                "word": {
+                    "type": "string",
+                    "example": "走る"
+                }
+            }
+        },
+        "internal_api.WordAccentResult": {
+            "type": "object",
+            "properties": {
+                "accent": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.AccentInfo"
+                    }
+                },
+                "furigana": {
+                    "type": "string",
+                    "example": "おかね"
+                },
+                "subword": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordAccentSubword"
+                    }
+                },
+                "surface": {
+                    "type": "string",
+                    "example": "お金"
+                }
+            }
+        },
+        "internal_api.WordAccentSubword": {
+            "type": "object",
+            "properties": {
+                "furigana": {
+                    "type": "string",
+                    "example": "かね"
+                },
+                "surface": {
+                    "type": "string",
+                    "example": "金"
+                }
+            }
+        },
+        "internal_api.WordResult": {
+            "type": "object",
+            "properties": {
+                "furigana": {
+                    "type": "string",
+                    "example": "かんじ"
+                },
+                "subword": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordResult"
+                    }
+                },
+                "surface": {
+                    "type": "string",
+                    "example": "漢字"
+                }
+            }
+        },
+        "internal_api.WordSentence": {
+            "type": "object",
+            "properties": {
+                "en": {
+                    "type": "string",
+                    "example": "I will ask the teacher."
+                },
+                "jp": {
+                    "type": "string",
+                    "example": "先生に聞いてみます。"
                 }
             }
         },
