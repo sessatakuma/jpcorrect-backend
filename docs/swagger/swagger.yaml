@@ -8,6 +8,318 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_api.APIToolsError:
+    properties:
+      code:
+        example: 500
+        type: integer
+      message:
+        example: HTTP error 500
+        type: string
+    type: object
+  internal_api.AccentInfo:
+    properties:
+      accent_marking_type:
+        example: 1
+        type: integer
+      furigana:
+        example: か
+        type: string
+      length:
+        example: 1
+        type: integer
+    type: object
+  internal_api.Definition:
+    properties:
+      meanings:
+        example:
+        - teacher
+        items:
+          type: string
+        type: array
+      pos:
+        example:
+        - noun
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.DictQueryRequest:
+    properties:
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.DictQueryResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.DictQueryWordResult'
+        type: array
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.DictQueryWordResult:
+    properties:
+      definitions:
+        items:
+          $ref: '#/definitions/internal_api.Definition'
+        type: array
+      furigana:
+        example:
+        - せんせい
+        items:
+          type: string
+        type: array
+      id:
+        example: 1387990
+        type: integer
+      kanji:
+        example:
+        - 先生
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.HeadWord:
+    properties:
+      freq:
+        example: 1234
+        type: integer
+      headword:
+        example: 走る
+        type: string
+      headword_id:
+        example: V.00093
+        type: string
+      id:
+        example: 1
+        type: integer
+      romaji_display:
+        example: hashiru
+        type: string
+      yomi_display:
+        example: ハシ・ル
+        type: string
+    type: object
+  internal_api.IdDetails:
+    properties:
+      base:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      katuyokei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      patternfreqorder:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      setuzoku:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      shojikei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      subcorpus:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      subcorpus_shojikei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  internal_api.MarkAccentRequest:
+    properties:
+      text:
+        example: お金を稼ぐ
+        type: string
+    type: object
+  internal_api.MarkAccentResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentResult'
+        type: array
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.MarkFuriganaRequest:
+    properties:
+      text:
+        example: 漢字かな交じり文
+        type: string
+    type: object
+  internal_api.MarkFuriganaResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.WordResult'
+        type: array
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.SentenceQueryRequest:
+    properties:
+      id:
+        example: 1387990
+        type: integer
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.SentenceQueryResponse:
+    properties:
+      error:
+        type: string
+      result:
+        $ref: '#/definitions/internal_api.SentenceQueryWordResult'
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.SentenceQueryWordResult:
+    properties:
+      id:
+        example: 1387990
+        type: integer
+      sentence:
+        items:
+          $ref: '#/definitions/internal_api.WordSentence'
+        type: array
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.UsageQueryHeadWordsRequest:
+    properties:
+      site:
+        example: NLB
+        type: string
+      word:
+        example: 走る
+        type: string
+    type: object
+  internal_api.UsageQueryHeadWordsResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.HeadWord'
+        type: array
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryIDDetailsRequest:
+    properties:
+      headword_id:
+        example: V.00093
+        type: string
+      site:
+        example: NLB
+        type: string
+    type: object
+  internal_api.UsageQueryIDDetailsResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        $ref: '#/definitions/internal_api.IdDetails'
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryURLResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.UsageQueryWordURL'
+        type: array
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryWordURL:
+    properties:
+      url:
+        example: https://nlb.ninjal.ac.jp/headword/V.00093/
+        type: string
+      word:
+        example: 走る
+        type: string
+    type: object
+  internal_api.WordAccentResult:
+    properties:
+      accent:
+        items:
+          $ref: '#/definitions/internal_api.AccentInfo'
+        type: array
+      furigana:
+        example: おかね
+        type: string
+      subword:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentSubword'
+        type: array
+      surface:
+        example: お金
+        type: string
+    type: object
+  internal_api.WordAccentSubword:
+    properties:
+      furigana:
+        example: かね
+        type: string
+      surface:
+        example: 金
+        type: string
+    type: object
+  internal_api.WordResult:
+    properties:
+      furigana:
+        example: かんじ
+        type: string
+      subword:
+        items:
+          $ref: '#/definitions/internal_api.WordResult'
+        type: array
+      surface:
+        example: 漢字
+        type: string
+    type: object
+  internal_api.WordSentence:
+    properties:
+      en:
+        example: I will ask the teacher.
+        type: string
+      jp:
+        example: 先生に聞いてみます。
+        type: string
+    type: object
   jpcorrect-backend_internal_domain.Event:
     properties:
       actual_duration:
@@ -238,21 +550,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for dictionary queries
+      description: Look up words in JMdict (Japanese-Multilingual Dictionary). Returns
+        kanji forms, furigana readings, parts of speech, and English definitions.
+        Supports searching by kanji, kana, or romaji.
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to look up in the dictionary
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.DictQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.DictQueryResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -903,21 +1217,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for marking accent
+      description: 'Analyze Japanese text and return accent (pitch) patterns for each
+        word. The accent_marking_type values: 0=no accent, 1=heiban (flat), 2=fall
+        down. Supports kanji-kana mixed input. Requires text input.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Japanese text to analyze for accent patterns
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.MarkAccentRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.MarkAccentResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -931,21 +1247,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for marking furigana
+      description: Annotate Japanese text with furigana (reading aid) readings. Breaks
+        input into words, providing furigana and optional sub-word decomposition for
+        mixed kanji-kana words. Requires text input.
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Japanese text to annotate with furigana
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.MarkFuriganaRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.MarkFuriganaResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -1395,21 +1713,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for sentence queries
+      description: Find example sentences containing a given word from JMdict. Requires
+        both the word and its JMdict entry ID (obtained from the dict-query endpoint).
+        Returns bilingual Japanese-English sentence pairs.
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word and its JMdict entry ID
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.SentenceQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.SentenceQueryResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -1658,21 +1978,24 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query headwords
+      description: Search for headwords in Japanese language corpora. Supports lookup
+        by kanji, kana, or romaji. Returns matching headword entries with readings
+        and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba
+        Web Corpus).
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to search (kanji, kana, or romaji) and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryHeadWordsResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -1686,21 +2009,24 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query by ID details
+      description: Retrieve detailed usage information for a specific headword by
+        its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei),
+        and collocation data. The headword_id must be obtained from the headwords
+        endpoint first.
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Headword ID and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryIDDetailsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryIDDetailsResponse'
         "502":
           description: Bad Gateway
           schema:
@@ -1714,21 +2040,23 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query by URL
+      description: Given a word, return URLs to the corresponding headword detail
+        pages in the selected corpus (NLB or NLT). Uses the same request format as
+        the headwords endpoint.
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to search and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryURLResponse'
         "502":
           description: Bad Gateway
           schema:

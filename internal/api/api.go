@@ -23,6 +23,7 @@ import (
 type API struct {
 	db                *gorm.DB
 	apiToolsURL       string
+	apiToolsKey       string
 	proxyTransport    *http.Transport
 	jwksURL           string
 	jwksCache         keyfunc.Keyfunc
@@ -42,7 +43,7 @@ type API struct {
 	upgrader          websocket.Upgrader
 }
 
-func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
+func NewAPI(url string, apiKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
@@ -77,6 +78,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	return &API{
 		db:                db,
 		apiToolsURL:       url,
+		apiToolsKey:       apiKey,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
 		userRepo:          userRepo,
