@@ -15,7 +15,7 @@ go mod download
 ```
 
 ### Environment Variables
-A `.env` file is required in the project root. Copy and configure it:
+A `.env` file is required in the project root for local development. Copy and configure it:
 ```bash
 cp .env.example .env
 ```
@@ -27,6 +27,7 @@ Variables:
 | `DATABASE_URL` | PostgreSQL connection string |
 | `API_TOOLS_URL` | API tools service URL |
 | `API_TOOLS_KEY` | API key forwarded as `X-API-KEY` header to API tools service |
+| `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token for the optional `cloudflared` compose profile |
 | `JWKS_URL` | JWKS endpoint for JWT verification |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins (empty = allow all in debug mode) |
 | `GIN_MODE` | `debug` or `release` |
@@ -36,7 +37,7 @@ Variables:
 | `API_TOOLS_ALLOW_ORIGINS` | CORS origins for the API-tools service (default `*`) |
 | `API_TOOLS_ALLOWED_HOSTS` | Trusted hosts for the API-tools service (default `*`) |
 
-> **Docker note:** `DATABASE_URL` must use the Docker hostname `postgres` instead of `localhost` when running via `docker compose`. `API_TOOLS_URL` must use the Docker hostname `api-tools` instead of `localhost`. See `.env.example` for default values.
+> **Local development note:** `.env.example` is for host-run development. When the backend runs on your machine, `DATABASE_URL` should use `127.0.0.1` and `API_TOOLS_URL` should point at your local `api-tools` process.
 
 ### Run
 ```bash
@@ -102,32 +103,99 @@ Common annotations:
 | `@Router` | Route: `{path} [{method}]` |
 | `@Security` | Security definition to apply (e.g., `BearerAuth`) |
 
-## Docker Support
+## Local Development and Deployment
 
-### Quick Start
+This repository now uses a **single Docker Compose file**:
+
+- `compose.deploy.yml` for deployment infrastructure and containerized services
+
+Local development is handled through the `Makefile` instead of a separate all-in-one compose stack.
+
+### Local development
+
+Copy the local development environment file first:
+
 ```bash
-# Start all services (postgres + api-tools + backend)
-docker compose up -d
-
-# Build and start (use after code changes)
-docker compose up --build
-
-# Stop all services
-docker compose down
+cp .env.example .env
 ```
 
-> **Note:** The Docker setup uses a multi-stage build. You must run `docker compose up --build` to pick up code changes — there is no hot reload inside the container. For live reloading during development, use `make air` locally instead.
+Useful local targets:
 
-### Access Services
-- **Backend API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger/index.html
-- **API Tools** (internal only, proxied through backend): http://api-tools:8000
-- **PostgreSQL**: localhost:5432
-  - User: `jpcorrect`
-  - Password: `jpcorrect_password`
-  - Database: `jpcorrect`
+```bash
+# Start only PostgreSQL in Docker (bound to 127.0.0.1:5432)
+make db-up
 
-### Docker Environment Variables
-The backend service reads `.env` via `env_file` in `docker-compose.yml`, so all variables are automatically injected into the container. Make sure `DATABASE_URL` in `.env` uses the Docker hostname `postgres` (not `localhost`), and `API_TOOLS_URL` uses the Docker hostname `api-tools` (not `localhost`).
+# Follow PostgreSQL logs
+make db-logs
 
-The API-tools service requires `YAHOO_API_KEY` (obtained from [Yahoo Japan Developer](https://developer.yahoo.co.jp/)), `X_API_KEY` (set via `API_TOOLS_KEY` in `.env`), `ALLOW_ORIGINS`, and `ALLOWED_HOSTS`. These are configured in `docker-compose.yml` from `.env` variables.
+# Stop PostgreSQL
+make db-down
+
+# Run API-tools locally with uv on 127.0.0.1:8000
+make api-tools
+
+# Run backend locally with air
+make air
+```
+
+In this workflow:
+
+- backend runs on your host machine
+- `api-tools` runs on your host machine through `uv run`
+- PostgreSQL runs in Docker via `compose.deploy.yml`
+
+The local `.env.example` is configured for this workflow with host-reachable values such as:
+
+```text
+DATABASE_URL=postgres://...@127.0.0.1:5432/...
+API_TOOLS_URL=http://127.0.0.1:8000
+```
+
+### Deployment / CD stack
+
+For deployment, use a dedicated deploy env file:
+
+```bash
+cp .env.deploy.example .env.deploy
+BACKEND_ENV_FILE=.env.deploy docker compose -f compose.deploy.yml --env-file .env.deploy up -d
+```
+
+For this mode, `.env.deploy` should use deployment-ready values such as:
+
+```text
+DATABASE_URL=postgres://...@postgres:5432/...
+API_TOOLS_URL=http://host.docker.internal:8000
+```
+
+This stack is intended for CD / production-style deploys:
+
+- `backend` runs from `BACKEND_IMAGE` (for example a GHCR image)
+- `postgres` runs in Docker and is bound only to `127.0.0.1`
+- `cloudflared` forwards traffic to `http://backend:8080`
+- `backend` reaches host-run `api-tools` through `http://host.docker.internal:8000`
+
+This keeps a single deployment compose file while allowing `api-tools` to have an independent lifecycle.
+
+### Cloudflare Tunnel
+
+`cloudflared` is part of `compose.deploy.yml`.
+
+Configure the Cloudflare public hostname to forward to:
+
+```text
+http://backend:8080
+```
+
+> `cloudflared` runs inside Docker, so do **not** use `localhost:8080` as the Cloudflare service URL. Inside the tunnel container, `localhost` points to itself, not the `backend` service.
+
+### Environment files
+
+- `.env.example`: local development defaults for `make db-up`, `make api-tools`, and `make air`
+- `.env.deploy.example`: deployment defaults for `compose.deploy.yml`
+- `.env`: your local development environment file (gitignored)
+- `.env.deploy`: your deployment environment file (gitignored)
+- `API-tools/.env.example`: standalone `api-tools` local runtime example
+
+### Why this layout
+
+This setup keeps Docker focused on deployment concerns while local development stays fast and simple. It also keeps environment values explicit per runtime, which avoids accidentally reusing host-only settings inside containers.
