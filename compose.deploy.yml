@@ -1,0 +1,45 @@
+---
+services:
+    postgres:
+        image: postgres:15-alpine
+        container_name: jpcorrect-postgres
+        environment:
+            POSTGRES_USER: jpcorrect
+            POSTGRES_PASSWORD: jpcorrect_password
+            POSTGRES_DB: jpcorrect
+        ports:
+            - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
+
+    backend:
+        image: ${BACKEND_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:latest}
+        container_name: jpcorrect-backend
+        depends_on:
+            - postgres
+        env_file:
+            - ${BACKEND_ENV_FILE:-.env}
+        expose:
+            - "8080"
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        restart: unless-stopped
+
+    cloudflared:
+        image: cloudflare/cloudflared:latest
+        command: tunnel run jb
+        container_name: jpcorrect-cloudflared
+        volumes:
+            - ./.cloudflared:/home/nonroot/.cloudflared
+        depends_on:
+            - backend
+        restart: unless-stopped
+
+volumes:
+    postgres_data:
