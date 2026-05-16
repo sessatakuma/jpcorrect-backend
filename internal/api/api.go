@@ -114,9 +114,9 @@ func Register(r *gin.Engine, api *API) {
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
 
-	// API Tools — accept either X-API-Key (server-to-server) or JWT
+	// API Tools — non-user-specific service access, X-API-Key only
 	apiTools := r.Group("/v1")
-	apiTools.Use(api.APIKeyOrJWTMiddleware())
+	apiTools.Use(api.APIKeyMiddleware())
 	{
 		apiTools.POST("/mark-accent", api.MarkAccentHandler)
 		apiTools.POST("/mark-furigana", api.MarkFuriganaHandler)

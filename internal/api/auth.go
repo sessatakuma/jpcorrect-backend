@@ -78,39 +78,42 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
-// APIKeyOrJWTMiddleware accepts either a static API key in the X-API-Key header
-// or a valid JWT in Authorization: Bearer. If X-API-Key is present it must match;
-// otherwise the request falls back to JWT validation.
-func (a *API) APIKeyOrJWTMiddleware() gin.HandlerFunc {
+// APIKeyMiddleware requires a static API key in the X-API-Key header that matches
+// CLIENT_API_KEY. Intended for non-user-specific service callers; user-scoped
+// callers should use the JWT-based AuthMiddleware on regular /v1 routes instead.
+func (a *API) APIKeyMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if providedKey := c.GetHeader("X-API-Key"); providedKey != "" {
-			if a.clientAPIKey == "" {
-				a.respondAuthError(c, domain.NewAuthError(
-					http.StatusUnauthorized,
-					"API key authentication is not configured",
-					"",
-				))
-				c.Abort()
-				return
-			}
-			if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
-				a.respondAuthError(c, domain.NewAuthError(
-					http.StatusUnauthorized,
-					"invalid API key",
-					"",
-				))
-				c.Abort()
-				return
-			}
-			c.Next()
-			return
-		}
-
-		if err := a.validateToken(c); err != nil {
-			a.respondAuthError(c, err)
+		if a.clientAPIKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"API key authentication is not configured",
+				"",
+			))
 			c.Abort()
 			return
 		}
+
+		providedKey := c.GetHeader("X-API-Key")
+		if providedKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"missing X-API-Key header",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid API key",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
 		c.Next()
 	}
 }
