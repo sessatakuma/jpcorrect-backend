@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net/http"
@@ -73,6 +74,43 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// APIKeyOrJWTMiddleware accepts either a static API key in the X-API-Key header
+// or a valid JWT in Authorization: Bearer. If X-API-Key is present it must match;
+// otherwise the request falls back to JWT validation.
+func (a *API) APIKeyOrJWTMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if providedKey := c.GetHeader("X-API-Key"); providedKey != "" {
+			if a.clientAPIKey == "" {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusUnauthorized,
+					"API key authentication is not configured",
+					"",
+				))
+				c.Abort()
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusUnauthorized,
+					"invalid API key",
+					"",
+				))
+				c.Abort()
+				return
+			}
+			c.Next()
+			return
+		}
+
+		if err := a.validateToken(c); err != nil {
+			a.respondAuthError(c, err)
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }
