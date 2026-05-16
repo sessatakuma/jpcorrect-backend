@@ -24,7 +24,7 @@ Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker.
 
 ```bash
-cp .env.example .env                  # one-time setup
+cp .env.example .env                  # one-time setup — then fill in YAHOO_API_KEY + JWKS_URL
 
 make db-up                            # start Postgres in Docker (bound to 127.0.0.1:5432)
 make db-logs                          # tail Postgres logs
@@ -38,6 +38,11 @@ go run cmd/jpcorrect/main.go          # run backend directly (no live reload)
 ```
 
 In this mode, `.env` has `DATABASE_URL=...@127.0.0.1:5432/...` and `API_TOOLS_URL=http://127.0.0.1:8000`.
+
+**Verified smoke-test endpoints** (all three services up):
+- `curl http://127.0.0.1:8080/healthz` → `ok`
+- `curl http://127.0.0.1:8080/swagger/index.html` → 200 (debug only)
+- `curl http://127.0.0.1:8000/docs` → 200 (api-tools FastAPI)
 
 ### Deployment stack
 For CD / production-style deploys, use `compose.deploy.yml` with a separate `.env.deploy`:
@@ -101,6 +106,14 @@ make swag   # runs: go tool swag init -g cmd/jpcorrect/main.go -o docs/swagger -
 ```
 
 The `_ "jpcorrect-backend/docs/swagger"` import in `api.go` registers generated specs. CI runs `yamllint` on all YAML — `docs/swagger/` is excluded via `.yamllint`.
+
+### Security schemes
+Two `@securityDefinitions.apikey` schemes are declared at the top of `cmd/jpcorrect/main.go`:
+
+- `BearerAuth` — header `Authorization`. Used by every JWT-protected handler under `v1.Use(AuthMiddleware())`. The parser tolerates a bare `<jwt>` as well as `Bearer <jwt>` (case-insensitive), so users can paste the raw token into Swagger UI's Authorize dialog.
+- `ApiKeyAuth` — header `X-API-Key`. Used by the 7 api-tools proxy handlers under `apiTools.Use(APIKeyMiddleware())`. JWT is **not** accepted on these routes.
+
+Every authenticated handler must carry a `// @Security <Scheme>` line above `// @Router`, otherwise Swagger UI won't show a lock icon and "Try it out" won't attach the header. Pattern: `BearerAuth` for `/v1/{users,guilds,...}`, `ApiKeyAuth` for `/v1/{mark-accent,dict-query,...}`.
 
 ## Project Conventions
 
@@ -192,3 +205,5 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 9. **`API_TOOLS_URL` from containers**: `host.docker.internal` in the deploy stack — `api-tools` runs on the host, not in Docker
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
 11. **Two API keys**: `API_TOOLS_KEY` is *outbound* (we send it to API-tools). `CLIENT_API_KEY` is *inbound* on the 7 api-tools routes (X-API-Key only — JWT is rejected there; empty value returns 401). Don't conflate them.
+12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
+13. **`make api-tools` requires `YAHOO_API_KEY`**: The Python service asserts on `YAHOO_API_KEY` at import time and exits non-zero before uvicorn binds. Set it in `.env` (the Makefile `include .env`s and forwards the value to the uv subprocess).
