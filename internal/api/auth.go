@@ -133,30 +133,34 @@ func (a *API) respondAuthError(c *gin.Context, err error) {
 	}
 }
 
-// validateToken validates the JWT token and extracts user information
+// validateToken validates the JWT token and extracts user information.
+// Accepts "Bearer <token>" (any casing) as well as a bare "<token>" — the
+// latter compensates for Swagger UI's apiKey field, which doesn't auto-prefix
+// the scheme.
 func (a *API) validateToken(c *gin.Context) error {
-	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
+	fields := strings.Fields(authHeader)
+
+	var tokenString string
+	switch len(fields) {
+	case 0:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"missing authorization header",
 			"",
 		)
-	}
-
-	// Extract the token from "Bearer <token>"
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid authorization header format",
-			"",
-		)
-	}
-
-	tokenString := strings.TrimSpace(parts[1])
-	if tokenString == "" {
+	case 1:
+		tokenString = fields[0]
+	case 2:
+		if !strings.EqualFold(fields[0], "Bearer") {
+			return domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid authorization header format",
+				"",
+			)
+		}
+		tokenString = fields[1]
+	default:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"invalid authorization header format",

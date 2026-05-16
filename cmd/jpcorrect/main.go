@@ -6,7 +6,7 @@
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description JWT token issued by the configured JWKS provider. Pass as "Bearer <token>".
+// @description JWT issued by the configured JWKS provider. Paste the raw token; the "Bearer " scheme prefix is optional (added automatically if missing).
 
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
