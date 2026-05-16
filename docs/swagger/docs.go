@@ -3684,7 +3684,7 @@ const docTemplate = `{
             "in": "header"
         },
         "BearerAuth": {
-            "description": "JWT token issued by the configured JWKS provider. Pass as \"Bearer \u003ctoken\u003e\".",
+            "description": "JWT issued by the configured JWKS provider. Paste the raw token; the \"Bearer \" scheme prefix is optional (added automatically if missing).",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

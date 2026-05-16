@@ -2394,8 +2394,8 @@ securityDefinitions:
     name: X-API-Key
     type: apiKey
   BearerAuth:
-    description: JWT token issued by the configured JWKS provider. Pass as "Bearer
-      <token>".
+    description: JWT issued by the configured JWKS provider. Paste the raw token;
+      the "Bearer " scheme prefix is optional (added automatically if missing).
     in: header
     name: Authorization
     type: apiKey
