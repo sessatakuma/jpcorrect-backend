@@ -44,3 +44,5 @@ certs/
 
 # Temporary files
 tmp/
+
+.cloudflared
