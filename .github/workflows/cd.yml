@@ -3,7 +3,7 @@ name: CD
 
 on:  # yamllint disable-line rule:truthy
   push:
-    branches: ["main", "feat/api-tools"]
+    branches: ["main"]
     tags: ["v*.*.*"]
   workflow_dispatch:
 
