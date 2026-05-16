@@ -44,6 +44,7 @@ func (a *API) handlerHelper(c *gin.Context, target string) {
 // @Param body body MarkAccentRequest true "Japanese text to analyze for accent patterns"
 // @Success 200 {object} MarkAccentResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/mark-accent [post]
 func (a *API) MarkAccentHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/MarkAccent/")
@@ -57,6 +58,7 @@ func (a *API) MarkAccentHandler(c *gin.Context) {
 // @Param body body MarkFuriganaRequest true "Japanese text to annotate with furigana"
 // @Success 200 {object} MarkFuriganaResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/mark-furigana [post]
 func (a *API) MarkFuriganaHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/MarkFurigana/")
@@ -70,6 +72,7 @@ func (a *API) MarkFuriganaHandler(c *gin.Context) {
 // @Param body body UsageQueryHeadWordsRequest true "Word to search (kanji, kana, or romaji) and corpus site"
 // @Success 200 {object} UsageQueryHeadWordsResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/usage-query/headwords [post]
 func (a *API) UsageQueryHeadWordsHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/UsageQuery/HeadWords/")
@@ -83,6 +86,7 @@ func (a *API) UsageQueryHeadWordsHandler(c *gin.Context) {
 // @Param body body UsageQueryHeadWordsRequest true "Word to search and corpus site"
 // @Success 200 {object} UsageQueryURLResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/usage-query/url [post]
 func (a *API) UsageQueryURLHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/UsageQuery/URL/")
@@ -96,6 +100,7 @@ func (a *API) UsageQueryURLHandler(c *gin.Context) {
 // @Param body body UsageQueryIDDetailsRequest true "Headword ID and corpus site"
 // @Success 200 {object} UsageQueryIDDetailsResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/usage-query/id-details [post]
 func (a *API) UsageQueryIDDetailsHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/UsageQuery/IdDetails/")
@@ -109,6 +114,7 @@ func (a *API) UsageQueryIDDetailsHandler(c *gin.Context) {
 // @Param body body DictQueryRequest true "Word to look up in the dictionary"
 // @Success 200 {object} DictQueryResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/dict-query [post]
 func (a *API) DictQueryHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/DictQuery/")
@@ -122,6 +128,7 @@ func (a *API) DictQueryHandler(c *gin.Context) {
 // @Param body body SentenceQueryRequest true "Word and its JMdict entry ID"
 // @Success 200 {object} SentenceQueryResponse
 // @Failure 502 {object} map[string]string
+// @Security ApiKeyAuth
 // @Router /v1/sentence-query [post]
 func (a *API) SentenceQueryHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/SentenceQuery/")
