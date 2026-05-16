@@ -114,7 +114,7 @@ The `_ "jpcorrect-backend/docs/swagger"` import in `api.go` registers generated 
 | `PORT` | No | `8080` | |
 | `API_TOOLS_URL` | No | — | URL of the `API-tools` service (host or `host.docker.internal`) |
 | `API_TOOLS_KEY` | No | — | Outbound `X-API-KEY` header sent to API-tools |
-| `CLIENT_API_KEY` | No | — | Inbound `X-API-Key` required for the 7 api-tools endpoints. Empty = disabled |
+| `CLIENT_API_KEY` | No | — | Inbound `X-API-Key` for the 7 api-tools endpoints (JWT not accepted). Empty value locks those routes (always 401) |
 | `ALLOWED_ORIGINS` | No | — | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `GIN_MODE` | No | — | `debug` or `release` |
 | `API_CERT_PATH` | No | `./certs/cert.pem` | Enables HTTPS if both cert and key exist |
@@ -191,4 +191,4 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 8. **`DATABASE_URL` hostname**: `127.0.0.1` for local dev (`make air`), `postgres` only inside the deploy compose stack
 9. **`API_TOOLS_URL` from containers**: `host.docker.internal` in the deploy stack — `api-tools` runs on the host, not in Docker
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
-11. **Two API keys**: `API_TOOLS_KEY` is *outbound* (we send it). `CLIENT_API_KEY` is *inbound* (we require it). Don't conflate them.
+11. **Two API keys**: `API_TOOLS_KEY` is *outbound* (we send it to API-tools). `CLIENT_API_KEY` is *inbound* on the 7 api-tools routes (X-API-Key only — JWT is rejected there; empty value returns 401). Don't conflate them.
