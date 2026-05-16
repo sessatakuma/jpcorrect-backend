@@ -53,7 +53,7 @@ make deploy-up                        # docker compose -f compose.deploy.yml up 
 make deploy-down
 ```
 
-In this mode, `.env.deploy` has `DATABASE_URL=...@postgres:5432/...` (Docker hostname) and `API_TOOLS_URL=http://host.docker.internal:8000` (api-tools still runs on the host). The stack includes `backend` (pulled from `BACKEND_IMAGE`), `postgres`, and `cloudflared` (Cloudflare Tunnel forwarding to `http://backend:8080`).
+In this mode, `.env.deploy` has `DATABASE_URL=...@postgres:5432/...` (Docker hostname) and `API_TOOLS_URL=http://host.docker.internal:8000` (api-tools still runs on the host). The stack includes `backend` (pulled from `BACKEND_IMAGE`), `postgres`, and `cloudflared` (file-based credentials mounted from `./.cloudflared/`, forwarding to `http://backend:8080`). See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` / `tunnel route dns` setup pattern this repo follows.
 
 ### Database
 GORM `AutoMigrate` in `internal/cmd/api.go` is the primary schema tool. When adding a new domain model, add it to the `AutoMigrate(...)` call.
@@ -142,7 +142,6 @@ Deploy-stack only (read by `compose.deploy.yml`, not the Go process):
 | --- | --- |
 | `BACKEND_IMAGE` | Backend image to pull (default `ghcr.io/sessatakuma/jpcorrect-backend:latest`) |
 | `BACKEND_ENV_FILE` | Env file passed into the backend container (default `.env`; the `deploy-up` target sets `.env.deploy`) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | Token for the `cloudflared` container |
 | `POSTGRES_PORT` | Host-side bind port for Postgres (default `5432`) |
 
 API-tools service only (read by `make api-tools`):
