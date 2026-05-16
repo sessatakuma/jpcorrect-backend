@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/practices/{id} [get]
 func (a *API) PracticeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) PracticeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/practices [post]
 func (a *API) PracticeCreateHandler(c *gin.Context) {
 	var practice domain.Event
@@ -81,6 +83,7 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/practices/{id} [put]
 func (a *API) PracticeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -137,6 +140,7 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/practices/{id} [delete]
 func (a *API) PracticeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -177,6 +181,7 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.Event
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/practices/user/{user_id} [get]
 func (a *API) PracticeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")

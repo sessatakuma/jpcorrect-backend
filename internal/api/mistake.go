@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes/{id} [get]
 func (a *API) MistakeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) MistakeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes [post]
 func (a *API) MistakeCreateHandler(c *gin.Context) {
 	var mistake domain.Mistake
@@ -81,6 +83,7 @@ func (a *API) MistakeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes/{id} [put]
 func (a *API) MistakeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -137,6 +140,7 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes/{id} [delete]
 func (a *API) MistakeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -177,6 +181,7 @@ func (a *API) MistakeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.Mistake
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes/event/{event_id} [get]
 func (a *API) MistakeGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
@@ -203,6 +208,7 @@ func (a *API) MistakeGetByEventHandler(c *gin.Context) {
 // @Success 200 {array} domain.Mistake
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/mistakes/user/{user_id} [get]
 func (a *API) MistakeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
