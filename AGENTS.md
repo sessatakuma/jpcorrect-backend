@@ -125,8 +125,7 @@ Every authenticated handler must carry a `// @Security <Scheme>` line above `// 
 | `DATABASE_URL` | Yes | — | Postgres connection. `127.0.0.1:5432` for local dev, `postgres:5432` for deploy stack |
 | `JWKS_URL` | Yes | — | App fatals if empty |
 | `PORT` | No | `8080` | |
-| `API_TOOLS_URL` | No | — | URL of the `API-tools` service (host or `host.docker.internal`) |
-| `API_TOOLS_KEY` | No | — | Outbound `X-API-KEY` header sent to API-tools |
+| `API_TOOLS_URL` | No | — | URL of the `API-tools` service (host or `host.docker.internal`). The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |
 | `CLIENT_API_KEY` | No | — | Inbound `X-API-Key` for the 7 api-tools endpoints (JWT not accepted). Empty value locks those routes (always 401) |
 | `ALLOWED_ORIGINS` | No | — | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `GIN_MODE` | No | — | `debug` or `release` |
@@ -148,9 +147,7 @@ API-tools service only (read by `make api-tools`):
 
 | Variable | Notes |
 | --- | --- |
-| `YAHOO_API_KEY` | Yahoo API key consumed by the Python service |
-| `API_TOOLS_ALLOW_ORIGINS` | CORS origins for api-tools (default `*`) |
-| `API_TOOLS_ALLOWED_HOSTS` | Trusted hosts for api-tools (default `*`) |
+| `YAHOO_API_KEY` | Yahoo API key consumed by the Python service (the only env var it still requires) |
 
 ### TLS
 Server checks if both `API_CERT_PATH` and `API_KEY_PATH` files exist. If yes → HTTPS; if no → HTTP with warning log.
@@ -203,6 +200,6 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 8. **`DATABASE_URL` hostname**: `127.0.0.1` for local dev (`make air`), `postgres` only inside the deploy compose stack
 9. **`API_TOOLS_URL` from containers**: `host.docker.internal` in the deploy stack — `api-tools` runs on the host, not in Docker
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
-11. **Two API keys**: `API_TOOLS_KEY` is *outbound* (we send it to API-tools). `CLIENT_API_KEY` is *inbound* on the 7 api-tools routes (X-API-Key only — JWT is rejected there; empty value returns 401). Don't conflate them.
+11. **`CLIENT_API_KEY` is inbound only**: It guards the 7 api-tools proxy routes (X-API-Key only — JWT is rejected there; empty value returns 401). The internal jp backend → API-tools call is now keyless (local server-to-server, no auth required), so there is no second key to configure.
 12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
 13. **`make api-tools` requires `YAHOO_API_KEY`**: The Python service asserts on `YAHOO_API_KEY` at import time and exits non-zero before uvicorn binds. Set it in `.env` (the Makefile `include .env`s and forwards the value to the uv subprocess).

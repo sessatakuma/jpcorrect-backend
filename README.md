@@ -26,7 +26,7 @@ Variables:
 | `PORT` | Server port (default `8080`) |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `API_TOOLS_URL` | API tools service URL |
-| `API_TOOLS_KEY` | API key forwarded as `X-API-KEY` header to API tools service |
+| `CLIENT_API_KEY` | Inbound `X-API-Key` required by the 7 api-tools proxy endpoints (JWT not accepted; empty value returns 401) |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token for the optional `cloudflared` compose profile |
 | `JWKS_URL` | JWKS endpoint for JWT verification |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins (empty = allow all in debug mode) |
@@ -34,8 +34,6 @@ Variables:
 | `API_CERT_PATH` | TLS certificate path (optional; enables HTTPS if both cert and key exist) |
 | `API_KEY_PATH` | TLS key path (optional) |
 | `YAHOO_API_KEY` | Yahoo API key for the API-tools service |
-| `API_TOOLS_ALLOW_ORIGINS` | CORS origins for the API-tools service (default `*`) |
-| `API_TOOLS_ALLOWED_HOSTS` | Trusted hosts for the API-tools service (default `*`) |
 
 > **Local development note:** `.env.example` is for host-run development. When the backend runs on your machine, `DATABASE_URL` should use `127.0.0.1` and `API_TOOLS_URL` should point at your local `api-tools` process.
 
