@@ -48,12 +48,15 @@ In this mode, `.env` has `DATABASE_URL=...@127.0.0.1:5432/...` and `API_TOOLS_UR
 For CD / production-style deploys, use `compose.deploy.yml` with a separate `.env.deploy`:
 
 ```bash
+docker network create jpcorrect-shared     # one-time, shared bridge between this stack and API-tools
 cp .env.deploy.example .env.deploy
-make deploy-up                        # docker compose -f compose.deploy.yml up -d
+make deploy-up                             # docker compose -f compose.deploy.yml up -d
 make deploy-down
 ```
 
-In this mode, `.env.deploy` has `DATABASE_URL=...@postgres:5432/...` (Docker hostname) and `API_TOOLS_URL=http://host.docker.internal:8000` (api-tools still runs on the host). The stack includes `backend` (pulled from `BACKEND_IMAGE`), `postgres`, and `cloudflared` (file-based credentials mounted from `./.cloudflared/`, forwarding to `http://backend:8080`). See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` / `tunnel route dns` setup pattern this repo follows.
+The `jpcorrect-shared` external network lets the `backend` container reach the sibling `api-tools` container by name (`API_TOOLS_URL=http://jpcorrect-api-tools:8000`) instead of going through the host. `postgres` stays on the project default network and is not exposed to api-tools. The API-tools repo's `docker-compose.yml` also joins this network — bring it up first (`docker compose -f ../API-tools/docker-compose.yml up -d`) so its container exists for DNS resolution.
+
+In this mode, `.env.deploy` has `DATABASE_URL=...@postgres:5432/...` (Docker hostname) and `API_TOOLS_URL=http://jpcorrect-api-tools:8000` (api-tools container name on the shared bridge). The stack includes `backend` (pulled from `BACKEND_IMAGE`), `postgres`, and `cloudflared` (file-based credentials mounted from `./.cloudflared/`, forwarding to `http://backend:8080`). See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` / `tunnel route dns` setup pattern this repo follows.
 
 ### Database
 GORM `AutoMigrate` in `internal/cmd/api.go` is the primary schema tool. When adding a new domain model, add it to the `AutoMigrate(...)` call.
@@ -125,7 +128,7 @@ Every authenticated handler must carry a `// @Security <Scheme>` line above `// 
 | `DATABASE_URL` | Yes | — | Postgres connection. `127.0.0.1:5432` for local dev, `postgres:5432` for deploy stack |
 | `JWKS_URL` | Yes | — | App fatals if empty |
 | `PORT` | No | `8080` | |
-| `API_TOOLS_URL` | No | — | URL of the `API-tools` service (host or `host.docker.internal`). The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |
+| `API_TOOLS_URL` | No | — | URL of the `API-tools` service. `http://127.0.0.1:8000` for local dev, `http://jpcorrect-api-tools:8000` for the deploy stack (via shared bridge). The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |
 | `CLIENT_API_KEY` | No | — | Inbound `X-API-Key` for the 7 api-tools endpoints (JWT not accepted). Empty value locks those routes (always 401) |
 | `ALLOWED_ORIGINS` | No | — | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `GIN_MODE` | No | — | `debug` or `release` |

@@ -27,8 +27,9 @@ services:
             - ${BACKEND_ENV_FILE:-.env}
         expose:
             - "8080"
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
+        networks:
+            - default
+            - jpcorrect-shared
         restart: unless-stopped
 
     cloudflared:
@@ -40,6 +41,10 @@ services:
         depends_on:
             - backend
         restart: unless-stopped
+
+networks:
+    jpcorrect-shared:
+        external: true
 
 volumes:
     postgres_data:
