@@ -54,10 +54,46 @@ erDiagram
         uuid user_id FK
     }
 
+    JOINREQUEST {
+        uuid id PK
+        uuid guild_id FK
+        uuid user_id FK
+        string status
+    }
+
+    ACTIVITY {
+        uuid id PK
+        uuid guild_id FK
+        int sequence_number
+        string status
+        string mode
+    }
+
+    TOPIC {
+        uuid id PK
+        string kind
+        string title_jp
+        string difficulty
+        json hint_vocab
+        json hint_grammar
+    }
+
+    REPORTTHEMESUGGESTION {
+        uuid id PK
+        string title
+        text description
+    }
+
     %% 關聯定義
     GUILD ||--o{ GUILDATTENDEE : "擁有成員紀錄"
     USER ||--o{ GUILDATTENDEE : "加入紀錄"
-    
+
+    GUILD ||--o{ JOINREQUEST : "收到加入請求"
+    USER ||--o{ JOINREQUEST : "發送加入請求"
+
+    GUILD ||--o{ ACTIVITY : "擁有活動"
+    ACTIVITY ||--o{ EVENT : "產生練習"
+
     EVENT ||--o{ EVENTATTENDEE : "包含"
     USER ||--o{ EVENTATTENDEE : "參加"
     
@@ -90,6 +126,7 @@ erDiagram
 | email | String | Unique, Index | 登入帳號，必須唯一 |
 | name  | String |           | 顯示名稱 |
 | avatar_url | String | Nullable  | 頭像連結 |
+| supabase_user_id | String | Unique, Index | Supabase Auth user UUID (from JWT sub claim) |
 | password_hash | String | Nullable  | Bcrypt/Argon2 雜湊值<br>第三方登入者此欄為 NULL |
 | is_email_verified | Boolean | Default: `false` | 第三方登入預設為 true |
 | role  | Enum/String | Default: `user` | user, admin, staff |
@@ -113,7 +150,11 @@ erDiagram
 | exp_duration | Float |           | 預計活動時間長度 |
 | act_duration | Float | Nullable  | 實際活動時間長度 |
 | record_link | String | Nullable  | 錄影連結 |
-| mode  | Enum/String | Default: `report` | 活動模式<br>(report, conversation, discussion, review) |
+| mode  | Enum/String | Default: `report`, Unique Composite Index | 活動模式<br>(report, conversation, review) |
+| activity_id | UUID | FK, Nullable, Unique Composite Index | 所屬活動的UID (references Activity.id) |
+| recording_started_by | UUID | FK, Nullable | 開始錄影的使用者UID |
+| recording_started_at | Timestamp | Nullable | 錄影開始時間 |
+| recording_ended_at | Timestamp | Nullable | 錄影結束時間 |
 | note  | Text | Nullable  | 活動備註 |
 | created_at | Timestamp |           | 活動建立時間 |
 | updated_at | Timestamp |           | 活動最後更新時間 |
@@ -161,6 +202,10 @@ erDiagram
 | end_time | Float |           | 影片中結束秒數 |
 | comment | Text | Nullable  | AI給出的評論 |
 | note  | Text | Nullable  | 針對這個句字的註解 |
+| confidence | Enum/String | Default: `medium` | 偵測信心等級<br>(low, medium, high) |
+| latest_correction_text | Text | Nullable  | 最新修正文本 |
+| latest_correction_source | Enum/String | Default: `initial` | 最新修正來源<br>(initial, chatbot) |
+| interacted_at | Timestamp | Nullable  | 使用者互動時間 |
 | created_at | Timestamp |           | 錯誤記錄建立時間 |
 | updated_at | Timestamp |           | 錯誤記錄最後更新時間 |
 
@@ -190,6 +235,89 @@ erDiagram
 | joined_at | Timestamp | Nullable  | 加入公會的時間戳 |
 | leaved_at | Timestamp | Nullable  | 離開公會的時間戳 |
 
+#### InviteLink
+
+用來記錄公會邀請連結：
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| id    | UUID | PK        | 邀請連結的UID (JSON response: invite_link_id) |
+| guild_id | UUID | FK, Index | 公會的UID |
+| token | String | UniqueIndex, Size:32 | 32字元隨機token (crypto/rand) |
+| expires_at | Timestamp | | 邀請連結過期時間 (預設建立後7天) |
+| created_by_user_id | UUID | FK | 建立者的UID |
+| created_at | Timestamp | | 建立時間 |
+
+#### GuildDefaultSlot
+
+用來記錄公會的預設練習時段（每個公會最多一筆）：
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| guild_id | UUID | PK, FK | 公會的UID (1:1 with Guild) |
+| day_of_week | Int | | 星期幾 (0=Sunday, 1=Monday, ..., 6=Saturday) |
+| time_of_day | String | | 時段 (格式: "HH:MM") |
+| timezone | String | Default: `Asia/Taipei` | 時區 |
+| created_at | Timestamp | | 建立時間 |
+| updated_at | Timestamp | | 最後更新時間 |
+
+#### JoinRequest
+
+用來記錄使用者加入公會的請求：
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| id    | UUID | PK        | 請求的UID |
+| guild_id | UUID | FK, Unique Composite Index | 公會的UID |
+| user_id | UUID | FK, Unique Composite Index | 使用者的UID |
+| status | Enum/String | Default: `pending` | 請求狀態<br>(pending, approved, rejected, cancelled) |
+| created_at | Timestamp |           | 請求建立時間 |
+| updated_at | Timestamp |           | 請求最後更新時間 |
+
+### Topic
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| id    | UUID | PK        | 主題的UID (JSON response: topic_id) |
+| kind  | Enum/String | Default: `announce` | 主題種類 (announce, random) |
+| title_jp | Text |           | 日文標題 |
+| difficulty | Enum/String | Default: `medium` | 難度 (easy, medium, hard) |
+| hint_vocab | JSON |           | 詞彙提示 (JSONB) |
+| hint_grammar | JSON |           | 文法提示 (JSONB) |
+| created_at | Timestamp |           | 建立時間 |
+| updated_at | Timestamp |           | 最後更新時間 |
+| deleted_at | Timestamp | Index, Nullable | 軟刪除時間 |
+
+### ReportThemeSuggestion
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| id    | UUID | PK        | 建議的UID (JSON response: suggestion_id) |
+| title | String |           | 建議標題 |
+| description | Text | Nullable  | 建議說明 |
+| created_at | Timestamp |           | 建立時間 |
+
+### Activity
+
+| Field | Type | Attribute | Note |
+|-------|------|-----------|------|
+| id | UUID | PK | 活動的UID (JSON response: activity_id) |
+| guild_id | UUID | FK, Index | 公會的UID |
+| sequence_number | Int | | 活動序號 |
+| status | Enum/String | Default: `pending_practice` | 活動狀態 (pending_practice, in_practice, analyzing, in_feedback, in_review, done, aborted) |
+| mode | Enum/String | Default: `report` | 活動模式 (report, conversation) |
+| theme | String | Nullable | 活動主題 |
+| announce_topic_id | UUID | FK, Nullable | 公告主題的UID |
+| youtube_url | String | Nullable | YouTube 連結 |
+| ai_status | Enum/String | Default: `pending` | AI 處理狀態 (pending, processing, completed, failed) |
+| youtube_status | Enum/String | Default: `pending` | YouTube 上傳狀態 (pending, uploading, completed, failed) |
+| aborted_by_user_id | UUID | FK, Nullable | 中止活動的使用者UID |
+| aborted_at | Timestamp | Nullable | 活動中止時間 |
+| aborted_reason | Text | Nullable | 活動中止原因 |
+| created_at | Timestamp | | 活動建立時間 |
+| updated_at | Timestamp | | 活動最後更新時間 |
+| deleted_at | Timestamp | Index, Nullable | 活動被刪除(soft delete)時間 |
+
 ## Developer Notes
 
 
@@ -204,6 +332,7 @@ erDiagram
 
 * 請確保 `event_attendee` 表格針對 `(event_id, user_id)` 建立**唯一**複合索引 (Unique Composite Index)，以加速「查某人參加過哪些活動」的查詢，並防止重複加入。
 * 請確保 `guild_attendee` 表格針對 `(guild_id, user_id)` 建立**唯一**複合索引 (Unique Composite Index)，防止同一使用者重複加入同一公會。
+* 請確保 `join_request` 表格針對 `(guild_id, user_id)` 建立**唯一**複合索引 (Unique Composite Index)，防止同一使用者對同一公會發送多個待處理請求。
 
 
 3. **時區處理**：
