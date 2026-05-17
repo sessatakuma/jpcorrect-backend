@@ -17,6 +17,23 @@ type API struct {
 // Returns the current user's profile
 func (a *API) UserMeHandler(c *gin.Context) {
 	userID := c.GetString("userID")
+// @Summary Get a user by ID
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Success 200 {object} domain.User
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/{id} [get]
+func (a *API) UserGetHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+		return
+	}
 
 	user, err := a.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
@@ -35,6 +52,22 @@ func (a *API) UserMeHandler(c *gin.Context) {
 func (a *API) UserInitHandler(c *gin.Context) {
 	supabaseID := c.GetString("supabaseID") 
 	email := c.GetString("email")
+// @Summary Create a user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body domain.User true "User data"
+// @Success 201 {object} domain.User
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users [post]
+func (a *API) UserCreateHandler(c *gin.Context) {
+	var user domain.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	if supabaseID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
@@ -42,6 +75,24 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	}
 
 	user, err := a.userUsecase.InitUser(c.Request.Context(), supabaseID, email)
+	c.JSON(http.StatusCreated, user)
+}
+
+// @Summary Update a user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Param user body domain.User true "User data"
+// @Success 200 {object} domain.User
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/{id} [put]
+func (a *API) UserUpdateHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initialize user"})
 		return
@@ -77,6 +128,17 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
 }
 
+// @Summary Delete a user
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param id path string true "User ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/{id} [delete]
 func (a *API) UserDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -107,6 +169,14 @@ func (a *API) UserDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary Get users by name
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param name path string true "User name"
+// @Success 200 {array} domain.User
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/name/{name} [get]
 func (a *API) UserGetByNameHandler(c *gin.Context) {
 	name := c.Param("name")
 
@@ -119,6 +189,15 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
+// @Summary Get a user by email
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param email path string true "User email"
+// @Success 200 {object} domain.User
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/email/{email} [get]
 func (a *API) UserGetByEmailHandler(c *gin.Context) {
 	email := c.Param("email")
 

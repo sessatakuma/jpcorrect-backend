@@ -12,8 +12,12 @@ import (
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/repository"
 
+	_ "jpcorrect-backend/docs/swagger"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -103,6 +107,12 @@ func (api *API) Close() {
 
 func Register(r *gin.Engine, api *API) {
 	r.GET("/healthz", func(c *gin.Context) { c.String(200, "ok") })
+
+	// Only register Swagger endpoint in development mode
+	if gin.IsDebugging() {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
+
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
 

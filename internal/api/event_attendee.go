@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// @Summary Get an event attendee by ID
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param id path string true "EventAttendee ID"
+// @Success 200 {object} domain.EventAttendee
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees/{id} [get]
 func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -31,6 +41,16 @@ func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, attendee)
 }
 
+// @Summary Create an event attendee
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param attendee body domain.EventAttendee true "EventAttendee data"
+// @Success 201 {object} domain.EventAttendee
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees [post]
 func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
 	var attendee domain.EventAttendee
 	if err := c.ShouldBindJSON(&attendee); err != nil {
@@ -50,6 +70,18 @@ func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, attendee)
 }
 
+// @Summary Update an event attendee
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param id path string true "EventAttendee ID"
+// @Param attendee body domain.EventAttendee true "EventAttendee data"
+// @Success 200 {object} domain.EventAttendee
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees/{id} [put]
 func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -93,6 +125,17 @@ func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// @Summary Delete an event attendee
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param id path string true "EventAttendee ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees/{id} [delete]
 func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -123,6 +166,15 @@ func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary Get event attendees by event ID
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param event_id path string true "Event ID"
+// @Success 200 {array} domain.EventAttendee
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees/event/{event_id} [get]
 func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
 	eventID, err := uuid.Parse(eventIDStr)
@@ -140,6 +192,15 @@ func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, attendees)
 }
 
+// @Summary Get event attendees by user ID
+// @Tags event-attendees
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Success 200 {array} domain.EventAttendee
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/event-attendees/user/{user_id} [get]
 func (a *API) EventAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
 	userID, err := uuid.Parse(userIDStr)

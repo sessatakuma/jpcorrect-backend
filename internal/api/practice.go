@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// @Summary Get a practice by ID
+// @Tags practices
+// @Accept json
+// @Produce json
+// @Param id path string true "Practice ID"
+// @Success 200 {object} domain.Event
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/practices/{id} [get]
 func (a *API) PracticeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -31,6 +41,16 @@ func (a *API) PracticeGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, practice)
 }
 
+// @Summary Create a practice
+// @Tags practices
+// @Accept json
+// @Produce json
+// @Param practice body domain.Event true "Practice data"
+// @Success 201 {object} domain.Event
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/practices [post]
 func (a *API) PracticeCreateHandler(c *gin.Context) {
 	var practice domain.Event
 	if err := c.ShouldBindJSON(&practice); err != nil {
@@ -50,6 +70,18 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, practice)
 }
 
+// @Summary Update a practice
+// @Tags practices
+// @Accept json
+// @Produce json
+// @Param id path string true "Practice ID"
+// @Param practice body domain.Event true "Practice data"
+// @Success 200 {object} domain.Event
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/practices/{id} [put]
 func (a *API) PracticeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -95,6 +127,17 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// @Summary Delete a practice
+// @Tags practices
+// @Accept json
+// @Produce json
+// @Param id path string true "Practice ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/practices/{id} [delete]
 func (a *API) PracticeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -126,6 +169,15 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary Get practices by user ID
+// @Tags practices
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Success 200 {array} domain.Event
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/practices/user/{user_id} [get]
 func (a *API) PracticeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
 	userID, err := uuid.Parse(userIDStr)

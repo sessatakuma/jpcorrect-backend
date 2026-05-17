@@ -10,6 +10,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// @Summary Get a transcript by ID
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param id path string true "Transcript ID"
+// @Success 200 {object} domain.Transcript
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts/{id} [get]
 func (a *API) TranscriptGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -31,6 +41,16 @@ func (a *API) TranscriptGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, transcript)
 }
 
+// @Summary Create a transcript
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param transcript body domain.Transcript true "Transcript data"
+// @Success 201 {object} domain.Transcript
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts [post]
 func (a *API) TranscriptCreateHandler(c *gin.Context) {
 	var transcript domain.Transcript
 	if err := c.ShouldBindJSON(&transcript); err != nil {
@@ -50,6 +70,18 @@ func (a *API) TranscriptCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, transcript)
 }
 
+// @Summary Update a transcript
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param id path string true "Transcript ID"
+// @Param transcript body domain.Transcript true "Transcript data"
+// @Success 200 {object} domain.Transcript
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts/{id} [put]
 func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -95,6 +127,17 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
+// @Summary Delete a transcript
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param id path string true "Transcript ID"
+// @Success 204
+// @Failure 400 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts/{id} [delete]
 func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -126,6 +169,15 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary Get transcripts by event ID
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param event_id path string true "Event ID"
+// @Success 200 {array} domain.Transcript
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts/event/{event_id} [get]
 func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
 	eventID, err := uuid.Parse(eventIDStr)
@@ -143,6 +195,15 @@ func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, transcripts)
 }
 
+// @Summary Get transcripts by user ID
+// @Tags transcripts
+// @Accept json
+// @Produce json
+// @Param user_id path string true "User ID"
+// @Success 200 {array} domain.Transcript
+// @Failure 400 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/transcripts/user/{user_id} [get]
 func (a *API) TranscriptGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
 	userID, err := uuid.Parse(userIDStr)
