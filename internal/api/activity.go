@@ -14,20 +14,20 @@ import (
 )
 
 type createActivityRequest struct {
-	PracticeAt      time.Time     `json:"practice_at" binding:"required"`
-	Mode            string        `json:"mode"`
-	Theme           *string       `json:"theme"`
-	AnnounceTopicID *uuid.UUID    `json:"announce_topic_id"`
-	ReviewAt        *time.Time    `json:"review_at"`
-	ReporterUserIDs []uuid.UUID   `json:"reporter_user_ids"`
+	PracticeAt      time.Time   `json:"practice_at" binding:"required"`
+	Mode            string      `json:"mode"`
+	Theme           *string     `json:"theme"`
+	AnnounceTopicID *uuid.UUID  `json:"announce_topic_id"`
+	ReviewAt        *time.Time  `json:"review_at"`
+	ReporterUserIDs []uuid.UUID `json:"reporter_user_ids"`
 }
 
 type updateActivityRequest struct {
-	PracticeAt      *time.Time    `json:"practice_at"`
-	ReviewAt        *time.Time    `json:"review_at"`
-	Mode            *string       `json:"mode"`
-	Theme           *string       `json:"theme"`
-	ReporterUserIDs []uuid.UUID   `json:"reporter_user_ids"`
+	PracticeAt      *time.Time  `json:"practice_at"`
+	ReviewAt        *time.Time  `json:"review_at"`
+	Mode            *string     `json:"mode"`
+	Theme           *string     `json:"theme"`
+	ReporterUserIDs []uuid.UUID `json:"reporter_user_ids"`
 }
 
 type abortActivityRequest struct {

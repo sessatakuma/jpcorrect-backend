@@ -8,10 +8,10 @@ import (
 )
 
 type ReportThemeSuggestion struct {
-	ID          uuid.UUID  `gorm:"type:uuid;primaryKey" json:"suggestion_id"`
-	Title       string     `json:"title"`
-	Description *string    `gorm:"type:text" json:"description"`
-	CreatedAt   time.Time  `json:"created_at"`
+	ID          uuid.UUID `gorm:"type:uuid;primaryKey" json:"suggestion_id"`
+	Title       string    `json:"title"`
+	Description *string   `gorm:"type:text" json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type ReportThemeSuggestionRepository interface {

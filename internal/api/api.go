@@ -21,31 +21,31 @@ import (
 )
 
 type API struct {
-	db                *gorm.DB
-	apiToolsURL       string
-	proxyTransport    *http.Transport
-	jwksURL           string
-	jwksCache         keyfunc.Keyfunc
-	jwksCtx           context.Context
-	jwksCancel        context.CancelFunc
-	jwksMutex         sync.Mutex
-	jwksErr           error
-	userRepo          domain.UserRepository
-	guildRepo         domain.GuildRepository
-	guildAttendeeRepo domain.GuildAttendeeRepository
-	eventRepo         domain.EventRepository
-	eventAttendeeRepo domain.EventAttendeeRepository
-	transcriptRepo    domain.TranscriptRepository
-	mistakeRepo       domain.MistakeRepository
-	activityRepo        domain.ActivityRepository
-	inviteLinkRepo      domain.InviteLinkRepository
-	guildDefaultSlotRepo       domain.GuildDefaultSlotRepository
-	topicRepo                  domain.TopicRepository
-	reportThemeSuggestionRepo  domain.ReportThemeSuggestionRepository
-	joinRequestRepo            domain.JoinRequestRepository
-	webrtcHub                  domain.WebRTCHub
-	rateLimiter       *RateLimiter
-	upgrader          websocket.Upgrader
+	db                        *gorm.DB
+	apiToolsURL               string
+	proxyTransport            *http.Transport
+	jwksURL                   string
+	jwksCache                 keyfunc.Keyfunc
+	jwksCtx                   context.Context
+	jwksCancel                context.CancelFunc
+	jwksMutex                 sync.Mutex
+	jwksErr                   error
+	userRepo                  domain.UserRepository
+	guildRepo                 domain.GuildRepository
+	guildAttendeeRepo         domain.GuildAttendeeRepository
+	eventRepo                 domain.EventRepository
+	eventAttendeeRepo         domain.EventAttendeeRepository
+	transcriptRepo            domain.TranscriptRepository
+	mistakeRepo               domain.MistakeRepository
+	activityRepo              domain.ActivityRepository
+	inviteLinkRepo            domain.InviteLinkRepository
+	guildDefaultSlotRepo      domain.GuildDefaultSlotRepository
+	topicRepo                 domain.TopicRepository
+	reportThemeSuggestionRepo domain.ReportThemeSuggestionRepository
+	joinRequestRepo           domain.JoinRequestRepository
+	webrtcHub                 domain.WebRTCHub
+	rateLimiter               *RateLimiter
+	upgrader                  websocket.Upgrader
 }
 
 func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
@@ -87,26 +87,26 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	}
 
 	return &API{
-		db:                db,
-		apiToolsURL:       url,
-		proxyTransport:    transport,
-		jwksURL:           jwksURL,
-		userRepo:          userRepo,
-		guildRepo:         guildRepo,
-		guildAttendeeRepo: guildAttendeeRepo,
-		eventRepo:         eventRepo,
-		eventAttendeeRepo: eventAttendeeRepo,
-		transcriptRepo:    transcriptRepo,
-		mistakeRepo:       mistakeRepo,
-		activityRepo:        activityRepo,
-		inviteLinkRepo:      inviteLinkRepo,
-		guildDefaultSlotRepo:       guildDefaultSlotRepo,
-		topicRepo:                  topicRepo,
-		reportThemeSuggestionRepo:  reportThemeSuggestionRepo,
-		joinRequestRepo:            joinRequestRepo,
-		webrtcHub:                  webrtcHub,
-		rateLimiter:       rateLimiter,
-		upgrader:          upgrader,
+		db:                        db,
+		apiToolsURL:               url,
+		proxyTransport:            transport,
+		jwksURL:                   jwksURL,
+		userRepo:                  userRepo,
+		guildRepo:                 guildRepo,
+		guildAttendeeRepo:         guildAttendeeRepo,
+		eventRepo:                 eventRepo,
+		eventAttendeeRepo:         eventAttendeeRepo,
+		transcriptRepo:            transcriptRepo,
+		mistakeRepo:               mistakeRepo,
+		activityRepo:              activityRepo,
+		inviteLinkRepo:            inviteLinkRepo,
+		guildDefaultSlotRepo:      guildDefaultSlotRepo,
+		topicRepo:                 topicRepo,
+		reportThemeSuggestionRepo: reportThemeSuggestionRepo,
+		joinRequestRepo:           joinRequestRepo,
+		webrtcHub:                 webrtcHub,
+		rateLimiter:               rateLimiter,
+		upgrader:                  upgrader,
 	}
 }
 

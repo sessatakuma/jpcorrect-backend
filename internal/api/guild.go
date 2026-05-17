@@ -4,6 +4,7 @@ import (
 	crypto_rand "crypto/rand"
 	"encoding/hex"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -807,6 +808,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 					link.ExpiresAt = now
 					if err := a.inviteLinkRepo.Update(c.Request.Context(), link); err != nil {
 						// Log but don't fail — expiring old links is best-effort
+						log.Printf("failed to expire old invite link %s: %v", link.ID, err)
 					}
 				}
 			}
@@ -1019,8 +1021,8 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 
 	type guildDiscoverRow struct {
 		domain.Guild
-		MemberCount     int64         `json:"member_count"`
-		LastActivityAt  *time.Time    `json:"last_activity_at"`
+		MemberCount    int64      `json:"member_count"`
+		LastActivityAt *time.Time `json:"last_activity_at"`
 	}
 
 	var results []guildDiscoverRow
@@ -1041,8 +1043,8 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"guilds": results,
-		"page":   page,
+		"guilds":   results,
+		"page":     page,
 		"per_page": perPage,
 	})
 }
@@ -1078,10 +1080,10 @@ func (a *API) GuildReportRotationHandler(c *gin.Context) {
 	}
 
 	type memberReportInfo struct {
-		UserID              uuid.UUID  `json:"user_id"`
-		Name                string     `json:"name"`
-		LastReportActivityID *string   `json:"last_report_activity_id"`
-		LastReportAt        *time.Time `json:"last_report_at"`
+		UserID               uuid.UUID  `json:"user_id"`
+		Name                 string     `json:"name"`
+		LastReportActivityID *string    `json:"last_report_activity_id"`
+		LastReportAt         *time.Time `json:"last_report_at"`
 	}
 
 	var memberInfos []memberReportInfo
@@ -1126,8 +1128,8 @@ func (a *API) GuildReportRotationHandler(c *gin.Context) {
 	// Sort by last_report_at ascending (nil = never reported, should be first)
 	// Suggest top 2 members who haven't reported in the longest time (or never)
 	type sortable struct {
-		idx      int
-		sortKey  int64
+		idx     int
+		sortKey int64
 	}
 	sorted := make([]sortable, len(memberInfos))
 	for i, info := range memberInfos {
@@ -1158,7 +1160,7 @@ func (a *API) GuildReportRotationHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"members":    memberInfos,
-		"suggested":  suggestedMembers,
+		"members":   memberInfos,
+		"suggested": suggestedMembers,
 	})
 }
