@@ -16,9 +16,9 @@ type API struct {
 
 // Returns the current user's profile
 func (a *API) UserMeHandler(c *gin.Context) {
-	supabaseID := c.GetString("userID")
+	userID := c.GetString("userID")
 
-	user, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	user, err := a.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -31,31 +31,10 @@ func (a *API) UserMeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// func (a *API) UserGetHandler(c *gin.Context) {
-// 	idStr := c.Param("id")
-// 	id, err := uuid.Parse(idStr)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
-// 		return
-// 	}
-
-// 	user, err := a.userRepo.GetByID(c.Request.Context(), id)
-// 	if err != nil {
-// 		if errors.Is(err, domain.ErrNotFound) {
-// 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, user)
-// }
-
 // Initializes a user account based on SupabaseID
 func (a *API) UserInitHandler(c *gin.Context) {
-	supabaseID := c.GetString("userID") 
-	//email := c.GetString("email")
+	supabaseID := c.GetString("supabaseID") 
+	email := c.GetString("email")
 
 	if supabaseID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
@@ -71,28 +50,9 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// func (a *API) UserCreateHandler(c *gin.Context) {
-// 	var user domain.User
-// 	if err := c.ShouldBindJSON(&user); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	if err := a.userRepo.Create(c.Request.Context(), &user); err != nil {
-// 		if errors.Is(err, domain.ErrDuplicateEntry) {
-// 			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusCreated, user)
-// }
-
 // Updates current user's nickname and avatar
 func (a *API) UserMeUpdateHandler(c *gin.Context) {
-	supabaseID := c.GetString("userID")
+	userID := c.GetString("userID")
 
 	var inputData domain.User
 	if err := c.ShouldBindJSON(&inputData); err != nil {
@@ -100,7 +60,7 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	User, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	User, err := a.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
@@ -116,49 +76,6 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
 }
-
-// func (a *API) UserUpdateHandler(c *gin.Context) {
-// 	idStr := c.Param("id")
-// 	id, err := uuid.Parse(idStr)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
-// 		return
-// 	}
-
-// 	_, err = a.userRepo.GetByID(c.Request.Context(), id)
-// 	if err != nil {
-// 		if errors.Is(err, domain.ErrNotFound) {
-// 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	var user domain.User
-// 	if err := c.ShouldBindJSON(&user); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	user.ID = id
-// 	if err := a.userRepo.Update(c.Request.Context(), &user); err != nil {
-// 		if errors.Is(err, domain.ErrDuplicateEntry) {
-// 			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	updated, err := a.userRepo.GetByID(c.Request.Context(), id)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, updated)
-// }
 
 func (a *API) UserDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
