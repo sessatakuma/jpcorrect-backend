@@ -24,9 +24,16 @@ func Execute() {
 	}
 
 	if err := db.AutoMigrate(
+		// Order matters for foreign keys; see docs/talkuma-schema-plan.md §5
 		&domain.User{},
 		&domain.Guild{},
 		&domain.GuildAttendee{},
+		&domain.GuildDefaultSlot{},
+		&domain.InviteLink{},
+		&domain.JoinRequest{},
+		&domain.Topic{},
+		&domain.ReportThemeSuggestion{},
+		&domain.Activity{},
 		&domain.Event{},
 		&domain.EventAttendee{},
 		&domain.Transcript{},

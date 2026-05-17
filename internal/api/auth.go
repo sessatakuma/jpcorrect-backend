@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -165,8 +166,18 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
+	// Look up the user by supabase_user_id from the JWT sub claim
+	user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), claims.Subject)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.NewAuthError(http.StatusUnauthorized, "user not registered", "")
+		}
+		return domain.NewAuthError(http.StatusInternalServerError, "internal server error", "")
+	}
+
+	// Store the user ID (uuid.UUID) and full user object in the context for downstream handlers
+	c.Set("userID", user.ID)
+	c.Set("user", user)
 
 	return nil
 }

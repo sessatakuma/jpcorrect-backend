@@ -37,7 +37,13 @@ type API struct {
 	eventAttendeeRepo domain.EventAttendeeRepository
 	transcriptRepo    domain.TranscriptRepository
 	mistakeRepo       domain.MistakeRepository
-	webrtcHub         domain.WebRTCHub
+	activityRepo        domain.ActivityRepository
+	inviteLinkRepo      domain.InviteLinkRepository
+	guildDefaultSlotRepo       domain.GuildDefaultSlotRepository
+	topicRepo                  domain.TopicRepository
+	reportThemeSuggestionRepo  domain.ReportThemeSuggestionRepository
+	joinRequestRepo            domain.JoinRequestRepository
+	webrtcHub                  domain.WebRTCHub
 	rateLimiter       *RateLimiter
 	upgrader          websocket.Upgrader
 }
@@ -50,6 +56,12 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
 	mistakeRepo := repository.NewGormMistakeRepository(db)
+	activityRepo := repository.NewGormActivityRepository(db)
+	inviteLinkRepo := repository.NewGormInviteLinkRepository(db)
+	guildDefaultSlotRepo := repository.NewGormGuildDefaultSlotRepository(db)
+	topicRepo := repository.NewGormTopicRepository(db)
+	reportThemeSuggestionRepo := repository.NewGormReportThemeSuggestionRepository(db)
+	joinRequestRepo := repository.NewGormJoinRequestRepository(db)
 	webrtcHub := NewHub()
 	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
 
@@ -86,7 +98,13 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 		eventAttendeeRepo: eventAttendeeRepo,
 		transcriptRepo:    transcriptRepo,
 		mistakeRepo:       mistakeRepo,
-		webrtcHub:         webrtcHub,
+		activityRepo:        activityRepo,
+		inviteLinkRepo:      inviteLinkRepo,
+		guildDefaultSlotRepo:       guildDefaultSlotRepo,
+		topicRepo:                  topicRepo,
+		reportThemeSuggestionRepo:  reportThemeSuggestionRepo,
+		joinRequestRepo:            joinRequestRepo,
+		webrtcHub:                  webrtcHub,
 		rateLimiter:       rateLimiter,
 		upgrader:          upgrader,
 	}
@@ -111,19 +129,28 @@ func Register(r *gin.Engine, api *API) {
 	r.GET("/ws", api.ServeWebSocket)
 
 	v1 := r.Group("/v1")
-	v1.Use(api.AuthMiddleware())
+
+	// Public routes (no auth required)
+	v1.GET("/invites/:token", api.InviteInfoHandler)
+
+	// Auth-required routes
+	v1Auth := v1.Group("")
+	v1Auth.Use(api.AuthMiddleware())
 	{
 		// API Tools Handlers
-		v1.POST("/mark-accent", api.MarkAccentHandler)
-		v1.POST("/mark-furigana", api.MarkFuriganaHandler)
-		v1.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
-		v1.POST("/usage-query/url", api.UsageQueryURLHandler)
-		v1.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)
-		v1.POST("/dict-query", api.DictQueryHandler)
-		v1.POST("/sentence-query", api.SentenceQueryHandler)
+		v1Auth.POST("/mark-accent", api.MarkAccentHandler)
+		v1Auth.POST("/mark-furigana", api.MarkFuriganaHandler)
+		v1Auth.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
+		v1Auth.POST("/usage-query/url", api.UsageQueryURLHandler)
+		v1Auth.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)
+		v1Auth.POST("/dict-query", api.DictQueryHandler)
+		v1Auth.POST("/sentence-query", api.SentenceQueryHandler)
+
+		// Invites (auth-required)
+		v1Auth.POST("/invites/:token/accept", api.InviteAcceptHandler)
 
 		// Mistakes
-		mistakes := v1.Group("/mistakes")
+		mistakes := v1Auth.Group("/mistakes")
 		{
 			mistakes.POST("", api.MistakeCreateHandler)
 			mistakes.GET("/:id", api.MistakeGetHandler)
@@ -134,7 +161,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Practices (keep old route for backward compatibility)
-		practices := v1.Group("/practices")
+		practices := v1Auth.Group("/practices")
 		{
 			practices.POST("", api.PracticeCreateHandler)
 			practices.GET("/:id", api.PracticeGetHandler)
@@ -144,16 +171,47 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Guilds
-		guilds := v1.Group("/guilds")
+		guilds := v1Auth.Group("/guilds")
 		{
 			guilds.POST("", api.GuildCreateHandler)
+			guilds.GET("/discover", api.GuildDiscoverHandler)
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
 			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			guilds.GET("/:id/members", api.GuildMembersHandler)
+			guilds.DELETE("/:id/members/:user_id", api.GuildMemberRemoveHandler)
+			guilds.POST("/:id/leave", api.GuildLeaveHandler)
+			guilds.POST("/:id/applications", api.GuildApplicationCreateHandler)
+			guilds.GET("/:id/applications", api.GuildApplicationsHandler)
+			guilds.POST("/:id/applications/:app_id/approve", api.GuildApplicationApproveHandler)
+			guilds.POST("/:id/applications/:app_id/reject", api.GuildApplicationRejectHandler)
+			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
+			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
+			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
+			guilds.GET("/:id/default-slot", api.GuildDefaultSlotGetHandler)
+			guilds.PUT("/:id/default-slot", api.GuildDefaultSlotUpsertHandler)
+			guilds.DELETE("/:id/default-slot", api.GuildDefaultSlotDeleteHandler)
+			guilds.GET("/:id/report-rotation-suggestion", api.GuildReportRotationHandler)
+			guilds.POST("/:id/activities", api.ActivityCreateHandler)
+			guilds.GET("/:id/activities", api.GuildActivitiesHandler)
+		}
+
+		// Activities
+		v1Auth.GET("/activities/:id", api.ActivityGetHandler)
+		v1Auth.PUT("/activities/:id", api.ActivityUpdateHandler)
+		v1Auth.POST("/activities/:id/abort", api.ActivityAbortHandler)
+
+		// Topics
+		topics := v1Auth.Group("/topics")
+		{
+			topics.GET("/announce/search", api.TopicAnnounceSearchHandler)
+			topics.GET("/random", api.TopicRandomHandler)
+			topics.GET("/report-suggestions", api.ReportThemeSuggestionsHandler)
+			topics.GET("/:id", api.TopicGetHandler)
 		}
 
 		// Guild Attendees
-		guildAttendees := v1.Group("/guild-attendees")
+		guildAttendees := v1Auth.Group("/guild-attendees")
 		{
 			guildAttendees.POST("", api.GuildAttendeeCreateHandler)
 			guildAttendees.GET("/:id", api.GuildAttendeeGetHandler)
@@ -164,7 +222,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Transcripts
-		transcripts := v1.Group("/transcripts")
+		transcripts := v1Auth.Group("/transcripts")
 		{
 			transcripts.POST("", api.TranscriptCreateHandler)
 			transcripts.GET("/:id", api.TranscriptGetHandler)
@@ -175,7 +233,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Event Attendees
-		eventAttendees := v1.Group("/event-attendees")
+		eventAttendees := v1Auth.Group("/event-attendees")
 		{
 			eventAttendees.POST("", api.EventAttendeeCreateHandler)
 			eventAttendees.GET("/:id", api.EventAttendeeGetHandler)
@@ -186,12 +244,15 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Users
-		users := v1.Group("/users")
+		users := v1Auth.Group("/users")
 		{
 			users.POST("", api.UserCreateHandler)
 			users.GET("/:id", api.UserGetHandler)
 			users.PUT("/:id", api.UserUpdateHandler)
 			users.DELETE("/:id", api.UserDeleteHandler)
+			users.POST("/init", api.UserInitHandler)
+			users.GET("/me", api.UserMeHandler)
+			users.PUT("/me", api.UserMeUpdateHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
 			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}

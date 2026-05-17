@@ -186,6 +186,85 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
+// UserInitHandler returns the current authenticated user.
+// Since the auth middleware already resolves the user from JWT claims,
+// this endpoint is idempotent — it simply returns the user from context.
+//
+// @Summary Initialize current user
+// @Description Return the authenticated user based on JWT supabase_user_id (idempotent)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Success 200 {object} domain.User
+// @Failure 401 {object} map[string]string
+// @Router /v1/users/init [post]
+// @Security BearerAuth
+func (a *API) UserInitHandler(c *gin.Context) {
+	user := c.MustGet("user").(*domain.User)
+	c.JSON(http.StatusOK, user)
+}
+
+// UserMeHandler returns the current authenticated user's profile.
+//
+// @Summary Get current user profile
+// @Description Get the authenticated user's profile
+// @Tags users
+// @Produce json
+// @Success 200 {object} domain.User
+// @Failure 401 {object} map[string]string
+// @Router /v1/users/me [get]
+// @Security BearerAuth
+func (a *API) UserMeHandler(c *gin.Context) {
+	user := c.MustGet("user").(*domain.User)
+	c.JSON(http.StatusOK, user)
+}
+
+// UserMeUpdateHandler updates the current authenticated user's profile.
+// Only Name, AvatarURL, and Timezone are updatable.
+//
+// @Summary Update current user profile
+// @Description Update the authenticated user's profile (name, avatar_url, timezone)
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param body body object true "Fields to update" example({"name":"John","avatar_url":"https://example.com/avatar.png","timezone":"Asia/Tokyo"})
+// @Success 200 {object} domain.User
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Router /v1/users/me [put]
+// @Security BearerAuth
+func (a *API) UserMeUpdateHandler(c *gin.Context) {
+	user := c.MustGet("user").(*domain.User)
+
+	var input struct {
+		Name      *string `json:"name"`
+		AvatarURL *string `json:"avatar_url"`
+		Timezone  *string `json:"timezone"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
+		return
+	}
+
+	if input.Name != nil {
+		user.Name = *input.Name
+	}
+	if input.AvatarURL != nil {
+		user.AvatarURL = input.AvatarURL
+	}
+	if input.Timezone != nil {
+		user.Timezone = *input.Timezone
+	}
+
+	if err := a.userRepo.Update(c.Request.Context(), user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
 // @Summary Get a user by email
 // @Tags users
 // @Accept json
