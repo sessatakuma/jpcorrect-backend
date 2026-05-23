@@ -16,9 +16,29 @@ Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 - `internal/repository/`: GORM implementations
 - `internal/cmd/`: Command execution and server setup
 - `internal/database/`: Database connection and GORM config
-- `API-tools/`: Sibling Python FastAPI service (run with `uv`), called via `API_TOOLS_URL`
+- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). Cloned by devs into `./API-tools/` and run with `uv`; reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
+
+## API-tools compatibility
+
+The 7 proxy handlers in `internal/api/api_tools.go` are aligned to the HTTP surface of api-tools branch **`spike/local-unidic`** (commit `46f6c43` or newer — the local fugashi + UniDic migration that removed `/MarkFurigana/` and added `/MarkAccent/stream/`). When api-tools changes its request/response schema or adds/removes endpoints, update both the backend proxy + this line in the same PR.
+
+Compatibility log (update on every contract-affecting change):
+
+| Backend version | Compatible api-tools | Notes |
+| --- | --- | --- |
+| `v0.2.x` (post-#38) | `spike/local-unidic @ 46f6c43+` | local UniDic engine, no `/MarkFurigana`, `/MarkAccent/stream` available |
+| pre-#38 | `feat/docker-compose @ d8acc55` | Yahoo MA API era, `/MarkFurigana` still present |
 
 ## Build, Run, Test
+
+### One-time setup
+The backend and `api-tools` live in separate repos and are cloned as siblings:
+
+```bash
+git clone git@github.com:sessatakuma/jpcorrect-backend.git
+git clone git@github.com:sessatakuma/API-tools.git   # sibling, NOT a submodule
+cd jpcorrect-backend
+```
 
 ### Local development (preferred)
 Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker.
