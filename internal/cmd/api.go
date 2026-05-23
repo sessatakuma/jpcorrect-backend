@@ -42,8 +42,8 @@ func Execute() {
 	}
 
 	jwksURL := os.Getenv("JWKS_URL")
-	if jwksURL == "" {
-		log.Fatalf("JWKS_URL environment variable is required")
+	if jwksURL == "" && !gin.IsDebugging() {
+		log.Fatalf("JWKS_URL environment variable is required in release mode")
 	}
 
 	allowedOrigins := []string{}
@@ -57,10 +57,15 @@ func Execute() {
 	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("CLIENT_API_KEY"), transport, db, jwksURL, allowedOrigins)
 	defer a.Close()
 
-	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer initCancel()
-	if err := a.InitializeJWKS(initCtx); err != nil {
-		log.Fatalf("failed to initialize JWKS: %v", err)
+	// Skip JWKS fetch in debug mode: AuthMiddleware is not registered so it
+	// would only waste a startup HTTP call. Also tolerates an empty
+	// JWKS_URL in dev deploys where there's no real auth provider configured.
+	if !gin.IsDebugging() {
+		initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer initCancel()
+		if err := a.InitializeJWKS(initCtx); err != nil {
+			log.Fatalf("failed to initialize JWKS: %v", err)
+		}
 	}
 
 	r := gin.Default()
