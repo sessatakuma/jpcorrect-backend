@@ -1115,7 +1115,7 @@ const docTemplate = `{
         },
         "/v1/mark-accent": {
             "post": {
-                "description": "Analyze Japanese text and return accent (pitch) patterns for each word. The accent_marking_type values: 0=no accent, 1=heiban (flat), 2=fall down. Supports kanji-kana mixed input. Requires text input.",
+                "description": "Analyze Japanese text and return per-mora pitch (accent) patterns for each word. ` + "`" + `accent_marking_type` + "`" + ` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and ` + "`" + `script` + "`" + ` rewrites every furigana field to hiragana, katakana, or romaji.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1161,35 +1161,35 @@ const docTemplate = `{
                 ]
             }
         },
-        "/v1/mark-furigana": {
+        "/v1/mark-accent/stream": {
             "post": {
-                "description": "Annotate Japanese text with furigana (reading aid) readings. Breaks input into words, providing furigana and optional sub-word decomposition for mixed kanji-kana words. Requires text input.",
+                "description": "Same input and per-chunk output as /v1/mark-accent, but streamed as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes. Each line carries ` + "`" + `{\"chunk\": \u003cline_idx\u003e, \"subchunk\": \u003csub_idx\u003e, ...AccentResponse}` + "`" + ` so clients can interleave UI rendering with later chunks still in flight.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/json"
+                    "application/x-ndjson"
                 ],
                 "tags": [
                     "api-tools"
                 ],
-                "summary": "Mark furigana",
+                "summary": "Mark Japanese accent (streaming NDJSON)",
                 "parameters": [
                     {
-                        "description": "Japanese text to annotate with furigana",
+                        "description": "Japanese text to analyze for accent patterns",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkFuriganaRequest"
+                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "NDJSON stream of per-chunk AccentResponse objects",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkFuriganaResponse"
+                            "type": "string"
                         }
                     },
                     "502": {
@@ -3097,6 +3097,23 @@ const docTemplate = `{
         "internal_api.MarkAccentRequest": {
             "type": "object",
             "properties": {
+                "render_english_furigana": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "render_katakana_furigana": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "script": {
+                    "type": "string",
+                    "enum": [
+                        "hiragana",
+                        "katakana",
+                        "romaji"
+                    ],
+                    "example": "hiragana"
+                },
                 "text": {
                     "type": "string",
                     "example": "お金を稼ぐ"
@@ -3113,33 +3130,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.WordAccentResult"
-                    }
-                },
-                "status": {
-                    "type": "integer",
-                    "example": 200
-                }
-            }
-        },
-        "internal_api.MarkFuriganaRequest": {
-            "type": "object",
-            "properties": {
-                "text": {
-                    "type": "string",
-                    "example": "漢字かな交じり文"
-                }
-            }
-        },
-        "internal_api.MarkFuriganaResponse": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
-                },
-                "result": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_api.WordResult"
                     }
                 },
                 "status": {
@@ -3298,6 +3288,20 @@ const docTemplate = `{
                     "type": "string",
                     "example": "おかね"
                 },
+                "kernel_absorbed": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "lexical_kernel": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "lexical_kernel_alts": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "subword": {
                     "type": "array",
                     "items": {
@@ -3317,28 +3321,25 @@ const docTemplate = `{
                     "type": "string",
                     "example": "かね"
                 },
-                "surface": {
-                    "type": "string",
-                    "example": "金"
-                }
-            }
-        },
-        "internal_api.WordResult": {
-            "type": "object",
-            "properties": {
-                "furigana": {
-                    "type": "string",
-                    "example": "かんじ"
+                "lexical_kernel": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "lexical_kernel_alts": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "subword": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.WordResult"
+                        "$ref": "#/definitions/internal_api.WordAccentSubword"
                     }
                 },
                 "surface": {
                     "type": "string",
-                    "example": "漢字"
+                    "example": "金"
                 }
             }
         },

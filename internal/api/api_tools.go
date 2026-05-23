@@ -4,11 +4,23 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 func (a *API) handlerHelper(c *gin.Context, target string) {
+	a.proxyTo(c, target, 0)
+}
+
+// streamingHelper proxies an upstream NDJSON / streaming response. FlushInterval=-1
+// makes the reverse proxy flush after every write so clients see each chunk
+// as soon as api-tools emits it.
+func (a *API) streamingHelper(c *gin.Context, target string) {
+	a.proxyTo(c, target, -1)
+}
+
+func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration) {
 	remote, err := url.Parse(target)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid target URL"})
@@ -16,14 +28,12 @@ func (a *API) handlerHelper(c *gin.Context, target string) {
 	}
 
 	proxy := &httputil.ReverseProxy{
-		Transport: a.proxyTransport,
+		Transport:     a.proxyTransport,
+		FlushInterval: flushInterval,
 
 		Director: func(req *http.Request) {
 			req.URL = remote
 			req.Host = remote.Host
-			if a.apiToolsKey != "" {
-				req.Header.Set("X-API-KEY", a.apiToolsKey)
-			}
 		},
 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
@@ -37,7 +47,7 @@ func (a *API) handlerHelper(c *gin.Context, target string) {
 }
 
 // @Summary Mark Japanese accent
-// @Description Analyze Japanese text and return accent (pitch) patterns for each word. The accent_marking_type values: 0=no accent, 1=heiban (flat), 2=fall down. Supports kanji-kana mixed input. Requires text input.
+// @Description Analyze Japanese text and return per-mora pitch (accent) patterns for each word. `accent_marking_type` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and `script` rewrites every furigana field to hiragana, katakana, or romaji.
 // @Tags api-tools
 // @Accept json
 // @Produce json
@@ -50,18 +60,18 @@ func (a *API) MarkAccentHandler(c *gin.Context) {
 	a.handlerHelper(c, a.apiToolsURL+"/api/MarkAccent/")
 }
 
-// @Summary Mark furigana
-// @Description Annotate Japanese text with furigana (reading aid) readings. Breaks input into words, providing furigana and optional sub-word decomposition for mixed kanji-kana words. Requires text input.
+// @Summary Mark Japanese accent (streaming NDJSON)
+// @Description Same input and per-chunk output as /v1/mark-accent, but streamed as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes. Each line carries `{"chunk": <line_idx>, "subchunk": <sub_idx>, ...AccentResponse}` so clients can interleave UI rendering with later chunks still in flight.
 // @Tags api-tools
 // @Accept json
-// @Produce json
-// @Param body body MarkFuriganaRequest true "Japanese text to annotate with furigana"
-// @Success 200 {object} MarkFuriganaResponse
+// @Produce application/x-ndjson
+// @Param body body MarkAccentRequest true "Japanese text to analyze for accent patterns"
+// @Success 200 {string} string "NDJSON stream of per-chunk AccentResponse objects"
 // @Failure 502 {object} map[string]string
 // @Security ApiKeyAuth
-// @Router /v1/mark-furigana [post]
-func (a *API) MarkFuriganaHandler(c *gin.Context) {
-	a.handlerHelper(c, a.apiToolsURL+"/api/MarkFurigana/")
+// @Router /v1/mark-accent/stream [post]
+func (a *API) MarkAccentStreamHandler(c *gin.Context) {
+	a.streamingHelper(c, a.apiToolsURL+"/api/MarkAccent/stream/")
 }
 
 // @Summary Query usage headwords

@@ -54,7 +54,7 @@ func Execute() {
 		}
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("API_TOOLS_KEY"), os.Getenv("CLIENT_API_KEY"), transport, db, jwksURL, allowedOrigins)
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("CLIENT_API_KEY"), transport, db, jwksURL, allowedOrigins)
 	defer a.Close()
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)

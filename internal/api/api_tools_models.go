@@ -10,30 +10,40 @@ type APIToolsError struct {
 
 // --- Mark Accent Models ---
 
-// MarkAccentRequest is the request body for the mark-accent endpoint.
+// MarkAccentRequest is the request body for the mark-accent endpoints.
+// Shared by /v1/mark-accent and /v1/mark-accent/stream.
 type MarkAccentRequest struct {
-	Text string `json:"text" example:"お金を稼ぐ" description:"Japanese text to analyze for accent patterns"`
+	Text                   string `json:"text" example:"お金を稼ぐ" description:"Japanese text to analyze for accent patterns"`
+	RenderEnglishFurigana  bool   `json:"render_english_furigana,omitempty" example:"false" description:"Emit furigana for ASCII-letter tokens (e.g. Apple→アップル). Default false."`
+	RenderKatakanaFurigana bool   `json:"render_katakana_furigana,omitempty" example:"false" description:"Emit furigana for pure-katakana tokens. Default false; per-mora pitch is returned regardless."`
+	Script                 string `json:"script,omitempty" example:"hiragana" enums:"hiragana,katakana,romaji" description:"Output script for every furigana field. Default hiragana. Romaji uses Hepburn-style (no macrons)."`
 }
 
 // AccentInfo represents accent marking for a single mora.
 type AccentInfo struct {
 	Furigana          string `json:"furigana" example:"か" description:"Furigana for this mora"`
-	AccentMarkingType int    `json:"accent_marking_type" example:"1" description:"Accent type: 0=no accent, 1=heiban (flat), 2=fall down"`
+	AccentMarkingType int    `json:"accent_marking_type" example:"1" description:"Accent type: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel"`
 	Length            int    `json:"length" example:"1" description:"Character length of this mora"`
 }
 
 // WordAccentSubword represents sub-word decomposition within an accent result.
 type WordAccentSubword struct {
-	Furigana string `json:"furigana" example:"かね" description:"Furigana for this sub-word"`
-	Surface  string `json:"surface" example:"金" description:"Original text for this sub-word"`
+	Furigana          string              `json:"furigana" example:"かね" description:"Furigana for this sub-word"`
+	Surface           string              `json:"surface" example:"金" description:"Original text for this sub-word"`
+	Subword           []WordAccentSubword `json:"subword,omitempty" description:"Reserved for compatibility; typically empty"`
+	LexicalKernel     *int                `json:"lexical_kernel,omitempty" example:"0" description:"UniDic per-morpheme kernel position (aType). 0=heiban, N>=1=kernel on mora N. null when unavailable."`
+	LexicalKernelAlts []int               `json:"lexical_kernel_alts,omitempty" description:"Alternative kernel positions for multi-reading entries"`
 }
 
 // WordAccentResult represents a single word result from the mark-accent endpoint.
 type WordAccentResult struct {
-	Furigana string            `json:"furigana" example:"おかね" description:"Complete furigana for the word"`
-	Surface  string            `json:"surface" example:"お金" description:"Original text as it appears in the input"`
-	Accent   []AccentInfo      `json:"accent" description:"Accent marking for each mora"`
-	Subword  []WordAccentSubword `json:"subword" description:"Sub-word decomposition when a word contains both kanji and kana"`
+	Furigana          string              `json:"furigana" example:"おかね" description:"Complete furigana for the word"`
+	Surface           string              `json:"surface" example:"お金" description:"Original text as it appears in the input"`
+	Accent            []AccentInfo        `json:"accent" description:"Per-mora accent marking"`
+	Subword           []WordAccentSubword `json:"subword,omitempty" description:"Sub-word decomposition when a word contains both kanji and kana"`
+	LexicalKernel     *int                `json:"lexical_kernel,omitempty" example:"0" description:"UniDic per-morpheme kernel position (aType). 0=heiban, N>=1=kernel on mora N. null when unavailable."`
+	LexicalKernelAlts []int               `json:"lexical_kernel_alts,omitempty" description:"Alternative kernel positions for multi-reading entries (e.g. aType=\"2,0\" → [2, 0])"`
+	KernelAbsorbed    bool                `json:"kernel_absorbed,omitempty" example:"false" description:"True when UniDic reports a kernel but OJAD's surface contour absorbed it into a larger prosodic phrase"`
 }
 
 // MarkAccentResponse is the response from the mark-accent endpoint.
@@ -41,27 +51,6 @@ type MarkAccentResponse struct {
 	Status int                `json:"status" example:"200" description:"HTTP status code"`
 	Result []WordAccentResult `json:"result" description:"List of accent-marked word results"`
 	Error  *APIToolsError     `json:"error" description:"Error details, if any"`
-}
-
-// --- Mark Furigana Models ---
-
-// MarkFuriganaRequest is the request body for the mark-furigana endpoint.
-type MarkFuriganaRequest struct {
-	Text string `json:"text" example:"漢字かな交じり文" description:"Japanese text to annotate with furigana"`
-}
-
-// WordResult represents a single word result from the mark-furigana endpoint.
-type WordResult struct {
-	Furigana string        `json:"furigana" example:"かんじ" description:"Furigana reading for the word"`
-	Surface  string        `json:"surface" example:"漢字" description:"Original text as it appears in the input"`
-	Subword  []WordResult  `json:"subword" description:"Sub-word decomposition when a word contains both kanji and kana"`
-}
-
-// MarkFuriganaResponse is the response from the mark-furigana endpoint.
-type MarkFuriganaResponse struct {
-	Status int            `json:"status" example:"200" description:"HTTP status code"`
-	Result []WordResult   `json:"result" description:"List of furigana-annotated word results"`
-	Error  *APIToolsError `json:"error" description:"Error details, if any"`
 }
 
 // --- Usage Query: HeadWords Models ---
@@ -99,7 +88,7 @@ type UsageQueryWordURL struct {
 
 // UsageQueryURLResponse is the response from the usage-query/url endpoint.
 type UsageQueryURLResponse struct {
-	Status int                `json:"status" example:"200" description:"HTTP status code"`
+	Status int                 `json:"status" example:"200" description:"HTTP status code"`
 	Result []UsageQueryWordURL `json:"result" description:"List of headword URLs"`
 	Error  *APIToolsError      `json:"error" description:"Error details, if any"`
 }
@@ -114,19 +103,19 @@ type UsageQueryIDDetailsRequest struct {
 
 // IdDetails contains detailed word usage information.
 type IdDetails struct {
-	Base               []map[string]any `json:"base" description:"Base form information"`
-	Subcorpus          []map[string]any `json:"subcorpus" description:"Subcorpus distribution"`
-	Shojikei           []map[string]any `json:"shojikei" description:"Shojikei (conjugation types)"`
-	SubcorpusShojikei  []map[string]any `json:"subcorpus_shojikei" description:"Shojikei distribution by subcorpus"`
-	Katuyokei          []map[string]any `json:"katuyokei" description:"Katuyokei (conjugation forms)"`
-	Setuzoku           []map[string]any `json:"setuzoku" description:"Subsequent auxiliary verbs"`
-	Patternfreqorder   []map[string]any `json:"patternfreqorder" description:"Frequency in different patterns"`
+	Base              []map[string]any `json:"base" description:"Base form information"`
+	Subcorpus         []map[string]any `json:"subcorpus" description:"Subcorpus distribution"`
+	Shojikei          []map[string]any `json:"shojikei" description:"Shojikei (conjugation types)"`
+	SubcorpusShojikei []map[string]any `json:"subcorpus_shojikei" description:"Shojikei distribution by subcorpus"`
+	Katuyokei         []map[string]any `json:"katuyokei" description:"Katuyokei (conjugation forms)"`
+	Setuzoku          []map[string]any `json:"setuzoku" description:"Subsequent auxiliary verbs"`
+	Patternfreqorder  []map[string]any `json:"patternfreqorder" description:"Frequency in different patterns"`
 }
 
 // UsageQueryIDDetailsResponse is the response from the usage-query/id-details endpoint.
 type UsageQueryIDDetailsResponse struct {
 	Status int            `json:"status" example:"200" description:"HTTP status code"`
-	Result *IdDetails      `json:"result" description:"Detailed word usage data"`
+	Result *IdDetails     `json:"result" description:"Detailed word usage data"`
 	Error  *APIToolsError `json:"error" description:"Error details, if any"`
 }
 
@@ -153,7 +142,7 @@ type DictQueryWordResult struct {
 
 // DictQueryResponse is the response from the dict-query endpoint.
 type DictQueryResponse struct {
-	Status int                  `json:"status" example:"200" description:"HTTP status code"`
+	Status int                   `json:"status" example:"200" description:"HTTP status code"`
 	Result []DictQueryWordResult `json:"result" description:"List of dictionary word results"`
 	Error  *APIToolsError        `json:"error" description:"Error details, if any"`
 }
@@ -181,7 +170,7 @@ type SentenceQueryWordResult struct {
 
 // SentenceQueryResponse is the response from the sentence-query endpoint.
 type SentenceQueryResponse struct {
-	Status int                     `json:"status" example:"200" description:"HTTP status code"`
+	Status int                      `json:"status" example:"200" description:"HTTP status code"`
 	Result *SentenceQueryWordResult `json:"result" description:"Sentence query results for the word"`
-	Error  string                  `json:"error" description:"Error message, if any"`
+	Error  string                   `json:"error" description:"Error message, if any"`
 }
