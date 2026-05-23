@@ -8,11 +8,15 @@ This repository contains the backend for the jpcorrect system, a Japanese langua
 - PostgreSQL
 
 ### Installation
+Backend and api-tools live in separate repos — clone both as siblings:
 ```bash
 git clone https://github.com/sessatakuma/jpcorrect-backend.git
+git clone https://github.com/sessatakuma/API-tools.git    # sibling, not a submodule
 cd jpcorrect-backend
 go mod download
 ```
+
+See `AGENTS.md` → "API-tools compatibility" for the api-tools version this backend's proxy is aligned to.
 
 ### Environment Variables
 A `.env` file is required in the project root for local development. Copy and configure it:
