@@ -23,7 +23,6 @@ import (
 type API struct {
 	db                *gorm.DB
 	apiToolsURL       string
-	apiToolsKey       string
 	clientAPIKey      string
 	proxyTransport    *http.Transport
 	jwksURL           string
@@ -44,7 +43,7 @@ type API struct {
 	upgrader          websocket.Upgrader
 }
 
-func NewAPI(url string, apiKey string, clientAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
+func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
@@ -79,7 +78,6 @@ func NewAPI(url string, apiKey string, clientAPIKey string, transport *http.Tran
 	return &API{
 		db:                db,
 		apiToolsURL:       url,
-		apiToolsKey:       apiKey,
 		clientAPIKey:      clientAPIKey,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
@@ -119,7 +117,7 @@ func Register(r *gin.Engine, api *API) {
 	apiTools.Use(api.APIKeyMiddleware())
 	{
 		apiTools.POST("/mark-accent", api.MarkAccentHandler)
-		apiTools.POST("/mark-furigana", api.MarkFuriganaHandler)
+		apiTools.POST("/mark-accent/stream", api.MarkAccentStreamHandler)
 		apiTools.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
 		apiTools.POST("/usage-query/url", api.UsageQueryURLHandler)
 		apiTools.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)

@@ -145,6 +145,19 @@ definitions:
     type: object
   internal_api.MarkAccentRequest:
     properties:
+      render_english_furigana:
+        example: false
+        type: boolean
+      render_katakana_furigana:
+        example: false
+        type: boolean
+      script:
+        enum:
+        - hiragana
+        - katakana
+        - romaji
+        example: hiragana
+        type: string
       text:
         example: お金を稼ぐ
         type: string
@@ -156,24 +169,6 @@ definitions:
       result:
         items:
           $ref: '#/definitions/internal_api.WordAccentResult'
-        type: array
-      status:
-        example: 200
-        type: integer
-    type: object
-  internal_api.MarkFuriganaRequest:
-    properties:
-      text:
-        example: 漢字かな交じり文
-        type: string
-    type: object
-  internal_api.MarkFuriganaResponse:
-    properties:
-      error:
-        $ref: '#/definitions/internal_api.APIToolsError'
-      result:
-        items:
-          $ref: '#/definitions/internal_api.WordResult'
         type: array
       status:
         example: 200
@@ -281,6 +276,16 @@ definitions:
       furigana:
         example: おかね
         type: string
+      kernel_absorbed:
+        example: false
+        type: boolean
+      lexical_kernel:
+        example: 0
+        type: integer
+      lexical_kernel_alts:
+        items:
+          type: integer
+        type: array
       subword:
         items:
           $ref: '#/definitions/internal_api.WordAccentSubword'
@@ -294,21 +299,19 @@ definitions:
       furigana:
         example: かね
         type: string
-      surface:
-        example: 金
-        type: string
-    type: object
-  internal_api.WordResult:
-    properties:
-      furigana:
-        example: かんじ
-        type: string
+      lexical_kernel:
+        example: 0
+        type: integer
+      lexical_kernel_alts:
+        items:
+          type: integer
+        type: array
       subword:
         items:
-          $ref: '#/definitions/internal_api.WordResult'
+          $ref: '#/definitions/internal_api.WordAccentSubword'
         type: array
       surface:
-        example: 漢字
+        example: 金
         type: string
     type: object
   internal_api.WordSentence:
@@ -1251,9 +1254,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: 'Analyze Japanese text and return accent (pitch) patterns for each
-        word. The accent_marking_type values: 0=no accent, 1=heiban (flat), 2=fall
-        down. Supports kanji-kana mixed input. Requires text input.'
+      description: 'Analyze Japanese text and return per-mora pitch (accent) patterns
+        for each word. `accent_marking_type` values: 0=low/unknown, 1=heiban (high
+        plateau), 2=fall kernel. Optional flags control whether English-letter and
+        katakana tokens carry furigana, and `script` rewrites every furigana field
+        to hiragana, katakana, or romaji.'
       parameters:
       - description: Japanese text to analyze for accent patterns
         in: body
@@ -1279,27 +1284,28 @@ paths:
       summary: Mark Japanese accent
       tags:
       - api-tools
-  /v1/mark-furigana:
+  /v1/mark-accent/stream:
     post:
       consumes:
       - application/json
-      description: Annotate Japanese text with furigana (reading aid) readings. Breaks
-        input into words, providing furigana and optional sub-word decomposition for
-        mixed kanji-kana words. Requires text input.
+      description: 'Same input and per-chunk output as /v1/mark-accent, but streamed
+        as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes.
+        Each line carries `{"chunk": <line_idx>, "subchunk": <sub_idx>, ...AccentResponse}`
+        so clients can interleave UI rendering with later chunks still in flight.'
       parameters:
-      - description: Japanese text to annotate with furigana
+      - description: Japanese text to analyze for accent patterns
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.MarkFuriganaRequest'
+          $ref: '#/definitions/internal_api.MarkAccentRequest'
       produces:
-      - application/json
+      - application/x-ndjson
       responses:
         "200":
-          description: OK
+          description: NDJSON stream of per-chunk AccentResponse objects
           schema:
-            $ref: '#/definitions/internal_api.MarkFuriganaResponse'
+            type: string
         "502":
           description: Bad Gateway
           schema:
@@ -1308,7 +1314,7 @@ paths:
             type: object
       security:
       - ApiKeyAuth: []
-      summary: Mark furigana
+      summary: Mark Japanese accent (streaming NDJSON)
       tags:
       - api-tools
   /v1/mistakes:
