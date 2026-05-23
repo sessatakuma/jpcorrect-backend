@@ -1,50 +1,110 @@
 ---
 services:
-    postgres:
+    postgres-prod:
         image: postgres:15-alpine
-        container_name: jpcorrect-postgres
+        container_name: jpcorrect-postgres-prod
         environment:
             POSTGRES_USER: jpcorrect
             POSTGRES_PASSWORD: jpcorrect_password
             POSTGRES_DB: jpcorrect
-        ports:
-            - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
         volumes:
-            - postgres_data:/var/lib/postgresql/data
+            - postgres_prod_data:/var/lib/postgresql/data
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
             interval: 5s
             timeout: 5s
             retries: 5
+        networks:
+            - prod-net
         restart: unless-stopped
 
-    backend:
-        image: ${BACKEND_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:latest}
-        container_name: jpcorrect-backend
+    postgres-dev:
+        image: postgres:15-alpine
+        container_name: jpcorrect-postgres-dev
+        environment:
+            POSTGRES_USER: jpcorrect
+            POSTGRES_PASSWORD: jpcorrect_password
+            POSTGRES_DB: jpcorrect
+        volumes:
+            - postgres_dev_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        networks:
+            - dev-net
+        restart: unless-stopped
+
+    backend-prod:
+        image: ${BACKEND_PROD_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:stable}
+        container_name: jpcorrect-backend-prod
         depends_on:
-            - postgres
+            postgres-prod:
+                condition: service_healthy
         env_file:
-            - ${BACKEND_ENV_FILE:-.env}
+            - .env.deploy.prod
         expose:
             - "8080"
         networks:
-            - default
+            - prod-net
             - jpcorrect-shared
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+        restart: unless-stopped
+
+    backend-dev:
+        image: ${BACKEND_DEV_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:latest}
+        container_name: jpcorrect-backend-dev
+        depends_on:
+            postgres-dev:
+                condition: service_healthy
+        env_file:
+            - .env.deploy.dev
+        expose:
+            - "8080"
+        networks:
+            - dev-net
+            - jpcorrect-shared
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
         restart: unless-stopped
 
     cloudflared:
         image: cloudflare/cloudflared:latest
-        command: tunnel run jb
+        command: tunnel --config /home/nonroot/.cloudflared/config.yml run
         container_name: jpcorrect-cloudflared
         volumes:
+            # Credentials (cert.pem + <uuid>.json) live on the host, gitignored,
+            # owned by the container's nonroot uid.
             - ./.cloudflared:/home/nonroot/.cloudflared
-        depends_on:
-            - backend
+            # Ingress config is committed to repo and bind-mounted on top of
+            # the dir above, so the credentials dir stays a pure secrets-only
+            # location and the routing config gets reviewed via PR.
+            - ./deploy/cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
+        networks:
+            - jpcorrect-shared
+        restart: unless-stopped
+
+    watchtower:
+        image: containrrr/watchtower:latest
+        container_name: jpcorrect-watchtower
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ${HOME}/.docker/config.json:/config.json:ro
+        environment:
+            WATCHTOWER_LABEL_ENABLE: "true"
+            WATCHTOWER_POLL_INTERVAL: "300"
+            WATCHTOWER_CLEANUP: "true"
+            WATCHTOWER_INCLUDE_RESTARTING: "false"
         restart: unless-stopped
 
 networks:
+    prod-net:
+    dev-net:
     jpcorrect-shared:
         external: true
 
 volumes:
-    postgres_data:
+    postgres_prod_data:
+    postgres_dev_data:
