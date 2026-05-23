@@ -1,0 +1,17 @@
+# Cloudflare Tunnel ingress config — committed to repo (no secrets).
+# Bind-mounted at /home/nonroot/.cloudflared/config.yml inside the cloudflared
+# container; credentials (cert.pem, <uuid>.json) come from the host's
+# ./.cloudflared/ directory which stays gitignored.
+#
+# Tunnel `jb` routes two hostnames at this single host:
+#   api.sessatakuma.dev      → backend-prod (no edge auth; app enforces JWT/API key)
+#   api-dev.sessatakuma.dev  → backend-dev  (gated by Cloudflare Access Zero Trust policy)
+tunnel: jb
+credentials-file: /home/nonroot/.cloudflared/e675aa1e-81a3-4ce2-8147-487521bad542.json
+
+ingress:
+  - hostname: api.sessatakuma.dev
+    service: http://backend-prod:8080
+  - hostname: api-dev.sessatakuma.dev
+    service: http://backend-dev:8080
+  - service: http_status:404
