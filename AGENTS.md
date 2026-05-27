@@ -16,7 +16,7 @@ Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 - `internal/repository/`: GORM implementations
 - `internal/cmd/`: Command execution and server setup
 - `internal/database/`: Database connection and GORM config
-- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). Cloned by devs into `./API-tools/` and run with `uv`; reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
+- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). For **local dev**, cloned into `./API-tools/` and run with `uv` (`uv run uvicorn main:app ...`). For the **deploy stack**, it is pulled from GHCR as the `api-tools` service in `deploy/compose.yml` (no local clone). Reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
 
 ## API-tools compatibility
 
@@ -44,13 +44,15 @@ cd jpcorrect-backend
 Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker via the dedicated local compose file.
 
 ```bash
-cp .env.example .env                  # one-time setup — then fill in JWKS_URL
+cp .env.example .env                  # one-time setup — then fill in YAHOO_API_KEY + JWKS_URL
 
-make db-up                            # start local Postgres in Docker (compose.local.yml, bound to 127.0.0.1:5432)
-make db-logs                          # tail Postgres logs
-make db-down                          # stop Postgres
+docker compose up -d                  # start local Postgres in Docker (compose.yml, bound to 127.0.0.1:5432)
+docker compose logs -f                # tail Postgres logs
+docker compose stop                   # stop Postgres
 
-make api-tools                        # run Python API-tools on 127.0.0.1:8000 via uv
+# Run Python API-tools on 127.0.0.1:8000 via uv (clone the repo as a sibling first)
+cd API-tools && YAHOO_API_KEY="$YAHOO_API_KEY" uv run uvicorn main:app --host 127.0.0.1 --port 8000
+
 make air                              # run backend with live reload (go tool air)
 make swag                             # regenerate Swagger docs
 
@@ -65,12 +67,39 @@ In this mode, `.env` has `DATABASE_URL=...@127.0.0.1:5432/...` and `API_TOOLS_UR
 - `curl http://127.0.0.1:8000/docs` → 200 (api-tools FastAPI)
 
 ### Deployment stack (two environments on one host)
-`compose.deploy.yml` hosts **two backend instances** on this machine, both exposed via a single Cloudflare Tunnel:
+All deploy-only files live under `deploy/` (kept separate from dev/build files at the repo root):
+
+```
+deploy/
+├── compose.yml               # the stack definition (default compose name)
+├── env/
+│   ├── prod.example          # template (tracked)
+│   ├── dev.example           # template (tracked)
+│   ├── api-tools.example     # template (tracked)
+│   ├── prod                  # real env, host-only (gitignored)
+│   ├── dev                   # real env, host-only (gitignored)
+│   └── api-tools             # real env, host-only (gitignored)
+└── cloudflared/
+    ├── config.yml            # tunnel ingress (tracked)
+    └── creds/                # cert.pem + <uuid>.json, host-only (gitignored)
+```
+
+`deploy/compose.yml` pins a top-level `name: jpcorrect-backend`, so volume/network
+names stay `jpcorrect-backend_*` regardless of the file's directory. Its `./`
+bind mounts resolve relative to `deploy/`. The repo-root `compose.yml` is a
+separate, dev-only stack (local Postgres for `make air`).
+
+`deploy/compose.yml` hosts **two backend instances** on this machine, both exposed via a single Cloudflare Tunnel:
 
 - **Prod** (`backend-prod` → `api.sessatakuma.dev`) — `GIN_MODE=release`. All middlewares active (`CLIENT_API_KEY` on api-tools routes, JWT on `/v1/*`). Image: `:stable` (only updated when a `v*.*.*` git tag is pushed).
 - **Dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`. APIKey + Auth middlewares are **skipped**; access is gated solely at the edge by a Cloudflare Access Zero Trust policy. Swagger UI is visible. Image: `:latest` (every main merge).
 
-A single `watchtower` container polls GHCR every 5 min and auto-restarts whichever backend image changed (label-enable mode — only backend-prod and backend-dev are watched).
+The `api-tools` service is **also part of this stack**, pulled from GHCR
+(`ghcr.io/sessatakuma/api-tools`, built+pushed by the API-tools repo's own CI)
+rather than cloned and built locally. A single shared instance serves both
+backends. Default tag `:stable` (override with `API_TOOLS_IMAGE`).
+
+A single `watchtower` container polls GHCR every 5 min and auto-restarts whichever watched image changed (label-enable mode — `backend-prod`, `backend-dev`, and `api-tools`).
 
 Each env has its own Postgres on an isolated bridge network:
 
@@ -80,21 +109,25 @@ Each env has its own Postgres on an isolated bridge network:
 | postgres-dev | | ✓ | |
 | backend-prod | ✓ | | ✓ |
 | backend-dev | | ✓ | ✓ |
+| api-tools | | | ✓ |
 | cloudflared | | | ✓ |
 
-So `backend-dev` cannot reach `postgres-prod` (different network, no DNS). Both backends reach the sibling `jpcorrect-api-tools` container via `jpcorrect-shared`.
+So `backend-dev` cannot reach `postgres-prod` (different network, no DNS). Both backends reach the `jpcorrect-api-tools` container via `jpcorrect-shared`.
 
 #### One-time host setup
 ```bash
 docker network create jpcorrect-shared 2>/dev/null || true
 
-# Bring up sibling api-tools so its container exists for DNS resolution
-docker compose -f ../API-tools/docker-compose.yml up -d
+# api-tools is now a service inside deploy/compose.yml (pulled from GHCR), so it
+# no longer needs a separate launch. If a standalone jpcorrect-api-tools from the
+# old `../API-tools/docker-compose.yml` is still running, stop it first to free
+# the container name:
+#   docker rm -f jpcorrect-api-tools 2>/dev/null || true
 
-# Cloudflare tunnel `jb` already exists in ./.cloudflared/. Register DNS routes:
-docker run --rm -v $PWD/.cloudflared:/home/nonroot/.cloudflared \
+# Cloudflare tunnel `jb` already exists in ./deploy/cloudflared/creds/. Register DNS routes:
+docker run --rm -v $PWD/deploy/cloudflared/creds:/home/nonroot/.cloudflared \
   cloudflare/cloudflared:latest tunnel route dns jb api.sessatakuma.dev
-docker run --rm -v $PWD/.cloudflared:/home/nonroot/.cloudflared \
+docker run --rm -v $PWD/deploy/cloudflared/creds:/home/nonroot/.cloudflared \
   cloudflare/cloudflared:latest tunnel route dns jb api-dev.sessatakuma.dev
 
 # Cloudflare Access (Zero Trust dashboard — no IaC):
@@ -109,21 +142,24 @@ docker login ghcr.io -u <github-user>   # paste a PAT with read:packages
 
 #### Day-to-day
 ```bash
-cp .env.deploy.prod.example .env.deploy.prod   # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
-cp .env.deploy.dev.example  .env.deploy.dev    # dev: leave CLIENT_API_KEY / JWKS_URL empty
+cp deploy/env/prod.example      deploy/env/prod        # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
+cp deploy/env/dev.example       deploy/env/dev         # dev: leave CLIENT_API_KEY / JWKS_URL empty
+cp deploy/env/api-tools.example deploy/env/api-tools   # fill in YAHOO_API_KEY
 
-make deploy-up                # both envs + cloudflared + watchtower
-make deploy-up-prod           # just prod (postgres-prod + backend-prod)
-make deploy-up-dev            # just dev  (postgres-dev  + backend-dev)
-make deploy-up-infra          # just cloudflared + watchtower
-make deploy-pull-prod         # manual pull of :stable + restart backend-prod
-make deploy-pull-dev          # manual pull of :latest + restart backend-dev
-make deploy-down              # everything
+# Deploy targets live in deploy/Makefile — run with `make -C deploy <target>`
+# (or `cd deploy && make <target>`). docker compose auto-detects deploy/compose.yml.
+make -C deploy up             # both envs + cloudflared + watchtower
+make -C deploy up-prod        # just prod (postgres-prod + backend-prod)
+make -C deploy up-dev         # just dev  (postgres-dev  + backend-dev)
+make -C deploy up-infra       # just cloudflared + watchtower
+make -C deploy pull-prod      # manual pull of :stable + restart backend-prod
+make -C deploy pull-dev       # manual pull of :latest + restart backend-dev
+make -C deploy down           # everything
 
 docker exec -it jpcorrect-postgres-prod psql -U jpcorrect   # psql into prod DB
 ```
 
-Cloudflared ingress lives in `deploy/cloudflared/config.yml` (bind-mounted into the container on top of `.cloudflared/`); credentials (`cert.pem`, `<uuid>.json`) stay in `.cloudflared/` and remain gitignored. See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` walkthrough.
+Cloudflared ingress lives in `deploy/cloudflared/config.yml` (bind-mounted into the container on top of `deploy/cloudflared/creds/`); credentials (`cert.pem`, `<uuid>.json`) stay in `deploy/cloudflared/creds/` and remain gitignored. See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` walkthrough.
 
 ### Database
 GORM `AutoMigrate` in `internal/cmd/api.go` is the primary schema tool. When adding a new domain model, add it to the `AutoMigrate(...)` call.
@@ -205,21 +241,26 @@ Every authenticated handler must carry a `// @Security <Scheme>` line above `// 
 | `WEBRTC_DEMO_PORT` | No | `3000` | Port for the `cmd/webrtc-demo` server |
 | `WEBRTC_DEMO_BASE_DIR` / `WEBRTC_DEMO_CERT_PATH` / `WEBRTC_DEMO_KEY_PATH` | No | — | Paths for the WebRTC demo static server |
 
-Deploy-stack only (read by `compose.deploy.yml` for compose-level substitution, not the Go process):
+Deploy-stack only (read by `deploy/compose.yml` for compose-level substitution, not the Go process):
 
 | Variable | Notes |
 | --- | --- |
 | `BACKEND_PROD_IMAGE` | backend-prod image to run (default `ghcr.io/sessatakuma/jpcorrect-backend:stable`) |
 | `BACKEND_DEV_IMAGE` | backend-dev image to run (default `ghcr.io/sessatakuma/jpcorrect-backend:latest`) |
+| `API_TOOLS_IMAGE` | api-tools image to run (default `ghcr.io/sessatakuma/api-tools:stable`) |
 | `HOME` | Used to mount `~/.docker/config.json` into Watchtower for GHCR auth |
 
-Local-only (`compose.local.yml`):
+Local-only (`compose.yml`):
 
 | Variable | Notes |
 | --- | --- |
 | `POSTGRES_PORT` | Host-side bind port for the local-dev Postgres (default `5432`) |
 
-The `api-tools` service needs no env vars: accent/furigana come from a bundled local UniDic dict (the old `YAHOO_API_KEY` requirement is gone post local-unidic).
+API-tools service only (`YAHOO_API_KEY` — read by the local `uv run uvicorn` invocation for dev, and by the `api-tools` service in `deploy/compose.yml` via `deploy/env/api-tools`):
+
+| Variable | Notes |
+| --- | --- |
+| `YAHOO_API_KEY` | Yahoo API key consumed by the Python service (the only env var it still requires) |
 
 ### TLS
 Server checks if both `API_CERT_PATH` and `API_KEY_PATH` files exist. If yes → HTTPS; if no → HTTP with warning log.
@@ -274,4 +315,4 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
 11. **`CLIENT_API_KEY` is inbound only AND release-mode only**: It guards the 7 api-tools proxy routes when `GIN_MODE=release` (X-API-Key only — JWT is rejected there; empty value returns 401). In debug mode `APIKeyMiddleware` is skipped entirely so the value is unused; **an edge gateway (e.g. Cloudflare Access) must protect any non-localhost exposure of a debug-mode build**. The internal jp backend → API-tools call is keyless either way.
 12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
-13. **api-tools needs no env vars** (post local-unidic): accent/furigana come from a bundled local UniDic dict, so the old `YAHOO_API_KEY` requirement is gone. `make api-tools` runs `uv run uvicorn ...` with no env. (Older Yahoo-MA-era images still assert on `YAHOO_API_KEY` at import — pin a local-unidic image to avoid that.)
+13. **api-tools requires `YAHOO_API_KEY`**: The Python service asserts on `YAHOO_API_KEY` at import time and exits non-zero before uvicorn binds. For local dev, export it (or source `.env`) before `uv run uvicorn ...`; for the deploy stack it comes from `deploy/env/api-tools`.
