@@ -1,6 +1,0 @@
-# Deploy env file for the api-tools service (deploy/compose.yml).
-# Copy to deploy/env/api-tools and fill in. Host-only / gitignored.
-#
-# Post local-unidic, YAHOO_API_KEY is the only variable the Python service
-# requires. The internal backend -> api-tools call is keyless.
-YAHOO_API_KEY=change-me
