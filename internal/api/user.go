@@ -20,15 +20,31 @@ import (
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/users/{id} [get]
-func (a *API) UserGetHandler(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
-		return
-	}
+// func (a *API) UserGetHandler(c *gin.Context) {
+// 	idStr := c.Param("id")
+// 	id, err := uuid.Parse(idStr)
+// 	if err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+// 		return
+// 	}
 
-	user, err := a.userRepo.GetByID(c.Request.Context(), id)
+// 	user, err := a.userRepo.GetByID(c.Request.Context(), id)
+// 	if err != nil {
+// 		if errors.Is(err, domain.ErrNotFound) {
+// 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+// 			return
+// 		}
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusOK, user)
+// }
+
+// Returns the current user's profile
+func (a *API) UserMeHandler(c *gin.Context) {
+	supabaseID := c.GetString("userID")
+	user, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -51,23 +67,40 @@ func (a *API) UserGetHandler(c *gin.Context) {
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/users [post]
-func (a *API) UserCreateHandler(c *gin.Context) {
-	var user domain.User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// func (a *API) UserCreateHandler(c *gin.Context) {
+// 	var user domain.User
+// 	if err := c.ShouldBindJSON(&user); err != nil {
+// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	if err := a.userRepo.Create(c.Request.Context(), &user); err != nil {
+// 		if errors.Is(err, domain.ErrDuplicateEntry) {
+// 			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
+// 			return
+// 		}
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+// 		return
+// 	}
+
+// 	c.JSON(http.StatusCreated, user)
+// }
+
+// Initializes a user account based on SupabaseID
+func (a *API) UserInitHandler(c *gin.Context) {
+	supabaseID := c.GetString("supabaseID")
+	email := c.GetString("email")
+	if supabaseID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
+		return
+	}
+	user, err := a.userUsecase.InitUser(c.Request.Context(), supabaseID, email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initialize user"})
 		return
 	}
 
-	if err := a.userRepo.Create(c.Request.Context(), &user); err != nil {
-		if errors.Is(err, domain.ErrDuplicateEntry) {
-			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusOK, user)
 }
 
 // @Summary Update a user
@@ -123,6 +156,33 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, updated)
+}
+
+// Updates current user's nickname and avatar
+func (a *API) UserMeUpdateHandler(c *gin.Context) {
+	supabaseID := c.GetString("userID")
+
+	var inputData domain.User
+	if err := c.ShouldBindJSON(&inputData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	User, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	User.Name = inputData.Name
+	User.AvatarURL = inputData.AvatarURL
+
+	if err := a.userRepo.Update(c.Request.Context(), User); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
 }
 
 // @Summary Delete a user

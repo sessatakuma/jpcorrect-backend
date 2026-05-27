@@ -27,6 +27,15 @@ func (r *gormUserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*do
 	return &user, nil
 }
 
+func (r *gormUserRepository) GetBySupabaseID(ctx context.Context, supabaseID string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("supabase_id = ?", supabaseID).First(&user).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &user, nil
+}
+
 func (r *gormUserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
