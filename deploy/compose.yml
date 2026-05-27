@@ -1,4 +1,10 @@
 ---
+# Pin the compose project name so volume/network names stay
+# `jpcorrect-backend_*` regardless of this file's directory. Without this,
+# moving the file under deploy/ would rename the project to `deploy` and
+# orphan the existing postgres volumes.
+name: jpcorrect-backend
+
 services:
     postgres-prod:
         image: postgres:15-alpine
@@ -43,7 +49,7 @@ services:
             postgres-prod:
                 condition: service_healthy
         env_file:
-            - .env.deploy.prod
+            - env/prod
         expose:
             - "8080"
         networks:
@@ -60,11 +66,29 @@ services:
             postgres-dev:
                 condition: service_healthy
         env_file:
-            - .env.deploy.dev
+            - env/dev
         expose:
             - "8080"
         networks:
             - dev-net
+            - jpcorrect-shared
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+        restart: unless-stopped
+
+    api-tools:
+        # Sibling Python (fugashi + UniDic) service. Pulled from GHCR — built and
+        # pushed by the API-tools repo's own CI — instead of being cloned and
+        # built locally. A single shared instance both backends reach over
+        # jpcorrect-shared at http://jpcorrect-api-tools:8000. :stable keeps the
+        # contract aligned with prod (see the API-tools compatibility log in AGENTS.md).
+        image: ${API_TOOLS_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
+        container_name: jpcorrect-api-tools
+        env_file:
+            - env/api-tools
+        expose:
+            - "8000"
+        networks:
             - jpcorrect-shared
         labels:
             - com.centurylinklabs.watchtower.enable=true
@@ -77,11 +101,11 @@ services:
         volumes:
             # Credentials (cert.pem + <uuid>.json) live on the host, gitignored,
             # owned by the container's nonroot uid.
-            - ./.cloudflared:/home/nonroot/.cloudflared
+            - ./cloudflared/creds:/home/nonroot/.cloudflared
             # Ingress config is committed to repo and bind-mounted on top of
             # the dir above, so the credentials dir stays a pure secrets-only
             # location and the routing config gets reviewed via PR.
-            - ./deploy/cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
+            - ./cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
         networks:
             - jpcorrect-shared
         restart: unless-stopped

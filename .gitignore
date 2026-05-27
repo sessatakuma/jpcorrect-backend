@@ -26,12 +26,10 @@ go.work.sum
 
 # env files — actual env files (with secrets) ignored, .example templates tracked
 .env
-.env.deploy
-.env.deploy.prod
-.env.deploy.dev
 !.env.example
-!.env.deploy.prod.example
-!.env.deploy.dev.example
+# deploy env files live under deploy/env/ — ignore real ones, track *.example
+deploy/env/*
+!deploy/env/*.example
 
 # TLS/SSL certificates (正式部屬時請注意憑證位置)
 certs/
@@ -50,7 +48,6 @@ certs/
 # Temporary files
 tmp/
 
-.cloudflared
-
-# API-tools sibling repo (cloned separately into ./API-tools — see AGENTS.md)
-API-tools/
+# cloudflared tunnel credentials (cert.pem + <uuid>.json) — host-only secrets.
+# config.yml under deploy/cloudflared/ stays tracked; only creds/ is ignored.
+deploy/cloudflared/creds/
