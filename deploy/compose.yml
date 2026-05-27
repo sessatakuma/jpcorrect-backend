@@ -82,10 +82,10 @@ services:
         # built locally. A single shared instance both backends reach over
         # jpcorrect-shared at http://jpcorrect-api-tools:8000. :stable keeps the
         # contract aligned with prod (see the API-tools compatibility log in AGENTS.md).
+        # Post local-unidic the service needs no env vars (the old YAHOO_API_KEY
+        # is gone — accent/furigana now come from the bundled local UniDic dict).
         image: ${API_TOOLS_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
         container_name: jpcorrect-api-tools
-        env_file:
-            - env/api-tools
         expose:
             - "8000"
         networks:

@@ -44,14 +44,14 @@ cd jpcorrect-backend
 Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker via the dedicated local compose file.
 
 ```bash
-cp .env.example .env                  # one-time setup — then fill in YAHOO_API_KEY + JWKS_URL
+cp .env.example .env                  # one-time setup — then fill in JWKS_URL
 
 docker compose up -d                  # start local Postgres in Docker (compose.yml, bound to 127.0.0.1:5432)
 docker compose logs -f                # tail Postgres logs
 docker compose stop                   # stop Postgres
 
 # Run Python API-tools on 127.0.0.1:8000 via uv (clone the repo as a sibling first)
-cd API-tools && YAHOO_API_KEY="$YAHOO_API_KEY" uv run uvicorn main:app --host 127.0.0.1 --port 8000
+cd API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
 
 make air                              # run backend with live reload (go tool air)
 make swag                             # regenerate Swagger docs
@@ -75,10 +75,8 @@ deploy/
 ├── env/
 │   ├── prod.example          # template (tracked)
 │   ├── dev.example           # template (tracked)
-│   ├── api-tools.example     # template (tracked)
 │   ├── prod                  # real env, host-only (gitignored)
-│   ├── dev                   # real env, host-only (gitignored)
-│   └── api-tools             # real env, host-only (gitignored)
+│   └── dev                   # real env, host-only (gitignored)
 └── cloudflared/
     ├── config.yml            # tunnel ingress (tracked)
     └── creds/                # cert.pem + <uuid>.json, host-only (gitignored)
@@ -97,7 +95,9 @@ separate, dev-only stack (local Postgres for `make air`).
 The `api-tools` service is **also part of this stack**, pulled from GHCR
 (`ghcr.io/sessatakuma/api-tools`, built+pushed by the API-tools repo's own CI)
 rather than cloned and built locally. A single shared instance serves both
-backends. Default tag `:stable` (override with `API_TOOLS_IMAGE`).
+backends. Default tag `:stable` (override with `API_TOOLS_IMAGE`). Post
+local-unidic it needs no env vars (accent/furigana come from a bundled local
+UniDic dict — the old `YAHOO_API_KEY` requirement is gone).
 
 A single `watchtower` container polls GHCR every 5 min and auto-restarts whichever watched image changed (label-enable mode — `backend-prod`, `backend-dev`, and `api-tools`).
 
@@ -144,7 +144,7 @@ docker login ghcr.io -u <github-user>   # paste a PAT with read:packages
 ```bash
 cp deploy/env/prod.example      deploy/env/prod        # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
 cp deploy/env/dev.example       deploy/env/dev         # dev: leave CLIENT_API_KEY / JWKS_URL empty
-cp deploy/env/api-tools.example deploy/env/api-tools   # fill in YAHOO_API_KEY
+# api-tools needs no env file post local-unidic (YAHOO_API_KEY is gone)
 
 # Deploy targets live in deploy/Makefile — run with `make -C deploy <target>`
 # (or `cd deploy && make <target>`). docker compose auto-detects deploy/compose.yml.
@@ -256,11 +256,7 @@ Local-only (`compose.yml`):
 | --- | --- |
 | `POSTGRES_PORT` | Host-side bind port for the local-dev Postgres (default `5432`) |
 
-API-tools service only (`YAHOO_API_KEY` — read by the local `uv run uvicorn` invocation for dev, and by the `api-tools` service in `deploy/compose.yml` via `deploy/env/api-tools`):
-
-| Variable | Notes |
-| --- | --- |
-| `YAHOO_API_KEY` | Yahoo API key consumed by the Python service (the only env var it still requires) |
+The `api-tools` service needs no env vars post local-unidic — accent/furigana now come from a bundled local UniDic dict, so the old `YAHOO_API_KEY` requirement is gone (no `deploy/env/api-tools` file, no `env_file` in compose).
 
 ### TLS
 Server checks if both `API_CERT_PATH` and `API_KEY_PATH` files exist. If yes → HTTPS; if no → HTTP with warning log.
@@ -315,4 +311,4 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
 11. **`CLIENT_API_KEY` is inbound only AND release-mode only**: It guards the 7 api-tools proxy routes when `GIN_MODE=release` (X-API-Key only — JWT is rejected there; empty value returns 401). In debug mode `APIKeyMiddleware` is skipped entirely so the value is unused; **an edge gateway (e.g. Cloudflare Access) must protect any non-localhost exposure of a debug-mode build**. The internal jp backend → API-tools call is keyless either way.
 12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
-13. **api-tools requires `YAHOO_API_KEY`**: The Python service asserts on `YAHOO_API_KEY` at import time and exits non-zero before uvicorn binds. For local dev, export it (or source `.env`) before `uv run uvicorn ...`; for the deploy stack it comes from `deploy/env/api-tools`.
+13. **api-tools needs no env vars** (post local-unidic): accent/furigana come from a bundled local UniDic dict, so the old `YAHOO_API_KEY` requirement is gone. `uv run uvicorn ...` runs with no env for local dev, and the deploy-stack `api-tools` service has no `env_file`. (Older Yahoo-MA-era images still assert on `YAHOO_API_KEY` at import — pin a local-unidic image to avoid that.)
