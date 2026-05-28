@@ -63,18 +63,12 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	reportThemeSuggestionRepo := repository.NewGormReportThemeSuggestionRepository(db)
 	joinRequestRepo := repository.NewGormJoinRequestRepository(db)
 	webrtcHub := NewHub()
-	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
+	rateLimiter := NewRateLimiter(10*time.Second, 15)
 
-	// 配置 WebSocket upgrader 的來源驗證
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			if len(allowedOrigins) == 0 {
-				// 開發模式：允許所有來源
-				if gin.IsDebugging() {
-					return true
-				}
-				// 生產模式：必須設定 ALLOWED_ORIGINS
-				return false
+				return gin.IsDebugging()
 			}
 			origin := r.Header.Get("Origin")
 			for _, allowed := range allowedOrigins {
@@ -110,11 +104,8 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	}
 }
 
-// Close stops the RateLimiter's cleanup goroutine
 func (api *API) Close() {
-	if api.rateLimiter != nil {
-		api.rateLimiter.Close()
-	}
+	api.rateLimiter.Close()
 }
 
 func Register(r *gin.Engine, api *API) {

@@ -100,12 +100,12 @@ func (a *API) InviteAcceptHandler(c *gin.Context) {
 	}
 
 	// Check user not already in this guild
-	existing, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), inviteLink.GuildID, userID)
-	if err == nil && existing != nil {
+	_, err = a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), inviteLink.GuildID, userID)
+	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "already a member of this guild"})
 		return
 	}
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+	if !errors.Is(err, domain.ErrNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

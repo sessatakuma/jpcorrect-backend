@@ -186,10 +186,6 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, users)
 }
 
-// UserInitHandler returns the current authenticated user.
-// Since the auth middleware already resolves the user from JWT claims,
-// this endpoint is idempotent — it simply returns the user from context.
-//
 // @Summary Initialize current user
 // @Description Return the authenticated user based on JWT supabase_user_id (idempotent)
 // @Tags users
@@ -204,8 +200,6 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// UserMeHandler returns the current authenticated user's profile.
-//
 // @Summary Get current user profile
 // @Description Get the authenticated user's profile
 // @Tags users
@@ -219,9 +213,6 @@ func (a *API) UserMeHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// UserMeUpdateHandler updates the current authenticated user's profile.
-// Only Name, AvatarURL, and Timezone are updatable.
-//
 // @Summary Update current user profile
 // @Description Update the authenticated user's profile (name, avatar_url, timezone)
 // @Tags users

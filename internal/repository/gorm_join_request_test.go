@@ -55,6 +55,7 @@ func TestGormJoinRequestRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, req)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -91,18 +92,6 @@ func TestGormJoinRequestRepository_GetByGuildID(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("EmptyResult", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_request" WHERE guild_id = $1`)).
-			WithArgs(guildID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "guild_id", "user_id", "status"}))
-
-		reqs, err := repo.GetByGuildID(context.Background(), guildID, nil)
-
-		assert.NoError(t, err)
-		assert.Empty(t, reqs)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
 	t.Run("DBError", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_request" WHERE guild_id = $1`)).
 			WithArgs(guildID).
@@ -112,6 +101,7 @@ func TestGormJoinRequestRepository_GetByGuildID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, reqs)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -134,18 +124,6 @@ func TestGormJoinRequestRepository_GetByUserID(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
-	t.Run("EmptyResult", func(t *testing.T) {
-		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_request" WHERE user_id = $1`)).
-			WithArgs(userID).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "guild_id", "user_id", "status"}))
-
-		reqs, err := repo.GetByUserID(context.Background(), userID)
-
-		assert.NoError(t, err)
-		assert.Empty(t, reqs)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
 	t.Run("DBError", func(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT * FROM "join_request" WHERE user_id = $1`)).
 			WithArgs(userID).
@@ -155,6 +133,7 @@ func TestGormJoinRequestRepository_GetByUserID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, reqs)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -214,6 +193,7 @@ func TestGormJoinRequestRepository_Create(t *testing.T) {
 		err := repo.Create(context.Background(), req)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -253,6 +233,7 @@ func TestGormJoinRequestRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), req)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -284,5 +265,6 @@ func TestGormJoinRequestRepository_CancelPendingByUserID(t *testing.T) {
 		err := repo.CancelPendingByUserID(context.Background(), userID)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

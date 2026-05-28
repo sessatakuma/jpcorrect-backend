@@ -329,12 +329,18 @@ func (a *API) ActivityAbortHandler(c *gin.Context) {
 	}
 
 	var req abortActivityRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		_ = err
-	}
+	_ = c.ShouldBindJSON(&req)
 
-	userIDRaw, _ := c.Get("userID")
-	userID := userIDRaw.(uuid.UUID)
+	userIDRaw, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "user id not found in context"})
+		return
+	}
+	userID, ok := userIDRaw.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
+		return
+	}
 	now := time.Now()
 
 	activity.Status = domain.ActivityStatusAborted
@@ -377,8 +383,14 @@ func (a *API) GuildActivitiesHandler(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil {
+		page = 1
+	}
+	perPage, err := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+	if err != nil {
+		perPage = 20
+	}
 	if page < 1 {
 		page = 1
 	}

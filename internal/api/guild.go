@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -1139,24 +1140,15 @@ func (a *API) GuildReportRotationHandler(c *gin.Context) {
 		}
 		sorted[i] = sortable{idx: i, sortKey: sortKey}
 	}
-	for i := 1; i < len(sorted); i++ {
-		for j := i; j > 0 && sorted[j].sortKey < sorted[j-1].sortKey; j-- {
-			sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
-		}
-	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].sortKey < sorted[j].sortKey
+	})
 
-	suggestCount := 2
-	if len(sorted) < suggestCount {
-		suggestCount = len(sorted)
-	}
-	suggestions := make([]int, 0, suggestCount)
-	for i := 0; i < suggestCount; i++ {
-		suggestions = append(suggestions, sorted[i].idx)
-	}
+	suggestCount := min(2, len(sorted))
 
 	suggestedMembers := make([]memberReportInfo, 0, suggestCount)
-	for _, idx := range suggestions {
-		suggestedMembers = append(suggestedMembers, memberInfos[idx])
+	for i := 0; i < suggestCount; i++ {
+		suggestedMembers = append(suggestedMembers, memberInfos[sorted[i].idx])
 	}
 
 	c.JSON(http.StatusOK, gin.H{

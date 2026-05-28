@@ -90,17 +90,6 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
 	var transcript domain.Transcript
 	if err := c.ShouldBindJSON(&transcript); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -109,6 +98,10 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 
 	transcript.ID = id
 	if err := a.transcriptRepo.Update(c.Request.Context(), &transcript); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Transcript already exists"})
 			return
@@ -117,7 +110,6 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Return updated object
 	updated, err := a.transcriptRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -146,18 +138,11 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.transcriptRepo.GetByID(c.Request.Context(), id)
-	if err != nil {
+	if err := a.transcriptRepo.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Transcript not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := a.transcriptRepo.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, domain.ErrHasRelatedRecords) {
 			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete transcript: has related records"})
 			return

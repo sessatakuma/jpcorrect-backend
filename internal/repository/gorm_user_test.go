@@ -78,6 +78,7 @@ func TestGormUserRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -121,6 +122,7 @@ func TestGormUserRepository_GetByEmail(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -164,6 +166,7 @@ func TestGormUserRepository_GetByName(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, users)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -222,6 +225,7 @@ func TestGormUserRepository_Create(t *testing.T) {
 		err := repo.Create(context.Background(), user)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -263,6 +267,7 @@ func TestGormUserRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), user)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -294,6 +299,7 @@ func TestGormUserRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), userID)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -338,5 +344,6 @@ func TestGetBySupabaseUserID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, user)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

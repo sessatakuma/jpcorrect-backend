@@ -40,7 +40,7 @@ func (a *API) InitializeJWKS(initCtx context.Context) error {
 		return fmt.Errorf("JWKS initialization timeout: %w", initCtx.Err())
 	case result := <-resultCh:
 		if result.err != nil {
-			a.jwksCancel() // Clean up the context if initialization fails
+			a.jwksCancel()
 			a.jwksErr = result.err
 			return fmt.Errorf("failed to initialize JWKS: %w", result.err)
 		}
@@ -55,12 +55,10 @@ func (a *API) ShutdownJWKS() {
 	a.jwksMutex.Lock()
 	defer a.jwksMutex.Unlock()
 
-	// Cancel the context to stop the JWKS refresh goroutine
 	if a.jwksCancel != nil {
 		a.jwksCancel()
 	}
 
-	// Set jwksCache to nil to allow garbage collection
 	a.jwksCache = nil
 }
 
@@ -95,7 +93,6 @@ func (a *API) respondAuthError(c *gin.Context, err error) {
 
 // validateToken validates the JWT token and extracts user information
 func (a *API) validateToken(c *gin.Context) error {
-	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		return domain.NewAuthError(
@@ -124,7 +121,6 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Check if JWKS is initialized
 	a.jwksMutex.Lock()
 	if a.jwksErr != nil || a.jwksCache == nil {
 		a.jwksMutex.Unlock()
@@ -137,7 +133,6 @@ func (a *API) validateToken(c *gin.Context) error {
 	kf := a.jwksCache
 	a.jwksMutex.Unlock()
 
-	// Parse and validate the token
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
@@ -156,7 +151,6 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Extract claims
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
 		return domain.NewAuthError(

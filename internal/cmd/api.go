@@ -98,8 +98,6 @@ func Execute() {
 		return err == nil
 	}
 
-	// Initializing the server in a goroutine so that
-	// it won't block the graceful shutdown handling below
 	go func() {
 		if fileExists(certPath) && fileExists(keyPath) {
 			log.Println("🔒 使用 HTTPS 模式")

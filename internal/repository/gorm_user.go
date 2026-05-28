@@ -13,7 +13,6 @@ type gormUserRepository struct {
 	db *gorm.DB
 }
 
-// NewGormUserRepository creates a new GORM-based user repository.
 func NewGormUserRepository(db *gorm.DB) domain.UserRepository {
 	return &gormUserRepository{db: db}
 }
@@ -66,6 +65,5 @@ func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) erro
 }
 
 func (r *gormUserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
-	// GORM soft delete
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.User{}, "id = ?", userID).Error)
 }

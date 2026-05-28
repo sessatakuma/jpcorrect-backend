@@ -56,6 +56,7 @@ func TestGormTranscriptRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, transcript)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -100,6 +101,7 @@ func TestGormTranscriptRepository_GetByEventID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, transcripts)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -143,6 +145,7 @@ func TestGormTranscriptRepository_GetByUserID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, transcripts)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -204,6 +207,7 @@ func TestGormTranscriptRepository_Create(t *testing.T) {
 		err := repo.Create(context.Background(), transcript)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -243,6 +247,7 @@ func TestGormTranscriptRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), transcript)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -274,5 +279,6 @@ func TestGormTranscriptRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), transcriptID)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

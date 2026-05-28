@@ -55,6 +55,7 @@ func TestGormActivityRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, activity)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -98,6 +99,7 @@ func TestGormActivityRepository_GetByGuildID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, activities)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -160,6 +162,7 @@ func TestGormActivityRepository_Create(t *testing.T) {
 		err := repo.Create(context.Background(), activity)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -205,6 +208,7 @@ func TestGormActivityRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), activity)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -236,6 +240,7 @@ func TestGormActivityRepository_UpdateStatus(t *testing.T) {
 		err := repo.UpdateStatus(context.Background(), activityID, domain.ActivityStatusInPractice)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -267,5 +272,6 @@ func TestGormActivityRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), activityID)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

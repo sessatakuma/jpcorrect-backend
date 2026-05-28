@@ -13,7 +13,6 @@ type gormMistakeRepository struct {
 	db *gorm.DB
 }
 
-// NewGormMistakeRepository creates a new GORM-based mistake repository.
 func NewGormMistakeRepository(db *gorm.DB) domain.MistakeRepository {
 	return &gormMistakeRepository{db: db}
 }

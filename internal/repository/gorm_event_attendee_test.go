@@ -55,6 +55,7 @@ func TestGormEventAttendeeRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, attendee)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -98,6 +99,7 @@ func TestGormEventAttendeeRepository_GetByEventID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, attendees)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -141,6 +143,7 @@ func TestGormEventAttendeeRepository_GetByUserID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, attendees)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -200,6 +203,7 @@ func TestGormEventAttendeeRepository_Create(t *testing.T) {
 		err := repo.Create(context.Background(), attendee)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -239,6 +243,7 @@ func TestGormEventAttendeeRepository_Update(t *testing.T) {
 		err := repo.Update(context.Background(), attendee)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -270,5 +275,6 @@ func TestGormEventAttendeeRepository_Delete(t *testing.T) {
 		err := repo.Delete(context.Background(), id)
 
 		assert.Error(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

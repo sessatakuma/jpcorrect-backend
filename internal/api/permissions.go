@@ -63,7 +63,3 @@ func (a *API) RequireMistakeOwner(c *gin.Context, mistakeID uuid.UUID) error {
 	}
 	return nil
 }
-
-func (a *API) RequireActivityVisible(c *gin.Context, activityID uuid.UUID) error {
-	return a.RequireActivityMember(c, activityID)
-}

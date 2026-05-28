@@ -29,7 +29,6 @@ func TestGormReportThemeSuggestionRepository_GetByID(t *testing.T) {
 		suggestion, err := repo.GetByID(context.Background(), suggestionID)
 
 		assert.NoError(t, err)
-		assert.NotNil(t, suggestion)
 		assert.Equal(t, suggestionID, suggestion.ID)
 		assert.Equal(t, title, suggestion.Title)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -56,6 +55,7 @@ func TestGormReportThemeSuggestionRepository_GetByID(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, suggestion)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
 
@@ -100,5 +100,6 @@ func TestGormReportThemeSuggestionRepository_List(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, suggestions)
+		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
