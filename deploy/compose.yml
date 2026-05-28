@@ -117,6 +117,10 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - ${HOME}/.docker/config.json:/config.json:ro
         environment:
+            # containrrr/watchtower:latest is stale (project is essentially
+            # dormant) and defaults to Docker API v1.25, which modern daemons
+            # (≥ v28) reject as too old. Pin to a version both sides accept.
+            DOCKER_API_VERSION: "1.41"
             WATCHTOWER_LABEL_ENABLE: "true"
             WATCHTOWER_POLL_INTERVAL: "300"
             WATCHTOWER_CLEANUP: "true"
