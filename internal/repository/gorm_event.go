@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -80,4 +81,16 @@ func (r *gormEventRepository) Delete(ctx context.Context, eventID uuid.UUID) err
 
 		return MapGormError(tx.Delete(&domain.Event{}, "id = ?", eventID).Error)
 	})
+}
+
+func (r *gormEventRepository) MarkRecordingStarted(ctx context.Context, eventID, userID uuid.UUID) error {
+	now := time.Now()
+	return MapGormError(r.db.WithContext(ctx).Model(&domain.Event{}).Where("id = ?", eventID).
+		Updates(map[string]any{"recording_started_by": userID, "recording_started_at": now}).Error)
+}
+
+func (r *gormEventRepository) MarkRecordingEnded(ctx context.Context, eventID uuid.UUID) error {
+	now := time.Now()
+	return MapGormError(r.db.WithContext(ctx).Model(&domain.Event{}).Where("id = ?", eventID).
+		Update("recording_ended_at", now).Error)
 }

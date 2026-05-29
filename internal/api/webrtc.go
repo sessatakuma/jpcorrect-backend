@@ -49,7 +49,6 @@ type Hub struct {
 	clients map[string]*domain.Client
 }
 
-// Builds a new RateLimiter
 func NewRateLimiter(window time.Duration, max int) *RateLimiter {
 	ctx, cancel := context.WithCancel(context.Background())
 	rl := &RateLimiter{
@@ -71,7 +70,6 @@ func (rl *RateLimiter) IsAllowed(ip string) bool {
 	now := time.Now()
 	times := rl.attempts[ip]
 
-	// Filter out expired timestamps
 	newTimes := make([]time.Time, 0, len(times))
 	for _, t := range times {
 		if now.Sub(t) <= rl.window {
@@ -79,16 +77,14 @@ func (rl *RateLimiter) IsAllowed(ip string) bool {
 		}
 	}
 
-	// Add the current timestamp
 	newTimes = append(newTimes, now)
 	rl.attempts[ip] = newTimes
 
 	return len(newTimes) <= rl.max
 }
 
-// cleanup periodically cleans up expired IP records to prevent memory leaks
 func (rl *RateLimiter) cleanup() {
-	ticker := time.NewTicker(rl.window * 2) // 每隔兩個窗口期清理一次
+	ticker := time.NewTicker(rl.window * 2)
 	defer ticker.Stop()
 
 	for {
@@ -99,14 +95,12 @@ func (rl *RateLimiter) cleanup() {
 			rl.mu.Lock()
 			now := time.Now()
 			for ip, times := range rl.attempts {
-				// 過濾出有效的時間戳
 				validTimes := make([]time.Time, 0, len(times))
 				for _, t := range times {
 					if now.Sub(t) <= rl.window {
 						validTimes = append(validTimes, t)
 					}
 				}
-				// 如果沒有有效時間戳，刪除該 IP
 				if len(validTimes) == 0 {
 					delete(rl.attempts, ip)
 				} else {
@@ -118,7 +112,7 @@ func (rl *RateLimiter) cleanup() {
 	}
 }
 
-// Close RateLimiter and stop cleanup goroutine
+// Close stops the cleanup goroutine
 func (rl *RateLimiter) Close() {
 	rl.cancel()
 }
@@ -191,7 +185,7 @@ func sendToClient(c *domain.Client, msgType string, payload interface{}) error {
 	}
 }
 
-// Simple validation for WebRTC username (can be overridden)
+// Simple validation for WebRTC username
 func defaultValidateUserName(name string) (bool, string) {
 	if name == "" {
 		return false, "名稱不可為空"
@@ -234,15 +228,12 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 	api.webrtcHub.AddClient(client)
 	log.Println("新使用者連線:", id)
 
-	// send connected message with assigned id
 	if err := sendToClient(client, "connected", map[string]string{"id": id}); err != nil {
 		log.Printf("傳送連線確認訊息失敗 (user: %s): %v", id, err)
 	}
 
-	// start writer
 	go writer(client)
 
-	// read loop
 	for {
 		var msg Message
 		if err := client.Conn.ReadJSON(&msg); err != nil {
@@ -253,15 +244,13 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 		api.handleWebRTCMessage(client, msg)
 	}
 
-	// cleanup
 	api.webrtcHub.RemoveClient(client.ID)
 	if client.Name != "" {
 		api.webrtcHub.BroadcastExcept(client.ID, "user-left", client.ID)
 	}
 
-	// cleanup 時
-	close(client.Done) // 先關閉 done
-	close(client.Send) // 再關閉 send
+	close(client.Done)
+	close(client.Send)
 	if err := client.Conn.Close(); err != nil {
 		log.Printf("關閉連線失敗 (user: %s): %v", client.ID, err)
 	}

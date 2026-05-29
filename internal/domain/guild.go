@@ -53,6 +53,7 @@ type GuildAttendeeRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*GuildAttendee, error)
 	GetByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildAttendee, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*GuildAttendee, error)
+	GetByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*GuildAttendee, error)
 
 	Create(ctx context.Context, attendee *GuildAttendee) error
 	Update(ctx context.Context, attendee *GuildAttendee) error

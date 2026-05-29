@@ -90,17 +90,6 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.eventRepo.GetByID(c.Request.Context(), id)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
 	var practice domain.Event
 	if err := c.ShouldBindJSON(&practice); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -109,6 +98,10 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 
 	practice.ID = id
 	if err := a.eventRepo.Update(c.Request.Context(), &practice); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Event already exists"})
 			return
@@ -117,7 +110,6 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Return updated object
 	updated, err := a.eventRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -146,18 +138,11 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
-	_, err = a.eventRepo.GetByID(c.Request.Context(), id)
-	if err != nil {
+	if err := a.eventRepo.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Practice not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := a.eventRepo.Delete(c.Request.Context(), id); err != nil {
 		if errors.Is(err, domain.ErrHasRelatedRecords) {
 			c.JSON(http.StatusConflict, gin.H{"error": "cannot delete event: has related records"})
 			return

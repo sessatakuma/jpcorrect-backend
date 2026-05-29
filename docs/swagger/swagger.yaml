@@ -8,8 +8,131 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_api.abortActivityRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  internal_api.activityDetailResponse:
+    properties:
+      activity:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.Activity'
+      events:
+        items:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
+        type: array
+    type: object
+  internal_api.createActivityRequest:
+    properties:
+      announce_topic_id:
+        type: string
+      mode:
+        type: string
+      practice_at:
+        type: string
+      reporter_user_ids:
+        items:
+          type: string
+        type: array
+      review_at:
+        type: string
+      theme:
+        type: string
+    required:
+    - practice_at
+    type: object
+  internal_api.updateActivityRequest:
+    properties:
+      mode:
+        type: string
+      practice_at:
+        type: string
+      reporter_user_ids:
+        items:
+          type: string
+        type: array
+      review_at:
+        type: string
+      theme:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.AIStatus:
+    enum:
+    - pending
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - AIStatusPending
+    - AIStatusProcessing
+    - AIStatusCompleted
+    - AIStatusFailed
+  jpcorrect-backend_internal_domain.Activity:
+    properties:
+      aborted_at:
+        type: string
+      aborted_by_user_id:
+        type: string
+      aborted_reason:
+        type: string
+      activity_id:
+        type: string
+      ai_status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.AIStatus'
+      announce_topic_id:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      guild_id:
+        type: string
+      mode:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.ActivityMode'
+      sequence_number:
+        type: integer
+      status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.ActivityStatus'
+      theme:
+        type: string
+      updated_at:
+        type: string
+      youtube_status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.YoutubeStatus'
+      youtube_url:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.ActivityMode:
+    enum:
+    - report
+    - conversation
+    type: string
+    x-enum-varnames:
+    - ActivityModeReport
+    - ActivityModeConversation
+  jpcorrect-backend_internal_domain.ActivityStatus:
+    enum:
+    - pending_practice
+    - in_practice
+    - analyzing
+    - in_feedback
+    - in_review
+    - done
+    - aborted
+    type: string
+    x-enum-varnames:
+    - ActivityStatusPendingPractice
+    - ActivityStatusInPractice
+    - ActivityStatusAnalyzing
+    - ActivityStatusInFeedback
+    - ActivityStatusInReview
+    - ActivityStatusDone
+    - ActivityStatusAborted
   jpcorrect-backend_internal_domain.Event:
     properties:
+      activity_id:
+        type: string
       actual_duration:
         type: number
       created_at:
@@ -27,6 +150,12 @@ definitions:
       note:
         type: string
       record_link:
+        type: string
+      recording_ended_at:
+        type: string
+      recording_started_at:
+        type: string
+      recording_started_by:
         type: string
       start_time:
         type: string
@@ -62,13 +191,11 @@ definitions:
     enum:
     - report
     - conversation
-    - discussion
     - review
     type: string
     x-enum-varnames:
     - EventModeReport
     - EventModeConversation
-    - EventModeDiscussion
     - EventModeReview
   jpcorrect-backend_internal_domain.Guild:
     properties:
@@ -112,10 +239,69 @@ definitions:
     x-enum-varnames:
     - GuildAttendeeRoleMember
     - GuildAttendeeRoleMaster
+  jpcorrect-backend_internal_domain.GuildDefaultSlot:
+    properties:
+      created_at:
+        type: string
+      day_of_week:
+        type: integer
+      guild_id:
+        type: string
+      time_of_day:
+        type: string
+      timezone:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.InviteLink:
+    properties:
+      created_at:
+        type: string
+      created_by_user_id:
+        type: string
+      expires_at:
+        type: string
+      guild_id:
+        type: string
+      invite_link_id:
+        type: string
+      token:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.JoinRequest:
+    properties:
+      created_at:
+        type: string
+      guild_id:
+        type: string
+      join_request_id:
+        type: string
+      status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.JoinRequestStatus'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.JoinRequestStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - JoinRequestStatusPending
+    - JoinRequestStatusApproved
+    - JoinRequestStatusRejected
+    - JoinRequestStatusCancelled
   jpcorrect-backend_internal_domain.Mistake:
     properties:
       comment:
         type: string
+      confidence:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.MistakeConfidence'
       created_at:
         type: string
       end_offset_sec:
@@ -123,6 +309,12 @@ definitions:
       event_id:
         type: string
       fixed_text:
+        type: string
+      interacted_at:
+        type: string
+      latest_correction_source:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.MistakeCorrectionSource'
+      latest_correction_text:
         type: string
       mistake_id:
         type: string
@@ -139,6 +331,24 @@ definitions:
       user_id:
         type: string
     type: object
+  jpcorrect-backend_internal_domain.MistakeConfidence:
+    enum:
+    - low
+    - medium
+    - high
+    type: string
+    x-enum-varnames:
+    - MistakeConfidenceLow
+    - MistakeConfidenceMedium
+    - MistakeConfidenceHigh
+  jpcorrect-backend_internal_domain.MistakeCorrectionSource:
+    enum:
+    - initial
+    - chatbot
+    type: string
+    x-enum-varnames:
+    - MistakeCorrectionSourceInitial
+    - MistakeCorrectionSourceChatbot
   jpcorrect-backend_internal_domain.MistakeType:
     enum:
     - grammar
@@ -151,6 +361,50 @@ definitions:
     - MistakeTypeVocab
     - MistakeTypePronunciation
     - MistakeTypeAdvanced
+  jpcorrect-backend_internal_domain.ReportThemeSuggestion:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      suggestion_id:
+        type: string
+      title:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.Topic:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        $ref: '#/definitions/gorm.DeletedAt'
+      difficulty:
+        type: string
+      hint_grammar:
+        items:
+          type: integer
+        type: array
+      hint_vocab:
+        items:
+          type: integer
+        type: array
+      kind:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.TopicKind'
+      title_jp:
+        type: string
+      topic_id:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.TopicKind:
+    enum:
+    - announce
+    - random
+    type: string
+    x-enum-varnames:
+    - TopicKindAnnounce
+    - TopicKindRandom
   jpcorrect-backend_internal_domain.Transcript:
     properties:
       accent:
@@ -200,6 +454,8 @@ definitions:
         $ref: '#/definitions/jpcorrect-backend_internal_domain.UserRole'
       status:
         $ref: '#/definitions/jpcorrect-backend_internal_domain.UserStatus'
+      supabase_user_id:
+        type: string
       timezone:
         type: string
       updated_at:
@@ -227,6 +483,18 @@ definitions:
     - UserStatusActive
     - UserStatusBanned
     - UserStatusSuspended
+  jpcorrect-backend_internal_domain.YoutubeStatus:
+    enum:
+    - pending
+    - uploading
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - YoutubeStatusPending
+    - YoutubeStatusUploading
+    - YoutubeStatusCompleted
+    - YoutubeStatusFailed
 host: localhost:8080
 info:
   contact: {}
@@ -234,6 +502,158 @@ info:
   title: jpcorrect API
   version: "1.0"
 paths:
+  /v1/activities/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get an activity by ID with its events
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.activityDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get an activity
+      tags:
+      - activities
+    put:
+      consumes:
+      - application/json
+      description: Update an activity's time, mode, theme, and corresponding events
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Activity update data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.updateActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api.activityDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update an activity
+      tags:
+      - activities
+  /v1/activities/{id}/abort:
+    post:
+      consumes:
+      - application/json
+      description: Abort an activity with an optional reason
+      parameters:
+      - description: Activity ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Abort data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.abortActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Activity'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Abort an activity
+      tags:
+      - activities
   /v1/dict-query:
     post:
       consumes:
@@ -736,6 +1156,7 @@ paths:
     post:
       consumes:
       - application/json
+      description: Create a new guild with the caller as master
       parameters:
       - description: Guild data
         in: body
@@ -756,6 +1177,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "409":
           description: Conflict
           schema:
@@ -768,6 +1195,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a guild
       tags:
       - guilds
@@ -835,6 +1264,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "404":
           description: Not Found
           schema:
@@ -847,6 +1282,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a guild by ID
       tags:
       - guilds
@@ -878,6 +1315,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "404":
           description: Not Found
           schema:
@@ -896,9 +1339,747 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a guild
       tags:
       - guilds
+  /v1/guilds/{id}/activities:
+    get:
+      consumes:
+      - application/json
+      description: List activities for a guild with pagination and optional status
+        filter
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Activity'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List guild activities
+      tags:
+      - activities
+    post:
+      consumes:
+      - application/json
+      description: Create a new activity with practice and review events for a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Activity data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.createActivityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api.activityDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create an activity
+      tags:
+      - activities
+  /v1/guilds/{id}/applications:
+    get:
+      description: List pending join requests for a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.JoinRequest'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List guild applications
+      tags:
+      - guilds
+    post:
+      description: Submit a join request to a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.JoinRequest'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/applications/{app_id}/approve:
+    post:
+      description: Approve a join request and add member to guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/applications/{app_id}/reject:
+    post:
+      description: Reject a join request
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/default-slot:
+    delete:
+      description: Remove the default scheduling slot for a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete guild default slot
+      tags:
+      - guilds
+    get:
+      description: Get the default scheduling slot for a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildDefaultSlot'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get guild default slot
+      tags:
+      - guilds
+    put:
+      consumes:
+      - application/json
+      description: Set or update the default scheduling slot for a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildDefaultSlot'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upsert guild default slot
+      tags:
+      - guilds
+  /v1/guilds/{id}/invite-link:
+    get:
+      description: Get the current active invite link for the guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.InviteLink'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get guild invite link
+      tags:
+      - guilds
+    post:
+      description: Generate a new invite link for the guild (expires old ones)
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.InviteLink'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create guild invite link
+      tags:
+      - guilds
+  /v1/guilds/{id}/leave:
+    post:
+      description: Leave the guild. Leader must transfer leadership first.
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Leave guild
+      tags:
+      - guilds
+  /v1/guilds/{id}/members:
+    get:
+      description: Get all members of a guild
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List guild members
+      tags:
+      - guilds
+  /v1/guilds/{id}/members/{user_id}:
+    delete:
+      description: Remove a member from the guild (leader only, cannot remove self)
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User ID to remove
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove guild member
+      tags:
+      - guilds
+  /v1/guilds/{id}/report-rotation-suggestion:
+    get:
+      description: Suggest guild members for the next report based on who hasn't reported
+        in a while
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get report rotation suggestion
+      tags:
+      - guilds
+  /v1/guilds/{id}/transfer-leader:
+    post:
+      consumes:
+      - application/json
+      description: Transfer guild leader role to another member
+      parameters:
+      - description: Guild ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New leader
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Transfer guild leadership
+      tags:
+      - guilds
+  /v1/guilds/discover:
+    get:
+      description: List public guilds ordered by most recent activity time with pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              additionalProperties: true
+              type: object
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Discover public guilds
+      tags:
+      - guilds
+  /v1/invites/{token}:
+    get:
+      consumes:
+      - application/json
+      description: Get guild info for an invite link by token. Public endpoint — no
+        authentication required.
+      parameters:
+      - description: Invite token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get invite link info
+      tags:
+      - invites
+  /v1/invites/{token}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accept an invite link to join a guild. Requires authentication.
+      parameters:
+      - description: Invite token
+        in: path
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Accept an invite link
+      tags:
+      - invites
   /v1/mark-accent:
     post:
       consumes:
@@ -1419,6 +2600,130 @@ paths:
       summary: Sentence query
       tags:
       - api-tools
+  /v1/topics/{id}:
+    get:
+      description: Get a single topic with hint_vocab and hint_grammar
+      parameters:
+      - description: Topic ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Topic'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a topic by ID
+      tags:
+      - topics
+  /v1/topics/announce/search:
+    get:
+      description: Search announce topics by keyword
+      parameters:
+      - description: Search keyword
+        in: query
+        name: q
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.Topic'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Search announce topics
+      tags:
+      - topics
+  /v1/topics/random:
+    get:
+      description: Get a random topic
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.Topic'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get a random topic
+      tags:
+      - topics
+  /v1/topics/report-suggestions:
+    get:
+      description: Get all report theme suggestions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/jpcorrect-backend_internal_domain.ReportThemeSuggestion'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List report theme suggestions
+      tags:
+      - topics
   /v1/transcripts:
     post:
       consumes:
@@ -1935,6 +3240,91 @@ paths:
               type: string
             type: object
       summary: Get a user by email
+      tags:
+      - users
+  /v1/users/init:
+    post:
+      consumes:
+      - application/json
+      description: Return the authenticated user based on JWT supabase_user_id (idempotent)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Initialize current user
+      tags:
+      - users
+  /v1/users/me:
+    get:
+      description: Get the authenticated user's profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Update the authenticated user's profile (name, avatar_url, timezone)
+      parameters:
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update current user profile
       tags:
       - users
   /v1/users/name/{name}:

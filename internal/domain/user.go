@@ -33,6 +33,7 @@ type User struct {
 	Email           string         `gorm:"uniqueIndex" json:"email"`
 	Name            string         `json:"name"`
 	AvatarURL       *string        `json:"avatar_url"`
+	SupabaseUserID  string         `gorm:"uniqueIndex" json:"supabase_user_id"`
 	PasswordHash    *string        `gorm:"column:password_hash" json:"-"`
 	IsEmailVerified bool           `gorm:"default:false" json:"is_email_verified"`
 	Role            UserRole       `gorm:"default:user" json:"role"`
@@ -49,6 +50,7 @@ type User struct {
 type UserRepository interface {
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*User, error)
 	GetByName(ctx context.Context, name string) ([]*User, error)
 
 	Create(ctx context.Context, user *User) error

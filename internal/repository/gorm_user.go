@@ -13,7 +13,6 @@ type gormUserRepository struct {
 	db *gorm.DB
 }
 
-// NewGormUserRepository creates a new GORM-based user repository.
 func NewGormUserRepository(db *gorm.DB) domain.UserRepository {
 	return &gormUserRepository{db: db}
 }
@@ -30,6 +29,15 @@ func (r *gormUserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*do
 func (r *gormUserRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	var user domain.User
 	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &user, nil
+}
+
+func (r *gormUserRepository) GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("supabase_user_id = ?", supabaseUserID).First(&user).Error
 	if err != nil {
 		return nil, MapGormError(err)
 	}
@@ -57,6 +65,5 @@ func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) erro
 }
 
 func (r *gormUserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
-	// GORM soft delete
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.User{}, "id = ?", userID).Error)
 }

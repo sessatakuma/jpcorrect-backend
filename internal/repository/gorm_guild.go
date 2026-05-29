@@ -86,6 +86,15 @@ func (r *gormGuildAttendeeRepository) GetByUserID(ctx context.Context, userID uu
 	return attendees, nil
 }
 
+func (r *gormGuildAttendeeRepository) GetByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*domain.GuildAttendee, error) {
+	var attendee domain.GuildAttendee
+	err := r.db.WithContext(ctx).Where("guild_id = ? AND user_id = ?", guildID, userID).First(&attendee).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &attendee, nil
+}
+
 func (r *gormGuildAttendeeRepository) Create(ctx context.Context, attendee *domain.GuildAttendee) error {
 	if attendee.ID == uuid.Nil {
 		attendee.ID = uuid.New()
