@@ -3,9 +3,22 @@ package api
 // --- Shared Models ---
 
 // APIToolsError represents an error response from the API tools service.
+// Only embedded inside per-endpoint Response structs (never returned standalone).
+// The variant nature (`null` on success, populated on failure) is documented in
+// each handler's `@Description` — swag drops sibling-of-$ref descriptions, so
+// the convention can't live on the field tag. Examples are intentionally
+// zero/empty so the composited success Example renders `{code:0, message:" "}`
+// instead of the literal `"string"` swag falls back to with no example set.
 type APIToolsError struct {
-	Code    int    `json:"code" example:"500" description:"Error code following JSON-RPC 2.0 specification"`
-	Message string `json:"message" example:"HTTP error 500" description:"Detailed error message"`
+	Code    int    `json:"code" example:"0"`
+	Message string `json:"message" example:" "`
+}
+
+// ProxyErrorResponse is what the reverse proxy writes when it cannot reach the
+// upstream api-tools service (502 Bad Gateway). Upstream-originated errors are
+// passed through unchanged and follow APIToolsError instead.
+type ProxyErrorResponse struct {
+	Error string `json:"error" example:"Failed to contact external API" description:"Human-readable reason the upstream call failed"`
 }
 
 // --- Mark Accent Models ---
@@ -27,10 +40,14 @@ type AccentInfo struct {
 }
 
 // WordAccentSubword represents sub-word decomposition within an accent result.
+// The recursive `subword` field is hidden from Swagger (`swaggerignore`) because
+// it is "reserved for compatibility; typically empty" in real responses, and
+// swag renders self-referential types as the literal `["string"]` which is
+// worse than not documenting them. The runtime JSON still carries the field.
 type WordAccentSubword struct {
 	Furigana          string              `json:"furigana" example:"かね" description:"Furigana for this sub-word"`
 	Surface           string              `json:"surface" example:"金" description:"Original text for this sub-word"`
-	Subword           []WordAccentSubword `json:"subword,omitempty" description:"Reserved for compatibility; typically empty"`
+	Subword           []WordAccentSubword `json:"subword,omitempty" swaggerignore:"true"`
 	LexicalKernel     *int                `json:"lexical_kernel,omitempty" example:"0" description:"UniDic per-morpheme kernel position (aType). 0=heiban, N>=1=kernel on mora N. null when unavailable."`
 	LexicalKernelAlts []int               `json:"lexical_kernel_alts,omitempty" description:"Alternative kernel positions for multi-reading entries"`
 }
@@ -50,7 +67,17 @@ type WordAccentResult struct {
 type MarkAccentResponse struct {
 	Status int                `json:"status" example:"200" description:"HTTP status code"`
 	Result []WordAccentResult `json:"result" description:"List of accent-marked word results"`
-	Error  *APIToolsError     `json:"error" description:"Error details, if any"`
+	Error  *APIToolsError     `json:"error"`
+}
+
+// MarkAccentStreamChunk is one NDJSON line emitted by /v1/mark-accent/stream.
+// The full response is a stream of these objects, one per line, separated by '\n'.
+type MarkAccentStreamChunk struct {
+	Chunk    int                `json:"chunk" example:"0" description:"Zero-based index of the input line this chunk belongs to"`
+	Subchunk int                `json:"subchunk" example:"0" description:"Zero-based sub-chunk index within the line"`
+	Status   int                `json:"status" example:"200" description:"HTTP status code for this chunk"`
+	Result   []WordAccentResult `json:"result" description:"List of accent-marked word results for this chunk"`
+	Error    *APIToolsError     `json:"error"`
 }
 
 // --- Usage Query: HeadWords Models ---
@@ -75,7 +102,7 @@ type HeadWord struct {
 type UsageQueryHeadWordsResponse struct {
 	Status int            `json:"status" example:"200" description:"HTTP status code"`
 	Result []HeadWord     `json:"result" description:"List of matching headwords"`
-	Error  *APIToolsError `json:"error" description:"Error details, if any"`
+	Error  *APIToolsError `json:"error"`
 }
 
 // --- Usage Query: URL Models ---
@@ -90,7 +117,7 @@ type UsageQueryWordURL struct {
 type UsageQueryURLResponse struct {
 	Status int                 `json:"status" example:"200" description:"HTTP status code"`
 	Result []UsageQueryWordURL `json:"result" description:"List of headword URLs"`
-	Error  *APIToolsError      `json:"error" description:"Error details, if any"`
+	Error  *APIToolsError      `json:"error"`
 }
 
 // --- Usage Query: IdDetails Models ---
@@ -116,7 +143,7 @@ type IdDetails struct {
 type UsageQueryIDDetailsResponse struct {
 	Status int            `json:"status" example:"200" description:"HTTP status code"`
 	Result *IdDetails     `json:"result" description:"Detailed word usage data"`
-	Error  *APIToolsError `json:"error" description:"Error details, if any"`
+	Error  *APIToolsError `json:"error"`
 }
 
 // --- Dictionary Query Models ---
@@ -144,7 +171,7 @@ type DictQueryWordResult struct {
 type DictQueryResponse struct {
 	Status int                   `json:"status" example:"200" description:"HTTP status code"`
 	Result []DictQueryWordResult `json:"result" description:"List of dictionary word results"`
-	Error  *APIToolsError        `json:"error" description:"Error details, if any"`
+	Error  *APIToolsError        `json:"error"`
 }
 
 // --- Sentence Query Models ---
@@ -172,5 +199,5 @@ type SentenceQueryWordResult struct {
 type SentenceQueryResponse struct {
 	Status int                      `json:"status" example:"200" description:"HTTP status code"`
 	Result *SentenceQueryWordResult `json:"result" description:"Sentence query results for the word"`
-	Error  string                   `json:"error" description:"Error message, if any"`
+	Error  string                   `json:"error"`
 }
