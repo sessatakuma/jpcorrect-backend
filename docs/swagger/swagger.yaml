@@ -11,10 +11,10 @@ definitions:
   internal_api.APIToolsError:
     properties:
       code:
-        example: 500
+        example: 0
         type: integer
       message:
-        example: HTTP error 500
+        example: ' '
         type: string
     type: object
   internal_api.AccentInfo:
@@ -174,6 +174,30 @@ definitions:
         example: 200
         type: integer
     type: object
+  internal_api.MarkAccentStreamChunk:
+    properties:
+      chunk:
+        example: 0
+        type: integer
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentResult'
+        type: array
+      status:
+        example: 200
+        type: integer
+      subchunk:
+        example: 0
+        type: integer
+    type: object
+  internal_api.ProxyErrorResponse:
+    properties:
+      error:
+        example: Failed to contact external API
+        type: string
+    type: object
   internal_api.SentenceQueryRequest:
     properties:
       id:
@@ -305,10 +329,6 @@ definitions:
       lexical_kernel_alts:
         items:
           type: integer
-        type: array
-      subword:
-        items:
-          $ref: '#/definitions/internal_api.WordAccentSubword'
         type: array
       surface:
         example: 金
@@ -553,9 +573,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Look up words in JMdict (Japanese-Multilingual Dictionary). Returns
+      description: 'Look up words in JMdict (Japanese-Multilingual Dictionary). Returns
         kanji forms, furigana readings, parts of speech, and English definitions.
-        Supports searching by kanji, kana, or romaji.
+        Supports searching by kanji, kana, or romaji. Body convention: the inner `status`
+        carries the real result code; `error` is `null` on success and populated only
+        when `status != 200`.'
       parameters:
       - description: Word to look up in the dictionary
         in: body
@@ -573,9 +595,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Dictionary query
@@ -1258,7 +1278,9 @@ paths:
         for each word. `accent_marking_type` values: 0=low/unknown, 1=heiban (high
         plateau), 2=fall kernel. Optional flags control whether English-letter and
         katakana tokens carry furigana, and `script` rewrites every furigana field
-        to hiragana, katakana, or romaji.'
+        to hiragana, katakana, or romaji. Body convention: the inner `status` carries
+        the real result code; `error` is `null` on success and populated only when
+        `status != 200`.'
       parameters:
       - description: Japanese text to analyze for accent patterns
         in: body
@@ -1276,9 +1298,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent
@@ -1291,7 +1311,9 @@ paths:
       description: 'Same input and per-chunk output as /v1/mark-accent, but streamed
         as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes.
         Each line carries `{"chunk": <line_idx>, "subchunk": <sub_idx>, ...AccentResponse}`
-        so clients can interleave UI rendering with later chunks still in flight.'
+        so clients can interleave UI rendering with later chunks still in flight.
+        Body convention: each chunk''s inner `status` carries the real result code;
+        `error` is `null` on success and populated only when `status != 200`.'
       parameters:
       - description: Japanese text to analyze for accent patterns
         in: body
@@ -1303,15 +1325,14 @@ paths:
       - application/x-ndjson
       responses:
         "200":
-          description: NDJSON stream of per-chunk AccentResponse objects
+          description: One NDJSON line per chunk; full response is a stream of these
+            objects separated by '\\n'
           schema:
-            type: string
+            $ref: '#/definitions/internal_api.MarkAccentStreamChunk'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent (streaming NDJSON)
@@ -1779,9 +1800,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Find example sentences containing a given word from JMdict. Requires
+      description: 'Find example sentences containing a given word from JMdict. Requires
         both the word and its JMdict entry ID (obtained from the dict-query endpoint).
-        Returns bilingual Japanese-English sentence pairs.
+        Returns bilingual Japanese-English sentence pairs. Body convention: the inner
+        `status` carries the real result code; `error` is an empty string on success
+        and populated only when `status != 200`.'
       parameters:
       - description: Word and its JMdict entry ID
         in: body
@@ -1799,9 +1822,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Sentence query
@@ -2058,10 +2079,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Search for headwords in Japanese language corpora. Supports lookup
+      description: 'Search for headwords in Japanese language corpora. Supports lookup
         by kanji, kana, or romaji. Returns matching headword entries with readings
         and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba
-        Web Corpus).
+        Web Corpus). Body convention: the inner `status` carries the real result code;
+        `error` is `null` on success and populated only when `status != 200`.'
       parameters:
       - description: Word to search (kanji, kana, or romaji) and corpus site
         in: body
@@ -2079,9 +2101,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage headwords
@@ -2091,10 +2111,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Retrieve detailed usage information for a specific headword by
+      description: 'Retrieve detailed usage information for a specific headword by
         its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei),
         and collocation data. The headword_id must be obtained from the headwords
-        endpoint first.
+        endpoint first. Body convention: the inner `status` carries the real result
+        code; `error` is `null` on success and populated only when `status != 200`.'
       parameters:
       - description: Headword ID and corpus site
         in: body
@@ -2112,9 +2133,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by ID details
@@ -2124,9 +2143,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Given a word, return URLs to the corresponding headword detail
+      description: 'Given a word, return URLs to the corresponding headword detail
         pages in the selected corpus (NLB or NLT). Uses the same request format as
-        the headwords endpoint.
+        the headwords endpoint. Body convention: the inner `status` carries the real
+        result code; `error` is `null` on success and populated only when `status
+        != 200`.'
       parameters:
       - description: Word to search and corpus site
         in: body
@@ -2144,9 +2165,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by URL

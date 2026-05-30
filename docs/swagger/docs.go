@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/v1/dict-query": {
             "post": {
-                "description": "Look up words in JMdict (Japanese-Multilingual Dictionary). Returns kanji forms, furigana readings, parts of speech, and English definitions. Supports searching by kanji, kana, or romaji.",
+                "description": "Look up words in JMdict (Japanese-Multilingual Dictionary). Returns kanji forms, furigana readings, parts of speech, and English definitions. Supports searching by kanji, kana, or romaji. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -49,10 +49,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1115,7 +1112,7 @@ const docTemplate = `{
         },
         "/v1/mark-accent": {
             "post": {
-                "description": "Analyze Japanese text and return per-mora pitch (accent) patterns for each word. ` + "`" + `accent_marking_type` + "`" + ` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and ` + "`" + `script` + "`" + ` rewrites every furigana field to hiragana, katakana, or romaji.",
+                "description": "Analyze Japanese text and return per-mora pitch (accent) patterns for each word. ` + "`" + `accent_marking_type` + "`" + ` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and ` + "`" + `script` + "`" + ` rewrites every furigana field to hiragana, katakana, or romaji. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1147,10 +1144,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1163,7 +1157,7 @@ const docTemplate = `{
         },
         "/v1/mark-accent/stream": {
             "post": {
-                "description": "Same input and per-chunk output as /v1/mark-accent, but streamed as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes. Each line carries ` + "`" + `{\"chunk\": \u003cline_idx\u003e, \"subchunk\": \u003csub_idx\u003e, ...AccentResponse}` + "`" + ` so clients can interleave UI rendering with later chunks still in flight.",
+                "description": "Same input and per-chunk output as /v1/mark-accent, but streamed as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes. Each line carries ` + "`" + `{\"chunk\": \u003cline_idx\u003e, \"subchunk\": \u003csub_idx\u003e, ...AccentResponse}` + "`" + ` so clients can interleave UI rendering with later chunks still in flight. Body convention: each chunk's inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1187,18 +1181,15 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "NDJSON stream of per-chunk AccentResponse objects",
+                        "description": "One NDJSON line per chunk; full response is a stream of these objects separated by '\\\\n'",
                         "schema": {
-                            "type": "string"
+                            "$ref": "#/definitions/internal_api.MarkAccentStreamChunk"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1930,7 +1921,7 @@ const docTemplate = `{
         },
         "/v1/sentence-query": {
             "post": {
-                "description": "Find example sentences containing a given word from JMdict. Requires both the word and its JMdict entry ID (obtained from the dict-query endpoint). Returns bilingual Japanese-English sentence pairs.",
+                "description": "Find example sentences containing a given word from JMdict. Requires both the word and its JMdict entry ID (obtained from the dict-query endpoint). Returns bilingual Japanese-English sentence pairs. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is an empty string on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1962,10 +1953,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2366,7 +2354,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/headwords": {
             "post": {
-                "description": "Search for headwords in Japanese language corpora. Supports lookup by kanji, kana, or romaji. Returns matching headword entries with readings and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba Web Corpus).",
+                "description": "Search for headwords in Japanese language corpora. Supports lookup by kanji, kana, or romaji. Returns matching headword entries with readings and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba Web Corpus). Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2398,10 +2386,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2414,7 +2399,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/id-details": {
             "post": {
-                "description": "Retrieve detailed usage information for a specific headword by its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei), and collocation data. The headword_id must be obtained from the headwords endpoint first.",
+                "description": "Retrieve detailed usage information for a specific headword by its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei), and collocation data. The headword_id must be obtained from the headwords endpoint first. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2446,10 +2431,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2462,7 +2444,7 @@ const docTemplate = `{
         },
         "/v1/usage-query/url": {
             "post": {
-                "description": "Given a word, return URLs to the corresponding headword detail pages in the selected corpus (NLB or NLT). Uses the same request format as the headwords endpoint.",
+                "description": "Given a word, return URLs to the corresponding headword detail pages in the selected corpus (NLB or NLT). Uses the same request format as the headwords endpoint. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2494,10 +2476,7 @@ const docTemplate = `{
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2903,11 +2882,11 @@ const docTemplate = `{
             "properties": {
                 "code": {
                     "type": "integer",
-                    "example": 500
+                    "example": 0
                 },
                 "message": {
                     "type": "string",
-                    "example": "HTTP error 500"
+                    "example": " "
                 }
             }
         },
@@ -3138,6 +3117,41 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.MarkAccentStreamChunk": {
+            "type": "object",
+            "properties": {
+                "chunk": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "error": {
+                    "$ref": "#/definitions/internal_api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_api.WordAccentResult"
+                    }
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "subchunk": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "internal_api.ProxyErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Failed to contact external API"
+                }
+            }
+        },
         "internal_api.SentenceQueryRequest": {
             "type": "object",
             "properties": {
@@ -3329,12 +3343,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "integer"
-                    }
-                },
-                "subword": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_api.WordAccentSubword"
                     }
                 },
                 "surface": {
