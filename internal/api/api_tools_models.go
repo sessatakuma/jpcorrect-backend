@@ -66,7 +66,7 @@ type WordAccentResult struct {
 // MarkAccentResponse is the response from the mark-accent endpoint.
 type MarkAccentResponse struct {
 	Status int                `json:"status" example:"200" description:"HTTP status code"`
-	Result []WordAccentResult `json:"result" description:"List of accent-marked word results"`
+	Result []WordAccentResult `json:"result" extensions:"x-nullable=true" description:"List of accent-marked word results; null when status != 200"`
 	Error  *APIToolsError     `json:"error"`
 }
 
@@ -76,7 +76,7 @@ type MarkAccentStreamChunk struct {
 	Chunk    int                `json:"chunk" example:"0" description:"Zero-based index of the input line this chunk belongs to"`
 	Subchunk int                `json:"subchunk" example:"0" description:"Zero-based sub-chunk index within the line"`
 	Status   int                `json:"status" example:"200" description:"HTTP status code for this chunk"`
-	Result   []WordAccentResult `json:"result" description:"List of accent-marked word results for this chunk"`
+	Result   []WordAccentResult `json:"result" extensions:"x-nullable=true" description:"List of accent-marked word results for this chunk; null when this chunk's status != 200"`
 	Error    *APIToolsError     `json:"error"`
 }
 
@@ -101,7 +101,7 @@ type HeadWord struct {
 // UsageQueryHeadWordsResponse is the response from the usage-query/headwords endpoint.
 type UsageQueryHeadWordsResponse struct {
 	Status int            `json:"status" example:"200" description:"HTTP status code"`
-	Result []HeadWord     `json:"result" description:"List of matching headwords"`
+	Result []HeadWord     `json:"result" extensions:"x-nullable=true" description:"List of matching headwords; null when status != 200"`
 	Error  *APIToolsError `json:"error"`
 }
 
@@ -116,7 +116,7 @@ type UsageQueryWordURL struct {
 // UsageQueryURLResponse is the response from the usage-query/url endpoint.
 type UsageQueryURLResponse struct {
 	Status int                 `json:"status" example:"200" description:"HTTP status code"`
-	Result []UsageQueryWordURL `json:"result" description:"List of headword URLs"`
+	Result []UsageQueryWordURL `json:"result" extensions:"x-nullable=true" description:"List of headword URLs; null when status != 200"`
 	Error  *APIToolsError      `json:"error"`
 }
 
@@ -142,7 +142,7 @@ type IdDetails struct {
 // UsageQueryIDDetailsResponse is the response from the usage-query/id-details endpoint.
 type UsageQueryIDDetailsResponse struct {
 	Status int            `json:"status" example:"200" description:"HTTP status code"`
-	Result *IdDetails     `json:"result" description:"Detailed word usage data"`
+	Result *IdDetails     `json:"result" extensions:"x-nullable=true" description:"Detailed word usage data; null when status != 200"`
 	Error  *APIToolsError `json:"error"`
 }
 
@@ -170,7 +170,7 @@ type DictQueryWordResult struct {
 // DictQueryResponse is the response from the dict-query endpoint.
 type DictQueryResponse struct {
 	Status int                   `json:"status" example:"200" description:"HTTP status code"`
-	Result []DictQueryWordResult `json:"result" description:"List of dictionary word results"`
+	Result []DictQueryWordResult `json:"result" extensions:"x-nullable=true" description:"List of dictionary word results; null when status != 200"`
 	Error  *APIToolsError        `json:"error"`
 }
 
@@ -198,6 +198,6 @@ type SentenceQueryWordResult struct {
 // SentenceQueryResponse is the response from the sentence-query endpoint.
 type SentenceQueryResponse struct {
 	Status int                      `json:"status" example:"200" description:"HTTP status code"`
-	Result *SentenceQueryWordResult `json:"result" description:"Sentence query results for the word"`
+	Result *SentenceQueryWordResult `json:"result" extensions:"x-nullable=true" description:"Sentence query results for the word; null when status != 200"`
 	Error  string                   `json:"error"`
 }
