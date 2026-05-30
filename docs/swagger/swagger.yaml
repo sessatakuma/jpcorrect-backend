@@ -58,6 +58,7 @@ definitions:
         items:
           $ref: '#/definitions/internal_api.DictQueryWordResult'
         type: array
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -170,6 +171,7 @@ definitions:
         items:
           $ref: '#/definitions/internal_api.WordAccentResult'
         type: array
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -185,6 +187,7 @@ definitions:
         items:
           $ref: '#/definitions/internal_api.WordAccentResult'
         type: array
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -212,7 +215,9 @@ definitions:
       error:
         type: string
       result:
-        $ref: '#/definitions/internal_api.SentenceQueryWordResult'
+        allOf:
+        - $ref: '#/definitions/internal_api.SentenceQueryWordResult'
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -247,6 +252,7 @@ definitions:
         items:
           $ref: '#/definitions/internal_api.HeadWord'
         type: array
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -265,7 +271,9 @@ definitions:
       error:
         $ref: '#/definitions/internal_api.APIToolsError'
       result:
-        $ref: '#/definitions/internal_api.IdDetails'
+        allOf:
+        - $ref: '#/definitions/internal_api.IdDetails'
+        x-nullable: "true"
       status:
         example: 200
         type: integer
@@ -278,6 +286,7 @@ definitions:
         items:
           $ref: '#/definitions/internal_api.UsageQueryWordURL'
         type: array
+        x-nullable: "true"
       status:
         example: 200
         type: integer
