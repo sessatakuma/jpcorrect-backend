@@ -2949,7 +2949,8 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.DictQueryWordResult"
-                    }
+                    },
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3109,7 +3110,8 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.WordAccentResult"
-                    }
+                    },
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3131,7 +3133,8 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.WordAccentResult"
-                    }
+                    },
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3172,7 +3175,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "result": {
-                    "$ref": "#/definitions/internal_api.SentenceQueryWordResult"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_api.SentenceQueryWordResult"
+                        }
+                    ],
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3222,7 +3230,8 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.HeadWord"
-                    }
+                    },
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3250,7 +3259,12 @@ const docTemplate = `{
                     "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
-                    "$ref": "#/definitions/internal_api.IdDetails"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/internal_api.IdDetails"
+                        }
+                    ],
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
@@ -3268,7 +3282,8 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/internal_api.UsageQueryWordURL"
-                    }
+                    },
+                    "x-nullable": "true"
                 },
                 "status": {
                     "type": "integer",
