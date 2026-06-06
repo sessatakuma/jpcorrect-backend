@@ -10,6 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type UpdateMeRequest struct {
+	Name      string `json:"nickname" binding:"required,max=50"`
+	AvatarURL string `json:"avatar_url" binding:"url"`
+}
+
 // @Summary Get a user by ID
 // @Tags users
 // @Accept json
@@ -20,31 +25,41 @@ import (
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/users/{id} [get]
-// func (a *API) UserGetHandler(c *gin.Context) {
-// 	idStr := c.Param("id")
-// 	id, err := uuid.Parse(idStr)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
-// 		return
-// 	}
+func (a *API) UserGetHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+		return
+	}
 
-// 	user, err := a.userRepo.GetByID(c.Request.Context(), id)
-// 	if err != nil {
-// 		if errors.Is(err, domain.ErrNotFound) {
-// 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-// 			return
-// 		}
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-// 		return
-// 	}
+	user, err := a.userRepo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-// 	c.JSON(http.StatusOK, user)
-// }
+	c.JSON(http.StatusOK, user)
+}
 
 // Returns the current user's profile
 func (a *API) UserMeHandler(c *gin.Context) {
-	supabaseID := c.GetString("userID")
-	user, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	val, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error: invalid user ID type"})
+		return
+	}
+
+	user, err := a.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -160,25 +175,43 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 
 // Updates current user's nickname and avatar
 func (a *API) UserMeUpdateHandler(c *gin.Context) {
-	supabaseID := c.GetString("userID")
+	val, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error: invalid user ID type"})
+		return
+	}
 
-	var inputData domain.User
+	var inputData UpdateMeRequest
 	if err := c.ShouldBindJSON(&inputData); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	User, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	user, err := a.userRepo.GetByID(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	User.Name = inputData.Name
-	User.AvatarURL = inputData.AvatarURL
+	user.Name = inputData.Name
+	avatarStr := inputData.AvatarURL
+	user.AvatarURL = &avatarStr
 
-	if err := a.userRepo.Update(c.Request.Context(), User); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+	if err := a.userRepo.Update(c.Request.Context(), user); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "User nickname or data conflict"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 

@@ -30,7 +30,7 @@ const (
 // Maps to jpcorrect.user table.
 type User struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"user_id"`
-	SupabaseID      string         `json:"supabase_id"`
+	SupabaseID      uuid.UUID      `json:"supabase_id"`
 	Email           string         `gorm:"uniqueIndex" json:"email"`
 	Name            string         `json:"name"`
 	AvatarURL       *string        `json:"avatar_url"`
@@ -49,7 +49,7 @@ type User struct {
 
 type UserRepository interface {
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
-	GetBySupabaseID(ctx context.Context, supabaseID string) (*User, error)
+	GetBySupabaseID(ctx context.Context, supabaseID uuid.UUID) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByName(ctx context.Context, name string) ([]*User, error)
 

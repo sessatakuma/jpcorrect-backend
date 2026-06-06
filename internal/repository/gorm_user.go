@@ -27,7 +27,7 @@ func (r *gormUserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*do
 	return &user, nil
 }
 
-func (r *gormUserRepository) GetBySupabaseID(ctx context.Context, supabaseID string) (*domain.User, error) {
+func (r *gormUserRepository) GetBySupabaseID(ctx context.Context, supabaseID uuid.UUID) (*domain.User, error) {
 	var user domain.User
 	err := r.db.WithContext(ctx).Where("supabase_id = ?", supabaseID).First(&user).Error
 	if err != nil {
