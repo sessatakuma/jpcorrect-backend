@@ -56,8 +56,6 @@ type UserRepository interface {
 	Create(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, userID uuid.UUID) error
-}
 
-type UserUsecase interface {
-	InitUser(ctx context.Context, supabaseID string, email string) (*User, error)
+	InitUser(ctx context.Context, supabaseID uuid.UUID, email string) (*User, error)
 }

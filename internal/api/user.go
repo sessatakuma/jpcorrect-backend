@@ -103,13 +103,20 @@ func (a *API) UserMeHandler(c *gin.Context) {
 
 // Initializes a user account based on SupabaseID
 func (a *API) UserInitHandler(c *gin.Context) {
-	supabaseID := c.GetString("supabaseID")
+	supabaseIDStr := c.GetString("supabaseID")
 	email := c.GetString("email")
-	if supabaseID == "" {
+	if supabaseIDStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
 		return
 	}
-	user, err := a.userUsecase.InitUser(c.Request.Context(), supabaseID, email)
+
+	supabaseID, err := uuid.Parse(supabaseIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid supabaseID format"})
+		return
+	}
+
+	user, err := a.userRepo.InitUser(c.Request.Context(), supabaseID, email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initialize user"})
 		return

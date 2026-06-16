@@ -11,8 +11,6 @@ import (
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/repository"
 
-	// "jpcorrect-backend/internal/usecase"
-
 	_ "jpcorrect-backend/docs/swagger"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +30,6 @@ type API struct {
 	jwksCancel        context.CancelFunc
 	jwksMutex         sync.Mutex
 	jwksErr           error
-	userUsecase       domain.UserUsecase
 	userRepo          domain.UserRepository
 	guildRepo         domain.GuildRepository
 	guildAttendeeRepo domain.GuildAttendeeRepository
@@ -53,7 +50,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
 	mistakeRepo := repository.NewGormMistakeRepository(db)
-	// userUsecase := usecase.NewUserUsecase(userRepo)
+
 	webrtcHub := NewHub()
 	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
 
@@ -79,11 +76,10 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	}
 
 	return &API{
-		db:             db,
-		apiToolsURL:    url,
-		proxyTransport: transport,
-		jwksURL:        jwksURL,
-		// userUsecase:       userUsecase,
+		db:                db,
+		apiToolsURL:       url,
+		proxyTransport:    transport,
+		jwksURL:           jwksURL,
 		userRepo:          userRepo,
 		guildRepo:         guildRepo,
 		guildAttendeeRepo: guildAttendeeRepo,

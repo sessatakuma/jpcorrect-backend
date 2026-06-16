@@ -69,3 +69,21 @@ func (r *gormUserRepository) Delete(ctx context.Context, userID uuid.UUID) error
 	// GORM soft delete
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.User{}, "id = ?", userID).Error)
 }
+
+func (r *gormUserRepository) InitUser(ctx context.Context, supabaseID uuid.UUID, email string) (*domain.User, error) {
+	var user domain.User
+
+	err := r.db.WithContext(ctx).
+		Where("supabase_id = ?", supabaseID).
+		Attrs(domain.User{
+			ID:    uuid.New(),
+			Email: email,
+		}).
+		FirstOrCreate(&user).Error
+
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+
+	return &user, nil
+}
