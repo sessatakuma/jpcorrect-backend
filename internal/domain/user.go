@@ -30,7 +30,7 @@ const (
 // Maps to jpcorrect.user table.
 type User struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"user_id"`
-	SupabaseID      uuid.UUID      `json:"supabase_id"`
+	SupabaseID      uuid.UUID      `gorm:"type:uuid;uniqueIndex" json:"supabase_id"`
 	Email           string         `gorm:"uniqueIndex" json:"email"`
 	Name            string         `json:"name"`
 	AvatarURL       *string        `json:"avatar_url"`

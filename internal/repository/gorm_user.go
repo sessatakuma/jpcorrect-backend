@@ -76,8 +76,9 @@ func (r *gormUserRepository) InitUser(ctx context.Context, supabaseID uuid.UUID,
 	err := r.db.WithContext(ctx).
 		Where("supabase_id = ?", supabaseID).
 		Attrs(domain.User{
-			ID:    uuid.New(),
-			Email: email,
+			ID:         uuid.New(),
+			SupabaseID: supabaseID,
+			Email:      email,
 		}).
 		FirstOrCreate(&user).Error
 
