@@ -217,7 +217,7 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 6. **GORM Errors**: Always map via `MapGormError()`, never return raw GORM errors from repository
 7. **Soft Delete**: Only User/Guild/Event. Use `Unscoped()` for hard delete on those
 8. **`DATABASE_URL` hostname**: `127.0.0.1` for local dev (`make air`), `postgres` only inside the deploy compose stack
-9. **`API_TOOLS_URL` from containers**: `host.docker.internal` in the deploy stack — `api-tools` runs on the host, not in Docker
+9. **`API_TOOLS_URL` from containers**: `http://jpcorrect-api-tools:8000` in the deploy stack — the `backend` container reaches the sibling `api-tools` container by name over the external `jpcorrect-shared` bridge (not `host.docker.internal`). Bring up the API-tools repo's compose on that network first so DNS resolves.
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
 11. **`CLIENT_API_KEY` is inbound only**: It guards the 7 api-tools proxy routes (X-API-Key only — JWT is rejected there; empty value returns 401). The internal jp backend → API-tools call is now keyless (local server-to-server, no auth required), so there is no second key to configure.
 12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).

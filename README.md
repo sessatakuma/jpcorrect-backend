@@ -165,7 +165,7 @@ For this mode, `.env.deploy` should use deployment-ready values such as:
 
 ```text
 DATABASE_URL=postgres://...@postgres:5432/...
-API_TOOLS_URL=http://host.docker.internal:8000
+API_TOOLS_URL=http://jpcorrect-api-tools:8000
 ```
 
 This stack is intended for CD / production-style deploys:
@@ -173,9 +173,9 @@ This stack is intended for CD / production-style deploys:
 - `backend` runs from `BACKEND_IMAGE` (for example a GHCR image)
 - `postgres` runs in Docker and is bound only to `127.0.0.1`
 - `cloudflared` forwards traffic to `http://backend:8080`
-- `backend` reaches host-run `api-tools` through `http://host.docker.internal:8000`
+- `backend` reaches `api-tools` by container name over the external `jpcorrect-shared` bridge (`http://jpcorrect-api-tools:8000`)
 
-This keeps a single deployment compose file while allowing `api-tools` to have an independent lifecycle.
+The shared bridge lets `api-tools` keep an independent lifecycle in its own compose stack while staying reachable by name. Create the network once (`docker network create jpcorrect-shared`) and bring up the API-tools repo's compose so its container exists for DNS resolution.
 
 ### Cloudflare Tunnel
 
