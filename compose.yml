@@ -1,0 +1,24 @@
+---
+# Local-dev only: a single Postgres bound to 127.0.0.1 so `make air` (which runs
+# the Go server on the host) can connect via DATABASE_URL=...@127.0.0.1:5432.
+services:
+    postgres:
+        image: postgres:15-alpine
+        container_name: jpcorrect-postgres-local
+        environment:
+            POSTGRES_USER: jpcorrect
+            POSTGRES_PASSWORD: jpcorrect_password
+            POSTGRES_DB: jpcorrect
+        ports:
+            - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+        volumes:
+            - postgres_local_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
+
+volumes:
+    postgres_local_data:

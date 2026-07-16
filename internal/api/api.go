@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -112,9 +113,20 @@ func Register(r *gin.Engine, api *API) {
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
 
-	// API Tools — non-user-specific service access, X-API-Key only
+	// In debug mode (GIN_MODE=debug), APIKeyMiddleware + AuthMiddleware are
+	// skipped so the dev / internal deployment can be gated solely by an edge
+	// gateway like Cloudflare Access. Production (GIN_MODE=release) enforces
+	// both middlewares as usual.
+	debug := gin.IsDebugging()
+	if debug {
+		log.Println("⚠️  GIN_MODE=debug — APIKeyMiddleware and AuthMiddleware are DISABLED on /v1 routes. An edge gateway (e.g. Cloudflare Access) must protect any non-localhost exposure of this build.")
+	}
+
+	// API Tools — non-user-specific service access, X-API-Key only (release only)
 	apiTools := r.Group("/v1")
-	apiTools.Use(api.APIKeyMiddleware())
+	if !debug {
+		apiTools.Use(api.APIKeyMiddleware())
+	}
 	{
 		apiTools.POST("/mark-accent", api.MarkAccentHandler)
 		apiTools.POST("/mark-accent/stream", api.MarkAccentStreamHandler)
@@ -126,7 +138,9 @@ func Register(r *gin.Engine, api *API) {
 	}
 
 	v1 := r.Group("/v1")
-	v1.Use(api.AuthMiddleware())
+	if !debug {
+		v1.Use(api.AuthMiddleware())
+	}
 	{
 		// Mistakes
 		mistakes := v1.Group("/mistakes")

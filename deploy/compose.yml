@@ -1,0 +1,183 @@
+---
+# Pin the compose project name so volume/network names stay
+# `jpcorrect-backend_*` regardless of this file's directory. Without this,
+# moving the file under deploy/ would rename the project to `deploy` and
+# orphan the existing postgres volumes.
+name: jpcorrect-backend
+
+services:
+    postgres-prod:
+        image: postgres:15-alpine
+        container_name: jpcorrect-postgres-prod
+        environment:
+            POSTGRES_USER: jpcorrect
+            POSTGRES_PASSWORD: jpcorrect_password
+            POSTGRES_DB: jpcorrect
+        volumes:
+            - postgres_prod_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        networks:
+            - prod-net
+        restart: unless-stopped
+
+    postgres-dev:
+        image: postgres:15-alpine
+        container_name: jpcorrect-postgres-dev
+        environment:
+            POSTGRES_USER: jpcorrect
+            POSTGRES_PASSWORD: jpcorrect_password
+            POSTGRES_DB: jpcorrect
+        volumes:
+            - postgres_dev_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U jpcorrect"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        networks:
+            - dev-net
+        restart: unless-stopped
+
+    backend-prod:
+        image: ${BACKEND_PROD_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:stable}
+        container_name: jpcorrect-backend-prod
+        depends_on:
+            postgres-prod:
+                condition: service_healthy
+        env_file:
+            - env/prod
+        expose:
+            - "8080"
+        networks:
+            - prod-net
+            - jpcorrect-shared
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+            - com.centurylinklabs.watchtower.scope=prod
+        restart: unless-stopped
+
+    backend-dev:
+        image: ${BACKEND_DEV_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:dev}
+        container_name: jpcorrect-backend-dev
+        depends_on:
+            postgres-dev:
+                condition: service_healthy
+        env_file:
+            - env/dev
+        expose:
+            - "8080"
+        networks:
+            - dev-net
+            - jpcorrect-shared
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+            - com.centurylinklabs.watchtower.scope=dev
+        restart: unless-stopped
+
+    # Two api-tools instances mirror the backend split: each backend talks to
+    # its own api-tools over its env-net (mirroring the postgres isolation), so
+    # a breaking change pushed to :dev can't bleed into prod. Both pulled from
+    # GHCR — built and pushed by the API-tools repo's own CI — instead of being
+    # cloned and built locally. Post local-unidic neither needs env vars (the
+    # old YAHOO_API_KEY is gone — accent/furigana now come from the bundled
+    # local UniDic dict).
+    api-tools-prod:
+        # :stable is published by the API-tools repo's CD on v*.*.* git tags.
+        # Updated by watchtower-prod (cron 03:00 Asia/Taipei) along with backend-prod.
+        image: ${API_TOOLS_PROD_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
+        container_name: jpcorrect-api-tools-prod
+        expose:
+            - "8000"
+        networks:
+            - prod-net
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+            - com.centurylinklabs.watchtower.scope=prod
+        restart: unless-stopped
+
+    api-tools-dev:
+        # :dev is published by the API-tools repo's CD on every main-branch push.
+        # Updated by watchtower-dev (5-minute poll) along with backend-dev.
+        image: ${API_TOOLS_DEV_IMAGE:-ghcr.io/sessatakuma/api-tools:dev}
+        container_name: jpcorrect-api-tools-dev
+        expose:
+            - "8000"
+        networks:
+            - dev-net
+        labels:
+            - com.centurylinklabs.watchtower.enable=true
+            - com.centurylinklabs.watchtower.scope=dev
+        restart: unless-stopped
+
+    cloudflared:
+        image: cloudflare/cloudflared:latest
+        command: tunnel --config /home/nonroot/.cloudflared/config.yml run
+        container_name: jpcorrect-cloudflared
+        volumes:
+            # Credentials (cert.pem + <uuid>.json) live on the host, gitignored,
+            # owned by the container's nonroot uid.
+            - ./cloudflared/creds:/home/nonroot/.cloudflared
+            # Ingress config is committed to repo and bind-mounted on top of
+            # the dir above, so the credentials dir stays a pure secrets-only
+            # location and the routing config gets reviewed via PR.
+            - ./cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
+        networks:
+            - jpcorrect-shared
+        restart: unless-stopped
+
+    # Two Watchtower instances split prod from dev via WATCHTOWER_SCOPE so each
+    # only touches containers carrying the matching watchtower.scope label.
+    # That lets prod and dev run on independent cadences: prod waits for an
+    # off-hours window, dev keeps the tight 5-minute loop.
+    watchtower-prod:
+        image: containrrr/watchtower:latest
+        container_name: jpcorrect-watchtower-prod
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ${HOME}/.docker/config.json:/config.json:ro
+        environment:
+            # containrrr/watchtower:latest is stale (project is essentially
+            # dormant) and defaults to Docker API v1.25, which modern daemons
+            # (≥ v28) reject as too old. Pin to a version both sides accept.
+            DOCKER_API_VERSION: "1.41"
+            # Pin TZ so the WATCHTOWER_SCHEDULE cron string reads as Taipei
+            # local time without UTC math (Watchtower evaluates cron in the
+            # container's local TZ).
+            TZ: "Asia/Taipei"
+            WATCHTOWER_LABEL_ENABLE: "true"
+            WATCHTOWER_SCOPE: "prod"
+            # 6-field cron (sec min hour dom mon dow). Fires at 03:00:00 daily.
+            # POLL_INTERVAL is ignored when SCHEDULE is set.
+            WATCHTOWER_SCHEDULE: "0 0 3 * * *"
+            WATCHTOWER_CLEANUP: "true"
+            WATCHTOWER_INCLUDE_RESTARTING: "false"
+        restart: unless-stopped
+
+    watchtower-dev:
+        image: containrrr/watchtower:latest
+        container_name: jpcorrect-watchtower-dev
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ${HOME}/.docker/config.json:/config.json:ro
+        environment:
+            DOCKER_API_VERSION: "1.41"
+            WATCHTOWER_LABEL_ENABLE: "true"
+            WATCHTOWER_SCOPE: "dev"
+            WATCHTOWER_POLL_INTERVAL: "300"
+            WATCHTOWER_CLEANUP: "true"
+            WATCHTOWER_INCLUDE_RESTARTING: "false"
+        restart: unless-stopped
+
+networks:
+    prod-net:
+    dev-net:
+    jpcorrect-shared:
+        external: true
+
+volumes:
+    postgres_prod_data:
+    postgres_dev_data:

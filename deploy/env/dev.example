@@ -1,0 +1,24 @@
+# Internal-dev deploy env file — used by backend-dev (compose.deploy.yml).
+# Reached only via api-dev.sessatakuma.dev which is gated by Cloudflare Access
+# (Zero Trust application policy on the dashboard). GIN_MODE=debug makes the
+# Swagger UI visible AND skips APIKeyMiddleware + AuthMiddleware app-side, so
+# the gate at the edge (Cloudflare Access) is the only auth in the chain.
+PORT=8080
+GIN_MODE=debug
+DATABASE_URL=postgres://jpcorrect:jpcorrect_password@postgres-dev:5432/jpcorrect?sslmode=disable
+API_TOOLS_URL=http://jpcorrect-api-tools-dev:8000
+
+# Unused while GIN_MODE=debug (middlewares are skipped). Leave empty.
+CLIENT_API_KEY=
+JWKS_URL=
+
+# TLS inside the container — disabled; Cloudflare tunnel terminates TLS at the edge.
+API_CERT_PATH=
+API_KEY_PATH=
+
+# WebRTC config (same defaults as prod)
+WEBRTC_CONN_SEC=10
+WEBRTC_CONN_MAX=15
+
+# Open CORS in debug mode for Swagger UI's "Try it out" from any internal browser.
+ALLOWED_ORIGINS=*
