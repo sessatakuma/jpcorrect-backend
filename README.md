@@ -31,7 +31,6 @@ Variables:
 | `DATABASE_URL` | PostgreSQL connection string |
 | `API_TOOLS_URL` | API tools service URL |
 | `CLIENT_API_KEY` | Inbound `X-API-Key` required by the 7 api-tools proxy endpoints (JWT not accepted; empty value returns 401) |
-| `CLOUDFLARE_TUNNEL_TOKEN` | Cloudflare Tunnel token for the optional `cloudflared` compose profile |
 | `JWKS_URL` | JWKS endpoint for JWT verification |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins (empty = allow all in debug mode) |
 | `GIN_MODE` | `debug` or `release` |
