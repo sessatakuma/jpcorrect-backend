@@ -6,7 +6,7 @@
 PORT=8080
 GIN_MODE=debug
 DATABASE_URL=postgres://jpcorrect:jpcorrect_password@postgres-dev:5432/jpcorrect?sslmode=disable
-API_TOOLS_URL=http://jpcorrect-api-tools:8000
+API_TOOLS_URL=http://jpcorrect-api-tools-dev:8000
 
 # Unused while GIN_MODE=debug (middlewares are skipped). Leave empty.
 CLIENT_API_KEY=

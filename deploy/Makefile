@@ -16,31 +16,34 @@ down:
 
 # Prod env: api.sessatakuma.dev — full auth (CLIENT_API_KEY + JWT), Swagger hidden.
 up-prod:
-	docker compose up -d postgres-prod backend-prod
+	docker compose up -d postgres-prod backend-prod api-tools-prod
 
 down-prod:
-	docker compose stop postgres-prod backend-prod
+	docker compose stop postgres-prod backend-prod api-tools-prod
 
-# Pull a newer :stable tag immediately (Watchtower normally handles this every 5 min).
+# Pull newer :stable tags immediately (Watchtower normally handles this on the
+# nightly 03:00 Asia/Taipei cron).
 pull-prod:
-	docker compose pull backend-prod
-	docker compose up -d backend-prod
+	docker compose pull backend-prod api-tools-prod
+	docker compose up -d backend-prod api-tools-prod
 
 # Dev env: api-dev.sessatakuma.dev — Cloudflare Access at edge, app middlewares
 # skipped (GIN_MODE=debug), Swagger visible.
 up-dev:
-	docker compose up -d postgres-dev backend-dev
+	docker compose up -d postgres-dev backend-dev api-tools-dev
 
 down-dev:
-	docker compose stop postgres-dev backend-dev
+	docker compose stop postgres-dev backend-dev api-tools-dev
 
+# Pull newer :dev tags immediately (Watchtower normally handles this every 5 min).
 pull-dev:
-	docker compose pull backend-dev
-	docker compose up -d backend-dev
+	docker compose pull backend-dev api-tools-dev
+	docker compose up -d backend-dev api-tools-dev
 
-# Shared infra: cloudflared (tunnel for both hostnames) + watchtower (auto-pull).
+# Shared infra: cloudflared (tunnel for both hostnames) + the two scoped
+# watchtowers (watchtower-prod on a nightly cron, watchtower-dev on a 5-min poll).
 up-infra:
-	docker compose up -d cloudflared watchtower
+	docker compose up -d cloudflared watchtower-prod watchtower-dev
 
 down-infra:
-	docker compose stop cloudflared watchtower
+	docker compose stop cloudflared watchtower-prod watchtower-dev
