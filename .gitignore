@@ -30,6 +30,9 @@ go.work.sum
 # deploy env files live under deploy/env/ — ignore real ones, track *.example
 deploy/env/*
 !deploy/env/*.example
+# host-local compose override (e.g. temporary env_file wiring for upstream
+# image issues) — never committed
+deploy/compose.override.yml
 
 # TLS/SSL certificates (正式部屬時請注意憑證位置)
 certs/
