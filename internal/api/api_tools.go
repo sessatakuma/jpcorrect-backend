@@ -34,6 +34,14 @@ func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration
 		Director: func(req *http.Request) {
 			req.URL = remote
 			req.Host = remote.Host
+			// The api-tools call is server-to-server keyless (see AGENTS.md
+			// "API-tools compatibility" / gotcha #11). The inbound request was
+			// authenticated by APIKeyMiddleware using the backend's shared
+			// CLIENT_API_KEY (and JWT is explicitly rejected on these routes).
+			// Strip every client-only auth header so the credential never
+			// leaks into api-tools access logs or its own request surface.
+			req.Header.Del("X-API-Key")
+			req.Header.Del("Authorization")
 		},
 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
