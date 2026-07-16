@@ -31,7 +31,7 @@ db-logs:
 	docker compose -f compose.deploy.yml --env-file .env logs -f postgres
 
 api-tools:
-	cd API-tools && YAHOO_API_KEY="$(YAHOO_API_KEY)" uv run uvicorn main:app --host 127.0.0.1 --port $(API_TOOLS_PORT)
+	cd API-tools && uv run uvicorn main:app --host 127.0.0.1 --port $(API_TOOLS_PORT)
 
 deploy-up:
 	BACKEND_ENV_FILE=.env.deploy docker compose -f compose.deploy.yml --env-file .env.deploy up -d

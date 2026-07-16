@@ -44,7 +44,7 @@ cd jpcorrect-backend
 Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker.
 
 ```bash
-cp .env.example .env                  # one-time setup — then fill in YAHOO_API_KEY + JWKS_URL
+cp .env.example .env                  # one-time setup — then fill in JWKS_URL
 
 make db-up                            # start Postgres in Docker (bound to 127.0.0.1:5432)
 make db-logs                          # tail Postgres logs
@@ -166,11 +166,7 @@ Deploy-stack only (read by `compose.deploy.yml`, not the Go process):
 | `BACKEND_ENV_FILE` | Env file passed into the backend container (default `.env`; the `deploy-up` target sets `.env.deploy`) |
 | `POSTGRES_PORT` | Host-side bind port for Postgres (default `5432`) |
 
-API-tools service only (read by `make api-tools`):
-
-| Variable | Notes |
-| --- | --- |
-| `YAHOO_API_KEY` | Yahoo API key consumed by the Python service (the only env var it still requires) |
+The `api-tools` service needs no env vars: accent/furigana come from a bundled local UniDic dict (the old `YAHOO_API_KEY` requirement is gone post local-unidic).
 
 ### TLS
 Server checks if both `API_CERT_PATH` and `API_KEY_PATH` files exist. If yes → HTTPS; if no → HTTP with warning log.
@@ -225,4 +221,4 @@ Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove depr
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
 11. **`CLIENT_API_KEY` is inbound only**: It guards the 7 api-tools proxy routes (X-API-Key only — JWT is rejected there; empty value returns 401). The internal jp backend → API-tools call is now keyless (local server-to-server, no auth required), so there is no second key to configure.
 12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
-13. **`make api-tools` requires `YAHOO_API_KEY`**: The Python service asserts on `YAHOO_API_KEY` at import time and exits non-zero before uvicorn binds. Set it in `.env` (the Makefile `include .env`s and forwards the value to the uv subprocess).
+13. **api-tools needs no env vars** (post local-unidic): accent/furigana come from a bundled local UniDic dict, so the old `YAHOO_API_KEY` requirement is gone. `make api-tools` runs `uv run uvicorn ...` with no env. (Older Yahoo-MA-era images still assert on `YAHOO_API_KEY` at import — pin a local-unidic image to avoid that.)

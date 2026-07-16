@@ -37,7 +37,6 @@ Variables:
 | `GIN_MODE` | `debug` or `release` |
 | `API_CERT_PATH` | TLS certificate path (optional; enables HTTPS if both cert and key exist) |
 | `API_KEY_PATH` | TLS key path (optional) |
-| `YAHOO_API_KEY` | Yahoo API key for the API-tools service |
 
 > **Local development note:** `.env.example` is for host-run development. When the backend runs on your machine, `DATABASE_URL` should use `127.0.0.1` and `API_TOOLS_URL` should point at your local `api-tools` process.
 
