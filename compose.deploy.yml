@@ -34,7 +34,7 @@ services:
 
     cloudflared:
         image: cloudflare/cloudflared:latest
-        command: tunnel run jb
+        command: tunnel run ${CLOUDFLARE_TUNNEL_NAME:-jb}
         container_name: jpcorrect-cloudflared
         volumes:
             - ./.cloudflared:/home/nonroot/.cloudflared

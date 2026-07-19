@@ -165,6 +165,7 @@ Deploy-stack only (read by `compose.deploy.yml`, not the Go process):
 | `BACKEND_IMAGE` | Backend image to pull (default `ghcr.io/sessatakuma/jpcorrect-backend:latest`) |
 | `BACKEND_ENV_FILE` | Env file passed into the backend container (default `.env`; the `deploy-up` target sets `.env.deploy`) |
 | `POSTGRES_PORT` | Host-side bind port for Postgres (default `5432`) |
+| `CLOUDFLARE_TUNNEL_NAME` | Tunnel name passed to `cloudflared tunnel run` (default `jb`) |
 
 The `api-tools` service needs no env vars: accent/furigana come from a bundled local UniDic dict (the old `YAHOO_API_KEY` requirement is gone post local-unidic).
 
