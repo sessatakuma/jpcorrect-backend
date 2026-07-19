@@ -40,7 +40,7 @@ services:
         restart: unless-stopped
 
     cloudflared:
-        image: cloudflare/cloudflared:latest
+        image: cloudflare/cloudflared:2026.7.2
         command: tunnel run ${CLOUDFLARE_TUNNEL_NAME:-jb}
         container_name: jpcorrect-cloudflared
         volumes:
