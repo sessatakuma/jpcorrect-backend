@@ -46,6 +46,13 @@ func newProxyServer(api *API, path, upstreamPath string) *httptest.Server {
 	return httptest.NewServer(r)
 }
 
+func closeResponseBody(t *testing.T, body io.Closer) {
+	t.Helper()
+	if err := body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
 func TestProxyTo_StripsInboundAuthHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -65,7 +72,7 @@ func TestProxyTo_StripsInboundAuthHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("proxy call: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp.Body)
 
 	got, ok := <-rec
 	if !ok {
@@ -102,7 +109,7 @@ func TestProxyTo_PreservesNonAuthHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("proxy call: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp.Body)
 
 	got := <-rec
 	if ct := got.headers.Get("Content-Type"); ct != "application/json" {
@@ -128,7 +135,7 @@ func TestProxyTo_InvalidTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("proxy call: %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp.Body)
 
 	if got, want := resp.StatusCode, http.StatusInternalServerError; got != want {
 		t.Errorf("status = %d, want %d", got, want)
