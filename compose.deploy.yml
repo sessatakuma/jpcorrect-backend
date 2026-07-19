@@ -27,6 +27,13 @@ services:
             - ${BACKEND_ENV_FILE:-.env}
         expose:
             - "8080"
+        # Runtime hardening: non-root image, read-only rootfs (the app writes
+        # nothing to disk; /tmp is a tmpfs), no privilege escalation.
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         networks:
             - default
             - jpcorrect-shared
