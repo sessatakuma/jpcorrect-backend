@@ -46,6 +46,3 @@ certs/
 tmp/
 
 .cloudflared
-
-# API-tools sibling repo (cloned separately into ./API-tools — see AGENTS.md)
-API-tools/
