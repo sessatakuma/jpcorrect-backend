@@ -40,7 +40,7 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
-          tags: jpcorrect-backend:pr-${{ github.event.pull_request.number || github.run_id }}
+          tags: backend:pr-${{ github.event.number || github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -48,5 +48,5 @@ jobs:
         run: |
           docker run --rm --network none \
             --entrypoint /bin/sh \
-            jpcorrect-backend:pr-${{ github.event.pull_request.number || github.run_id }} \
-            -c 'test -x /app/jpcorrect && echo "jpcorrect binary present and executable"'
+            backend:pr-${{ github.event.number || github.run_id }} \
+            -c 'test -x /app/jpcorrect && echo ok'
