@@ -48,9 +48,14 @@ jobs:
         # distroless has no shell, so run the binary directly. --network none
         # + --read-only prove the image is self-contained: it must reach its
         # own DB error offline, which fails the PR if it cannot execute.
+        # Accept either startup DB error: gorm's pgx dialector connects eagerly
+        # in NewGormDB ("failed to connect to database"), but a lazy driver or
+        # a valid-looking DSN would instead surface at AutoMigrate ("failed to
+        # run auto migrate"). Both prove the binary started and ran offline.
         run: |
           img=backend:pr-${{ github.event.number || github.run_id }}
           out=$(docker run --rm --network none --read-only --tmpfs /tmp \
             "$img" 2>&1 || true)
           echo "$out"
-          echo "$out" | grep -q "failed to connect to database"
+          echo "$out" | grep -qE \
+            "failed to connect to database|failed to run auto migrate"
