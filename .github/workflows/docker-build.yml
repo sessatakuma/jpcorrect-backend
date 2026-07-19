@@ -45,8 +45,10 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Smoke-test the built image
+        # The runtime image is distroless (no shell), so verify the binary is
+        # present by inspecting the exported filesystem instead of running sh.
         run: |
-          docker run --rm --network none \
-            --entrypoint /bin/sh \
-            backend:pr-${{ github.event.number || github.run_id }} \
-            -c 'test -x /app/jpcorrect && echo ok'
+          img=backend:pr-${{ github.event.number || github.run_id }}
+          cid=$(docker create "$img")
+          docker export "$cid" | tar -tf - app/jpcorrect
+          docker rm "$cid"
