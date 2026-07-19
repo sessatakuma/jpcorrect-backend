@@ -277,17 +277,17 @@ graph LR
         WS["GET /ws<br/>(WebSocket/WebRTC)"]
     end
     
+    subgraph "v1 API Tools (X-API-Key Required)"
+        MA["POST /v1/mark-accent"]
+        MS["POST /v1/mark-accent/stream"]
+        UH["POST /v1/usage-query/headwords"]
+        UU["POST /v1/usage-query/url"]
+        UI["POST /v1/usage-query/id-details"]
+        DQ["POST /v1/dict-query"]
+        SQ["POST /v1/sentence-query"]
+    end
+    
     subgraph "v1 API (JWT Required)"
-        subgraph "API Tools Proxy"
-            MA["POST /v1/mark-accent"]
-            MF["POST /v1/mark-furigana"]
-            UH["POST /v1/usage-query/headwords"]
-            UU["POST /v1/usage-query/url"]
-            UI["POST /v1/usage-query/id-details"]
-            DQ["POST /v1/dict-query"]
-            SQ["POST /v1/sentence-query"]
-        end
-        
         subgraph "Users"
             UC["POST /v1/users"]
             UG["GET /v1/users/:id"]
@@ -513,7 +513,7 @@ upgrader := websocket.Upgrader{
 | Migrations | GORM AutoMigrate |
 | Testing | go-sqlmock |
 | Hot Reload | Air |
-| Containerization | Docker, docker-compose |
+| Containerization | Docker, Docker Compose (deploy stack) |
 
 ## Environment Variables
 
@@ -580,7 +580,7 @@ upgrader := websocket.Upgrader{
 │   ├── database-design.md         # Schema, ERD, Developer Notes
 │   └── refactor-pgx-to-gorm.md    # Migration summary
 ├── Dockerfile                     # Multi-stage build
-├── docker-compose.yml             # Local dev environment
+├── compose.deploy.yml             # Deploy stack (backend + postgres + cloudflared)
 └── AGENTS.md                      # AI coding guidelines
 ```
 
