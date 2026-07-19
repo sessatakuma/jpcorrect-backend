@@ -38,10 +38,13 @@ func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration
 			// "API-tools compatibility" / gotcha #11). The inbound request was
 			// authenticated by APIKeyMiddleware using the backend's shared
 			// CLIENT_API_KEY (and JWT is explicitly rejected on these routes).
-			// Strip every client-only auth header so the credential never
-			// leaks into api-tools access logs or its own request surface.
+			// Strip every client-only auth/session header so the credential
+			// never leaks into api-tools access logs or its own request
+			// surface. Cookie is included because browser clients calling
+			// these routes will attach any backend-origin cookies verbatim.
 			req.Header.Del("X-API-Key")
 			req.Header.Del("Authorization")
+			req.Header.Del("Cookie")
 		},
 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {

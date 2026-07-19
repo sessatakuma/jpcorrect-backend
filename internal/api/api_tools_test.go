@@ -67,6 +67,7 @@ func TestProxyTo_StripsInboundAuthHeaders(t *testing.T) {
 	req.Header.Set("X-API-Key", "shared-client-secret-from-CLIENT_API_KEY")
 	req.Header.Set("Authorization", "Bearer some.jwt.token")
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Cookie", "session=abc123; csrftoken=xyz")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -83,6 +84,9 @@ func TestProxyTo_StripsInboundAuthHeaders(t *testing.T) {
 	}
 	if h := got.headers.Get("Authorization"); h != "" {
 		t.Errorf("Authorization leaked upstream: %q", h)
+	}
+	if h := got.headers.Get("Cookie"); h != "" {
+		t.Errorf("Cookie leaked upstream: %q", h)
 	}
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Errorf("proxy status = %d, want %d", got, want)
