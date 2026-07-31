@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -24,6 +25,45 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 		return nil, MapGormError(err)
 	}
 	return &guild, nil
+}
+
+// 2. 同一個 Transaction 內建立 Guild 與 GuildAttendee(role=master)
+func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if guild.ID == uuid.Nil {
+			guild.ID = uuid.New()
+		}
+		if err := tx.Create(guild).Error; err != nil {
+			return err
+		}
+
+		attendee.GuildID = guild.ID
+		attendee.Role = domain.GuildAttendeeRoleMaster
+		now := time.Now()
+		if attendee.JoinedAt == nil {
+			attendee.JoinedAt = &now
+		}
+
+		if err := tx.Create(attendee).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}))
+}
+
+// 1. 查詢 Caller 目前建立（或擔任 Master）且尚未退出的公會數量
+func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.GuildAttendee{}).
+		Where("user_id = ? AND role = ? AND left_at IS NULL", userID, domain.GuildAttendeeRoleMaster).
+		Count(&count).Error
+
+	if err != nil {
+		return 0, MapGormError(err)
+	}
+	return count, nil
 }
 
 func (r *gormGuildRepository) Create(ctx context.Context, guild *domain.Guild) error {

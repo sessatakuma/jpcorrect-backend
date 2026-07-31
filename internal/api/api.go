@@ -144,7 +144,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Guilds
-		guilds := v1.Group("/guilds")
+		guilds := v1.Group("/guilds", api.AuthMiddleware())
 		{
 			guilds.POST("", api.GuildCreateHandler)
 			guilds.GET("/:id", api.GuildGetHandler)

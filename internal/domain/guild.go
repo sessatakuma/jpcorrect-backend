@@ -32,6 +32,8 @@ type Guild struct {
 
 type GuildRepository interface {
 	GetByID(ctx context.Context, guildID uuid.UUID) (*Guild, error)
+	CreateWithMaster(ctx context.Context, guild *Guild, attendee *GuildAttendee) error
+	CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 
 	Create(ctx context.Context, guild *Guild) error
 	Update(ctx context.Context, guild *Guild) error

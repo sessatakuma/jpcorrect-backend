@@ -52,13 +52,47 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Router /v1/guilds [post]
 func (a *API) GuildCreateHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	userIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userIDStr, ok := userIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
+		return
+	}
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
+	// 檢查 Caller 已建立公會數
+	count, err := a.guildRepo.CountMasterGuildsByUserID(ctx, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if count >= 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user has already created a guild"})
+		return
+	}
+
 	var guild domain.Guild
 	if err := c.ShouldBindJSON(&guild); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := a.guildRepo.Create(c.Request.Context(), &guild); err != nil {
+	// 4. 建立會長 Attendee 實體
+	attendee := domain.GuildAttendee{
+		UserID: userID,
+		Role:   domain.GuildAttendeeRoleMaster,
+	}
+
+	if err := a.guildRepo.CreateWithMaster(c.Request.Context(), &guild, &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
 			return
