@@ -86,7 +86,7 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		return
 	}
 
-	// 4. 建立會長 Attendee 實體
+	// 建立 Attendee 實體
 	attendee := domain.GuildAttendee{
 		UserID: userID,
 		Role:   domain.GuildAttendeeRoleMaster,
@@ -116,6 +116,12 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/guilds/{id} [put]
+
+type UpdateGuildRequest struct {
+	Name        *string `json:"name" binding:"omitempty,max=100"`
+	Description *string `json:"description" binding:"omitempty,max=500"`
+}
+
 func (a *API) GuildUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -124,7 +130,7 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	_, err = a.guildRepo.GetByID(c.Request.Context(), id)
+	guild, err := a.guildRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Guild not found"})
@@ -134,14 +140,20 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	var guild domain.Guild
-	if err := c.ShouldBindJSON(&guild); err != nil {
+	var req UpdateGuildRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	guild.ID = id
-	if err := a.guildRepo.Update(c.Request.Context(), &guild); err != nil {
+	if req.Name != nil {
+		guild.Name = *req.Name
+	}
+	if req.Description != nil {
+		guild.Description = *req.Description
+	}
+
+	if err := a.guildRepo.Update(c.Request.Context(), guild); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
 			return

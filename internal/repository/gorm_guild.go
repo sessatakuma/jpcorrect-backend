@@ -27,7 +27,6 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 	return &guild, nil
 }
 
-// 2. 同一個 Transaction 內建立 Guild 與 GuildAttendee(role=master)
 func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if guild.ID == uuid.Nil {
@@ -52,7 +51,6 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 	}))
 }
 
-// 1. 查詢 Caller 目前建立（或擔任 Master）且尚未退出的公會數量
 func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
