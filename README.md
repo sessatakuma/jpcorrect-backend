@@ -157,6 +157,8 @@ For deployment, use a dedicated deploy env file:
 
 ```bash
 cp .env.deploy.example .env.deploy
+# Set POSTGRES_PASSWORD to a unique random value and put its URL-encoded form
+# in DATABASE_URL before continuing.
 BACKEND_ENV_FILE=.env.deploy docker compose -f compose.deploy.yml --env-file .env.deploy up -d
 ```
 
@@ -166,6 +168,9 @@ For this mode, `.env.deploy` should use deployment-ready values such as:
 DATABASE_URL=postgres://...@postgres:5432/...
 API_TOOLS_URL=http://jpcorrect-api-tools:8000
 ```
+
+`POSTGRES_PASSWORD` is required by Compose and must be a unique random value.
+Use the same value (URL-encoded when needed) in `DATABASE_URL`.
 
 This stack is intended for CD / production-style deploys:
 

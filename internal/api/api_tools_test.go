@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,28 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func TestAPIToolsResponseModels_MatchUpstreamNullableFields(t *testing.T) {
+	var idDetails UsageQueryIDDetailsResponse
+	if err := json.Unmarshal([]byte(`{
+		"status": 200,
+		"result": {"base": {"lemma": "走る"}, "subcorpus": [], "shojikei": [], "subcorpus_shojikei": [], "katuyokei": [], "setuzoku": [], "patternfreqorder": []},
+		"error": null
+	}`), &idDetails); err != nil {
+		t.Fatalf("unmarshal id-details fixture: %v", err)
+	}
+	if got, want := idDetails.Result.Base["lemma"], "走る"; got != want {
+		t.Errorf("base.lemma = %v, want %q", got, want)
+	}
+
+	var sentence SentenceQueryResponse
+	if err := json.Unmarshal([]byte(`{"status": 200, "result": null, "error": null}`), &sentence); err != nil {
+		t.Fatalf("unmarshal sentence-query fixture: %v", err)
+	}
+	if sentence.Error != nil {
+		t.Errorf("error = %q, want nil", *sentence.Error)
+	}
+}
 
 // recordedRequest snapshots the headers the upstream actually received.
 type recordedRequest struct {

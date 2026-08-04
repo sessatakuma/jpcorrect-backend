@@ -130,7 +130,7 @@ type UsageQueryIDDetailsRequest struct {
 
 // IdDetails contains detailed word usage information.
 type IdDetails struct {
-	Base              []map[string]any `json:"base" description:"Base form information"`
+	Base              map[string]any   `json:"base" description:"Base form information"`
 	Subcorpus         []map[string]any `json:"subcorpus" description:"Subcorpus distribution"`
 	Shojikei          []map[string]any `json:"shojikei" description:"Shojikei (conjugation types)"`
 	SubcorpusShojikei []map[string]any `json:"subcorpus_shojikei" description:"Shojikei distribution by subcorpus"`
@@ -199,5 +199,5 @@ type SentenceQueryWordResult struct {
 type SentenceQueryResponse struct {
 	Status int                      `json:"status" example:"200" description:"HTTP status code"`
 	Result *SentenceQueryWordResult `json:"result" extensions:"x-nullable=true" description:"Sentence query results for the word; null when status != 200"`
-	Error  string                   `json:"error"`
+	Error  *string                  `json:"error" extensions:"x-nullable=true"`
 }

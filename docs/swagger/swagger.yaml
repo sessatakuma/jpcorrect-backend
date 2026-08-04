@@ -109,10 +109,8 @@ definitions:
   internal_api.IdDetails:
     properties:
       base:
-        items:
-          additionalProperties: {}
-          type: object
-        type: array
+        additionalProperties: {}
+        type: object
       katuyokei:
         items:
           additionalProperties: {}
@@ -214,6 +212,7 @@ definitions:
     properties:
       error:
         type: string
+        x-nullable: "true"
       result:
         allOf:
         - $ref: '#/definitions/internal_api.SentenceQueryWordResult'

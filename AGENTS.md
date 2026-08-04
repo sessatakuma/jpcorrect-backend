@@ -20,13 +20,13 @@ Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 
 ## API-tools compatibility
 
-The 7 proxy handlers in `internal/api/api_tools.go` are aligned to the HTTP surface of api-tools branch **`spike/local-unidic`** (commit `46f6c43` or newer — the local fugashi + UniDic migration that removed `/MarkFurigana/` and added `/MarkAccent/stream/`). When api-tools changes its request/response schema or adds/removes endpoints, update both the backend proxy + this line in the same PR.
+The 7 proxy handlers in `internal/api/api_tools.go` are aligned to the HTTP surface of api-tools branch **`feat/commercializable-openjtalk`** at commit `8bc3781` — the local fugashi + UniDic migration that removed `/MarkFurigana/` and added `/MarkAccent/stream/`. This exact revision forwards the `script` option on both accent endpoints. When api-tools changes its request/response schema or adds/removes endpoints, update both the backend proxy + this line in the same PR.
 
 Compatibility log (update on every contract-affecting change):
 
 | Backend version | Compatible api-tools | Notes |
 | --- | --- | --- |
-| `v0.2.x` (post-#38) | `spike/local-unidic @ 46f6c43+` | local UniDic engine, no `/MarkFurigana`, `/MarkAccent/stream` available |
+| `v0.2.x` (post-#38) | `feat/commercializable-openjtalk @ 8bc3781` | local UniDic engine, no `/MarkFurigana`; both accent endpoints support `script`; verified against the typed proxy models |
 | pre-#38 | `feat/docker-compose @ d8acc55` | Yahoo MA API era, `/MarkFurigana` still present |
 
 ## Build, Run, Test
@@ -146,6 +146,7 @@ Every authenticated handler must carry a `// @Security <Scheme>` line above `// 
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | — | Postgres connection. `127.0.0.1:5432` for local dev, `postgres:5432` for deploy stack |
+| `POSTGRES_PASSWORD` | Deploy: Yes | `jpcorrect_password` in `.env` only | Password used by the Compose Postgres service. Deployments must set a unique value and use it in `DATABASE_URL`. |
 | `JWKS_URL` | Yes | — | App fatals if empty |
 | `PORT` | No | `8080` | |
 | `API_TOOLS_URL` | No | — | URL of the `API-tools` service. `http://127.0.0.1:8000` for local dev, `http://jpcorrect-api-tools:8000` for the deploy stack (via shared bridge). The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |

@@ -3024,11 +3024,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "base": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": {}
-                    }
+                    "type": "object",
+                    "additionalProperties": {}
                 },
                 "katuyokei": {
                     "type": "array",
@@ -3172,7 +3169,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "error": {
-                    "type": "string"
+                    "type": "string",
+                    "x-nullable": "true"
                 },
                 "result": {
                     "allOf": [
