@@ -1,0 +1,25 @@
+# VCS metadata — not needed by the build, keeps it out of the context and cache
+.git
+.gitignore
+
+# Secrets and TLS material — must never enter a build layer
+.env
+.env.*
+certs/
+.cloudflared/
+
+# Local-only tooling, scratch, and editor state
+tmp/
+deploy/
+.omo/
+.agents/
+.opencode/
+.claude/
+.gemini/
+.idea/
+.vscode/
+.zed/
+
+# Docs and CI config are not part of the runtime image
+*.md
+.github/

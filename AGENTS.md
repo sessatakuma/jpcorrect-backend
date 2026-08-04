@@ -2,46 +2,92 @@
 
 Essential information for AI coding agents working in this repository.
 
+> **Note:** `CLAUDE.md` is a symlink to this file. Edit `AGENTS.md` — both stay in sync.
+
 ## Project Overview
 
 Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 
 **Architecture**: Clean architecture
-- `cmd/jpcorrect/`: Entry point
-- `internal/api/`: HTTP handlers (Gin)
+- `cmd/jpcorrect/`: Main API server entry point
+- `cmd/webrtc-demo/`: Standalone WebRTC demo web server (separate binary)
+- `internal/api/`: HTTP handlers (Gin), including `api_tools.go` (proxy to API-tools service) and `webrtc.go`
 - `internal/domain/`: Domain models and repository interfaces
 - `internal/repository/`: GORM implementations
 - `internal/cmd/`: Command execution and server setup
 - `internal/database/`: Database connection and GORM config
+- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). Cloned by devs into `./API-tools/` and run with `uv`; reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
+
+## API-tools compatibility
+
+The 7 proxy handlers in `internal/api/api_tools.go` are aligned to the HTTP surface of api-tools branch **`feat/commercializable-openjtalk`** at commit `8bc3781` — the local fugashi + UniDic migration that removed `/MarkFurigana/` and added `/MarkAccent/stream/`. This exact revision forwards the `script` option on both accent endpoints. When api-tools changes its request/response schema or adds/removes endpoints, update both the backend proxy + this line in the same PR.
+
+Compatibility log (update on every contract-affecting change):
+
+| Backend version | Compatible api-tools | Notes |
+| --- | --- | --- |
+| `v0.2.x` (post-#38) | `feat/commercializable-openjtalk @ 8bc3781` | local UniDic engine, no `/MarkFurigana`; both accent endpoints support `script`; verified against the typed proxy models |
+| pre-#38 | `feat/docker-compose @ d8acc55` | Yahoo MA API era, `/MarkFurigana` still present |
 
 ## Build, Run, Test
 
-### Development
+### One-time setup
+The backend and `api-tools` live in separate repos and are cloned as siblings:
+
 ```bash
-make air                              # Live reload (uses go tool air)
-make swag                             # Regenerate Swagger docs
-go run cmd/jpcorrect/main.go          # Run directly
+git clone git@github.com:sessatakuma/jpcorrect-backend.git
+git clone git@github.com:sessatakuma/API-tools.git   # sibling, NOT a submodule
+cd jpcorrect-backend
 ```
 
-### Docker
+### Local development (preferred)
+Local development runs backend and `api-tools` directly on the host; only Postgres runs in Docker.
+
 ```bash
-docker compose up --build             # Build and start (must --build for code changes)
-docker compose up -d                  # Start detached
-docker compose down                   # Stop all services
+cp .env.example .env                  # one-time setup — then fill in JWKS_URL
+
+make db-up                            # start Postgres in Docker (bound to 127.0.0.1:5432)
+make db-logs                          # tail Postgres logs
+make db-down                          # stop Postgres
+
+make api-tools                        # run Python API-tools on 127.0.0.1:8000 via uv
+make air                              # run backend with live reload (go tool air)
+make swag                             # regenerate Swagger docs
+
+go run cmd/jpcorrect/main.go          # run backend directly (no live reload)
 ```
 
-Docker Compose reads `.env` via `env_file`. `DATABASE_URL` must use Docker hostname `postgres` (not `localhost`) in `.env`.
+In this mode, `.env` has `DATABASE_URL=...@127.0.0.1:5432/...` and `API_TOOLS_URL=http://127.0.0.1:8000`.
+
+**Verified smoke-test endpoints** (all three services up):
+- `curl http://127.0.0.1:8080/healthz` → `ok`
+- `curl http://127.0.0.1:8080/swagger/index.html` → 200 (debug only)
+- `curl http://127.0.0.1:8000/docs` → 200 (api-tools FastAPI)
+
+### Deployment stack
+For CD / production-style deploys, use `compose.deploy.yml` with a separate `.env.deploy`:
+
+```bash
+docker network create jpcorrect-shared     # one-time, shared bridge between this stack and API-tools
+cp .env.deploy.example .env.deploy
+make deploy-up                             # docker compose -f compose.deploy.yml up -d
+make deploy-down
+```
+
+The `jpcorrect-shared` external network lets the `backend` container reach the sibling `api-tools` container by name (`API_TOOLS_URL=http://jpcorrect-api-tools:8000`) instead of going through the host. `postgres` stays on the project default network and is not exposed to api-tools. The API-tools repo's `docker-compose.yml` also joins this network — bring it up first (`docker compose -f ../API-tools/docker-compose.yml up -d`) so its container exists for DNS resolution.
+
+In this mode, `.env.deploy` has `DATABASE_URL=...@postgres:5432/...` (Docker hostname) and `API_TOOLS_URL=http://jpcorrect-api-tools:8000` (api-tools container name on the shared bridge). The stack includes `backend` (pulled from `BACKEND_IMAGE`), `postgres`, and `cloudflared` (file-based credentials mounted from `./.cloudflared/`, forwarding to `http://backend:8080`). See `../talkuma-outline/README.md` for the one-time `tunnel login` / `tunnel create` / `tunnel route dns` setup pattern this repo follows.
 
 ### Database
-GORM `AutoMigrate` in `internal/cmd/api.go`. Modify domain models in `internal/domain/` and add them to the AutoMigrate call.
+GORM `AutoMigrate` in `internal/cmd/api.go` is the primary schema tool. When adding a new domain model, add it to the `AutoMigrate(...)` call.
 
 Models: `User`, `Guild`, `GuildAttendee`, `Event`, `EventAttendee`, `Transcript`, `Mistake`.
 
 ### Testing
 ```bash
 go test ./...                                                      # All tests
-go test ./internal/repository/...                                   # Specific package
-go test -v ./internal/repository -run TestUserCreate                # Single test
+go test ./internal/repository/...                                  # Specific package
+go test -v ./internal/repository -run TestUserCreate               # Single test
 go test -coverprofile=coverage.out ./...; go tool cover -html=coverage.out  # Coverage
 ```
 
@@ -79,32 +125,56 @@ Implemented in `gorm_guild.go`, not a separate file.
 
 After adding or modifying API handlers with `@Summary`, `@Router`, etc. annotations:
 ```bash
-make swag   # runs: swag init -g cmd/jpcorrect/main.go -o docs/swagger --parseDependency --parseInternal
+make swag   # runs: go tool swag init -g cmd/jpcorrect/main.go -o docs/swagger --parseDependency --parseInternal
 ```
 
 The `_ "jpcorrect-backend/docs/swagger"` import in `api.go` registers generated specs. CI runs `yamllint` on all YAML — `docs/swagger/` is excluded via `.yamllint`.
 
+### Security schemes
+Two `@securityDefinitions.apikey` schemes are declared at the top of `cmd/jpcorrect/main.go`:
+
+- `BearerAuth` — header `Authorization`. Used by every JWT-protected handler under `v1.Use(AuthMiddleware())`. The parser tolerates a bare `<jwt>` as well as `Bearer <jwt>` (case-insensitive), so users can paste the raw token into Swagger UI's Authorize dialog.
+- `ApiKeyAuth` — header `X-API-Key`. Used by the 7 api-tools proxy handlers under `apiTools.Use(APIKeyMiddleware())`. JWT is **not** accepted on these routes.
+
+Every authenticated handler must carry a `// @Security <Scheme>` line above `// @Router`, otherwise Swagger UI won't show a lock icon and "Try it out" won't attach the header. Pattern: `BearerAuth` for `/v1/{users,guilds,...}`, `ApiKeyAuth` for `/v1/{mark-accent,dict-query,...}`.
+
 ## Project Conventions
 
 ### Environment Variables
-`.env` is auto-loaded by `github.com/joho/godotenv/autoload` (blank import in main.go).
+`.env` is auto-loaded by `github.com/joho/godotenv/autoload` (blank import in `main.go`).
 
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | Yes | — | Postgres connection string. Use `@postgres:5432` in Docker |
+| `DATABASE_URL` | Yes | — | Postgres connection. `127.0.0.1:5432` for local dev, `postgres:5432` for deploy stack |
+| `POSTGRES_PASSWORD` | Deploy: Yes | `jpcorrect_password` in `.env` only | Password used by the Compose Postgres service. Deployments must set a unique value and use it in `DATABASE_URL`. |
 | `JWKS_URL` | Yes | — | App fatals if empty |
 | `PORT` | No | `8080` | |
-| `API_TOOLS_URL` | No | — | External API tools service |
-| `ALLOWED_ORIGINS` | No | — | Comma-separated. Empty = reject all in release, allow all in debug |
+| `API_TOOLS_URL` | No | — | URL of the `API-tools` service. `http://127.0.0.1:8000` for local dev, `http://jpcorrect-api-tools:8000` for the deploy stack (via shared bridge). The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |
+| `CLIENT_API_KEY` | No | — | Inbound `X-API-Key` for the 7 api-tools endpoints (JWT not accepted). Empty value locks those routes (always 401) |
+| `ALLOWED_ORIGINS` | No | — | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `GIN_MODE` | No | — | `debug` or `release` |
 | `API_CERT_PATH` | No | `./certs/cert.pem` | Enables HTTPS if both cert and key exist |
 | `API_KEY_PATH` | No | `./certs/key.pem` | |
+| `WEBRTC_CONN_SEC` / `WEBRTC_CONN_MAX` | No | `10` / `15` | WebRTC rate limit window (seconds) and max connections |
+| `WEBRTC_DEMO_PORT` | No | `3000` | Port for the `cmd/webrtc-demo` server |
+| `WEBRTC_DEMO_BASE_DIR` / `WEBRTC_DEMO_CERT_PATH` / `WEBRTC_DEMO_KEY_PATH` | No | — | Paths for the WebRTC demo static server |
+
+Deploy-stack only (read by `compose.deploy.yml`, not the Go process):
+
+| Variable | Notes |
+| --- | --- |
+| `BACKEND_IMAGE` | Backend image to pull (default `ghcr.io/sessatakuma/jpcorrect-backend:latest`) |
+| `BACKEND_ENV_FILE` | Env file passed into the backend container (default `.env`; the `deploy-up` target sets `.env.deploy`) |
+| `POSTGRES_PORT` | Host-side bind port for Postgres (default `5432`) |
+| `CLOUDFLARE_TUNNEL_NAME` | Tunnel name passed to `cloudflared tunnel run` (default `jb`) |
+
+The `api-tools` service needs no env vars: accent/furigana come from a bundled local UniDic dict (the old `YAHOO_API_KEY` requirement is gone post local-unidic).
 
 ### TLS
 Server checks if both `API_CERT_PATH` and `API_KEY_PATH` files exist. If yes → HTTPS; if no → HTTP with warning log.
 
 ### Rate Limiter
-`NewRateLimiter(10*time.Second, 15)` — 10-second window, max 15 connections.
+`NewRateLimiter(10*time.Second, 15)` in `internal/api/api.go:56` — 10-second window, max 15 connections.
 
 ## CI
 
@@ -120,83 +190,23 @@ PR checks (`sessatakuma/org-workflows`):
 ## Git
 
 ### Commits
-Use Conventional Commits template:
+Use Conventional Commits (https://www.conventionalcommits.org/en/v1.0.0/):
+
 ```
-# ----------------------------------------------------------------------
-# Conventional Commit Message Template
-# Based on https://www.conventionalcommits.org/en/v1.0.0/
-# ----------------------------------------------------------------------
-
-# HEADER (required)
-# Format:
-#   <type>(<scope>): <short summary>
-# or (with breaking change):
-#   <type>(<scope>)!: <short summary>
-#
-# <type> must be one of:
-#   feat     - A new feature
-#   fix      - A bug fix
-#   docs     - Documentation only changes
-#   style    - Code style changes (formatting, semicolons, etc.)
-#   refactor - Code change that neither fixes a bug nor adds a feature
-#   perf     - Improves performance
-#   test     - Adds or corrects tests
-#   build    - Build system or dependencies
-#   ci       - CI configuration/scripts
-#   chore    - Routine maintenance
-#   revert   - Reverts a previous commit
-#   hotfix   - Quick fix on bugs
-#
-# <scope> is optional (e.g., ui, api, core, auth, deps).
-# <short summary> ≤ 72 chars (dont longer than the dash line, imperative
-# (e.g., "add", "fix", "update") in lowercase.
-#
-# Examples:
-#   feat(api): add JWT authentication middleware
-#   fix(ui)!: remove deprecated button variants
-#
-# ----------------------------------------------------------------------
-
 <type>(<scope>): <short summary>
-
-# If this commit includes a BREAKING CHANGE, add "!" after <scope>) in  
-# the header
-# AND include a BREAKING CHANGE block in the footer below.
-
-# ----------------------------------------------------------------------
-# BODY (optional)
-# Describe WHAT and WHY (not how). Include context, trade-offs, and 
-# alternatives.
-# Wrap lines at ~72 chars.
-#
-# Example:
-#   Introduce a shared middleware for JWT verification across protected
-#   routes.
-#   Reduces duplicated logic and standardizes error responses.
-# ----------------------------------------------------------------------
-
-<body>
-
-# ----------------------------------------------------------------------
-# FOOTER (optional)
-# Use for metadata:
-# - BREAKING CHANGES: Start a block with "BREAKING CHANGE:" and explain 
-#   impact. Include migration steps and rationale.
-# - Issue refs: Closes #123, Fixes #456, Refs #789
-#
-# Examples:
-#   BREAKING CHANGE: remove deprecated /v1 endpoints in favor of /v2.
-#   Migration: update client base URL to /v2 and switch to OAuth2
-#   tokens.
-#   Closes #351, #422
-# ----------------------------------------------------------------------
-
-<footer>
-
 ```
+
+- `<type>` ∈ `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`, `hotfix`
+- `<scope>` optional (e.g., `api`, `auth`, `deps`)
+- Header ≤ 72 chars, lowercase imperative ("add", "fix", "update")
+- Append `!` after `<scope>` and add a `BREAKING CHANGE:` footer for breaking changes
+- Optional body wrapped at ~72 chars describing the *what* and *why*
+- Footer takes issue refs (`Closes #123`, `Refs #456`) and breaking-change notes
+
+Examples: `feat(api): add JWT authentication middleware`, `fix(ui)!: remove deprecated button variants`.
 
 ### Pull Requests
-- **Title**: Follow Conventional Commits template from the previous section, ≤ 75 characters.
+- **Title**: Conventional Commits format, ≤ 75 characters.
 - **Body**: Use the template in `.github/PULL_REQUEST_TEMPLATE.md`
 
 ## Common Gotchas
@@ -208,6 +218,9 @@ Use Conventional Commits template:
 5. **Context**: Pass down everywhere, `.WithContext(ctx)` on all GORM calls
 6. **GORM Errors**: Always map via `MapGormError()`, never return raw GORM errors from repository
 7. **Soft Delete**: Only User/Guild/Event. Use `Unscoped()` for hard delete on those
-8. **Docker rebuild**: Must `docker compose up --build` for code changes — no volume mount for hot reload
-9. **Docker DATABASE_URL**: Use hostname `postgres`, not `localhost`
+8. **`DATABASE_URL` hostname**: `127.0.0.1` for local dev (`make air`), `postgres` only inside the deploy compose stack
+9. **`API_TOOLS_URL` from containers**: `http://jpcorrect-api-tools:8000` in the deploy stack — the `backend` container reaches the sibling `api-tools` container by name over the external `jpcorrect-shared` bridge (not `host.docker.internal`). Bring up the API-tools repo's compose on that network first so DNS resolves.
 10. **`make swag` flags**: Must include `--parseDependency --parseInternal` or handler annotations won't be found
+11. **`CLIENT_API_KEY` is inbound only**: It guards the 7 api-tools proxy routes (X-API-Key only — JWT is rejected there; empty value returns 401). The internal jp backend → API-tools call is now keyless (local server-to-server, no auth required), so there is no second key to configure.
+12. **`make air` needs `go` on `/bin/sh` PATH**: The Makefile invokes `go tool air` via the default shell, which does not source your zshrc. If `which go` works in your terminal but `make air` reports `go: not found`, prepend the path explicitly: `PATH="/usr/local/go/bin:$PATH" make air` (or export `PATH` in `~/.profile`).
+13. **api-tools needs no env vars** (post local-unidic): accent/furigana come from a bundled local UniDic dict, so the old `YAHOO_API_KEY` requirement is gone. `make api-tools` runs `uv run uvicorn ...` with no env. (Older Yahoo-MA-era images still assert on `YAHOO_API_KEY` at import — pin a local-unidic image to avoid that.)
