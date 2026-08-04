@@ -32,4 +32,5 @@ var (
 	ErrNotFound          = errors.New("record not found")
 	ErrDuplicateEntry    = errors.New("duplicate entry")
 	ErrHasRelatedRecords = errors.New("record has related records")
+	ErrNotGuildMember    = errors.New("user is not a member of this guild")
 )

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,19 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 		return nil, MapGormError(err)
 	}
 	return &guild, nil
+}
+
+func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.GuildAttendee{}).
+		Where("user_id = ? AND role = ? AND left_at IS NULL", userID, domain.GuildAttendeeRoleMaster).
+		Count(&count).Error
+
+	if err != nil {
+		return 0, MapGormError(err)
+	}
+	return count, nil
 }
 
 func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
@@ -51,17 +65,45 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 	}))
 }
 
-func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&domain.GuildAttendee{}).
-		Where("user_id = ? AND role = ? AND left_at IS NULL", userID, domain.GuildAttendeeRoleMaster).
-		Count(&count).Error
+func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.UUID, newLeaderUserID uuid.UUID) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Check whether the new master is the guild,s member
+		var newMaster domain.GuildAttendee
+		err := tx.Where("guild_id = ? AND user_id = ?", guildID, newLeaderUserID).
+			First(&newMaster).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return domain.ErrNotGuildMember
+			}
+			return err
+		}
 
-	if err != nil {
-		return 0, MapGormError(err)
-	}
-	return count, nil
+		// Downgrade the original master to member.
+		err = tx.Model(&domain.GuildAttendee{}).
+			Where("guild_id = ? AND role = ?", guildID, domain.GuildAttendeeRoleMaster).
+			Update("role", domain.GuildAttendeeRoleMember).Error
+		if err != nil {
+			return err
+		}
+
+		// Promote the new leader to master.
+		err = tx.Model(&domain.GuildAttendee{}).
+			Where("guild_id = ? AND user_id = ?", guildID, newLeaderUserID).
+			Update("role", domain.GuildAttendeeRoleMaster).Error
+		if err != nil {
+			return err
+		}
+
+		// Update the updated_at timestamp
+		err = tx.Model(&domain.Guild{}).
+			Where("id = ?", guildID).
+			Update("updated_at", time.Now()).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func (r *gormGuildRepository) Create(ctx context.Context, guild *domain.Guild) error {
@@ -87,6 +129,25 @@ func (r *gormGuildRepository) Delete(ctx context.Context, guildID uuid.UUID) err
 		}
 		return MapGormError(tx.Delete(&domain.Guild{}, "id = ?", guildID).Error)
 	})
+}
+
+func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*domain.GuildInvite, error) {
+	var invite domain.GuildInvite
+
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ?", guildID).
+		Where("expires_at IS NULL OR expires_at > ?", now).
+		Order("created_at DESC").
+		First(&invite).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &invite, nil
 }
 
 type gormGuildAttendeeRepository struct {

@@ -150,6 +150,8 @@ func Register(r *gin.Engine, api *API) {
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
 			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
+			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
 		}
 
 		// Guild Attendees

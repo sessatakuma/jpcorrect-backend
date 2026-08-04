@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"jpcorrect-backend/internal/domain"
 
@@ -69,7 +70,7 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		return
 	}
 
-	// 檢查 Caller 已建立公會數
+	// Check the number of guilds established by the caller.
 	count, err := a.guildRepo.CountMasterGuildsByUserID(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -86,12 +87,12 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		return
 	}
 
-	// 建立 Attendee 實體
 	attendee := domain.GuildAttendee{
 		UserID: userID,
 		Role:   domain.GuildAttendeeRoleMaster,
 	}
 
+	// Write Guild and GuildAttendee within the same transaction.
 	if err := a.guildRepo.CreateWithMaster(c.Request.Context(), &guild, &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
@@ -116,7 +117,6 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/guilds/{id} [put]
-
 type UpdateGuildRequest struct {
 	Name        *string `json:"name" binding:"omitempty,max=100"`
 	Description *string `json:"description" binding:"omitempty,max=500"`
@@ -212,6 +212,54 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// @Summary Transfer guild leadership
+// @Description Transfer the master/leader role of a guild to another member
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID"
+// @Param request body TransferLeaderRequest true "New leader user ID"
+// @Success 200 {object} map[string]string "leader transferred successfully"
+// @Failure 400 {object} map[string]string "Invalid UUID format or user is not a member"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/transfer-leader [post]
+type TransferLeaderRequest struct {
+	NewLeaderUserID uuid.UUID `json:"new_leader_user_id" binding:"required"`
+}
+
+func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	guildID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+		return
+	}
+
+	var req TransferLeaderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 呼叫 Repo 執行 Transaction 更新
+	err = a.guildRepo.TransferLeader(c.Request.Context(), guildID, req.NewLeaderUserID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Guild not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrNotGuildMember) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "New leader must be a member of the guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
+}
+
 // @Summary Get a guild attendee by ID
 // @Tags guild-attendees
 // @Accept json
@@ -241,6 +289,42 @@ func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, attendee)
+}
+
+type GuildInviteResponse struct {
+	Code      string     `json:"code"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	invite, err := a.guildRepo.GetActiveInviteByGuildID(c.Request.Context(), guildID, time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invite link"})
+		return
+	}
+
+	// 若已過期或無 row，invite 為 nil，Go 的 JSON 序列化會自動輸出 200 + null
+	if invite == nil {
+		c.JSON(http.StatusOK, nil)
+		return
+	}
+
+	// 轉成 Response 格式或直接回傳 invite
+	resp := GuildInviteResponse{
+		Code:      invite.Code,
+		ExpiresAt: invite.ExpiresAt,
+		CreatedAt: invite.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // @Summary Create a guild attendee

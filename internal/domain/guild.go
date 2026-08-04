@@ -30,14 +30,25 @@ type Guild struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 }
 
+type GuildInvite struct {
+	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"guild_id"`
+	Code      string     `gorm:"type:varchar(32);uniqueIndex;not null" json:"code"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
 type GuildRepository interface {
 	GetByID(ctx context.Context, guildID uuid.UUID) (*Guild, error)
-	CreateWithMaster(ctx context.Context, guild *Guild, attendee *GuildAttendee) error
 	CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
+	CreateWithMaster(ctx context.Context, guild *Guild, attendee *GuildAttendee) error
+	TransferLeader(ctx context.Context, guildID uuid.UUID, newLeaderID uuid.UUID) error
 
 	Create(ctx context.Context, guild *Guild) error
 	Update(ctx context.Context, guild *Guild) error
 	Delete(ctx context.Context, guildID uuid.UUID) error
+
+	GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*GuildInvite, error)
 }
 
 // GuildAttendee represents a member of a guild.
