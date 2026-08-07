@@ -260,6 +260,101 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
 }
 
+// @Summary Get active guild invite link
+// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 200 {object} domain.GuildInvite "Returns GuildInvite object, or null if no active link exists"
+// @Failure 400 {object} map[string]string "Invalid Guild ID format"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/invite-link [get]
+type GuildInviteResponse struct {
+	Code      string     `json:"code"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	invite, err := a.guildRepo.GetActiveInviteByGuildID(c.Request.Context(), guildID, time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invite link"})
+		return
+	}
+
+	if invite == nil {
+		c.JSON(http.StatusOK, nil)
+		return
+	}
+
+	// Convert to Response format or return the invite directly.
+	resp := GuildInviteResponse{
+		Code:      invite.Code,
+		ExpiresAt: invite.ExpiresAt,
+		CreatedAt: invite.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// @Summary Create a new guild invite link
+// @Description Creates a new active invite link for a guild and expires any existing active links within a single transaction.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Param request body domain.GuildInvite false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
+// @Success 200 {object} domain.GuildInvite
+// @Failure 400 {object} map[string]string "Invalid Guild ID or Request Body"
+// @Failure 500 {object} map[string]string "Internal Server Error"
+// @Router /v1/guilds/{id}/invite-link [post]
+func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	var input domain.GuildInvite
+	if err := c.ShouldBindJSON(&input); err != nil && c.Request.ContentLength > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	now := time.Now()
+	var expiresAt *time.Time
+	if input.TTLSeconds != nil && *input.TTLSeconds > 0 {
+		t := now.Add(time.Duration(*input.TTLSeconds) * time.Second)
+		expiresAt = &t
+	}
+
+	// Generate a new invitation link
+	newInvite := &domain.GuildInvite{
+		ID:        uuid.New(),
+		GuildID:   guildID,
+		Code:      uuid.New().String()[:8], // Example: take the first 8 characters of the UUID as a simple invite code
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}
+
+	// In the Transaction: expire old links + create new link
+	if err := a.guildRepo.CreateInviteLinkWithTx(c.Request.Context(), guildID, newInvite, now); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite link"})
+		return
+	}
+
+	c.JSON(http.StatusOK, newInvite)
+}
+
 // @Summary Get a guild attendee by ID
 // @Tags guild-attendees
 // @Accept json
@@ -289,42 +384,6 @@ func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, attendee)
-}
-
-type GuildInviteResponse struct {
-	Code      string     `json:"code"`
-	ExpiresAt *time.Time `json:"expires_at"`
-	CreatedAt time.Time  `json:"created_at"`
-}
-
-func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
-	guildIDParam := c.Param("id")
-	guildID, err := uuid.Parse(guildIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
-		return
-	}
-
-	invite, err := a.guildRepo.GetActiveInviteByGuildID(c.Request.Context(), guildID, time.Now())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invite link"})
-		return
-	}
-
-	// 若已過期或無 row，invite 為 nil，Go 的 JSON 序列化會自動輸出 200 + null
-	if invite == nil {
-		c.JSON(http.StatusOK, nil)
-		return
-	}
-
-	// 轉成 Response 格式或直接回傳 invite
-	resp := GuildInviteResponse{
-		Code:      invite.Code,
-		ExpiresAt: invite.ExpiresAt,
-		CreatedAt: invite.CreatedAt,
-	}
-
-	c.JSON(http.StatusOK, resp)
 }
 
 // @Summary Create a guild attendee

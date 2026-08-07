@@ -31,11 +31,12 @@ type Guild struct {
 }
 
 type GuildInvite struct {
-	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	GuildID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"guild_id"`
-	Code      string     `gorm:"type:varchar(32);uniqueIndex;not null" json:"code"`
-	ExpiresAt *time.Time `json:"expires_at"`
-	CreatedAt time.Time  `json:"created_at"`
+	ID         uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID    uuid.UUID  `gorm:"type:uuid;not null;index" json:"guild_id"`
+	Code       string     `gorm:"type:varchar(32);uniqueIndex;not null" json:"code"`
+	ExpiresAt  *time.Time `json:"expires_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	TTLSeconds *int64     `gorm:"-" json:"ttl_seconds,omitempty"`
 }
 
 type GuildRepository interface {
@@ -49,6 +50,7 @@ type GuildRepository interface {
 	Delete(ctx context.Context, guildID uuid.UUID) error
 
 	GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*GuildInvite, error)
+	CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *GuildInvite, now time.Time) error
 }
 
 // GuildAttendee represents a member of a guild.

@@ -67,7 +67,7 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 
 func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.UUID, newLeaderUserID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Check whether the new master is the guild,s member
+		// Check whether the new master is the guild's member
 		var newMaster domain.GuildAttendee
 		err := tx.Where("guild_id = ? AND user_id = ?", guildID, newLeaderUserID).
 			First(&newMaster).Error
@@ -148,6 +148,25 @@ func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guil
 	}
 
 	return &invite, nil
+}
+
+func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, now time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Update the `expires_at` timestamp for all of the guild's currently valid (unexpired) old links to `now`.
+		err := tx.Model(&domain.GuildInvite{}).
+			Where("guild_id = ?", guildID).
+			Where("expires_at IS NULL OR expires_at > ?", now).
+			Update("expires_at", now).Error
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Create(newInvite).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 type gormGuildAttendeeRepository struct {
