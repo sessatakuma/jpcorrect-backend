@@ -8,6 +8,16 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_api.UpdateMeRequest:
+    properties:
+      avatar_url:
+        type: string
+      nickname:
+        maxLength: 50
+        type: string
+    required:
+    - nickname
+    type: object
   jpcorrect-backend_internal_domain.Event:
     properties:
       actual_duration:
@@ -200,6 +210,8 @@ definitions:
         $ref: '#/definitions/jpcorrect-backend_internal_domain.UserRole'
       status:
         $ref: '#/definitions/jpcorrect-backend_internal_domain.UserStatus'
+      supabase_id:
+        type: string
       timezone:
         type: string
       updated_at:
@@ -1738,45 +1750,6 @@ paths:
       summary: Query usage by URL
       tags:
       - api-tools
-  /v1/users:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: User data
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Conflict
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal Server Error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Create a user
-      tags:
-      - users
   /v1/users/{id}:
     delete:
       consumes:
@@ -1935,6 +1908,114 @@ paths:
               type: string
             type: object
       summary: Get a user by email
+      tags:
+      - users
+  /v1/users/init:
+    post:
+      description: Finds or creates the local user record keyed by the Supabase identity
+        from the JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Initialize the authenticated user's account
+      tags:
+      - users
+  /v1/users/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get the current user's profile
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.UpdateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update the current user's profile
       tags:
       - users
   /v1/users/name/{name}:
