@@ -33,4 +33,6 @@ var (
 	ErrDuplicateEntry    = errors.New("duplicate entry")
 	ErrHasRelatedRecords = errors.New("record has related records")
 	ErrNotGuildMember    = errors.New("user is not a member of this guild")
+	ErrNotGuildMaster    = errors.New("user is not the master of this guild")
+	ErrGuildLimitReached = errors.New("user has already created a guild")
 )

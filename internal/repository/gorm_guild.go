@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -46,6 +47,23 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 		if guild.ID == uuid.Nil {
 			guild.ID = uuid.New()
 		}
+		if attendee.ID == uuid.Nil {
+			attendee.ID = uuid.New()
+		}
+
+		// Enforce the one-master-per-user limit atomically within this
+		// transaction to close the check-then-act race.
+		var masterCount int64
+		err := tx.Model(&domain.GuildAttendee{}).
+			Where("user_id = ? AND role = ? AND left_at IS NULL", attendee.UserID, domain.GuildAttendeeRoleMaster).
+			Count(&masterCount).Error
+		if err != nil {
+			return err
+		}
+		if masterCount >= 1 {
+			return domain.ErrGuildLimitReached
+		}
+
 		if err := tx.Create(guild).Error; err != nil {
 			return err
 		}
@@ -65,16 +83,39 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 	}))
 }
 
-func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.UUID, newLeaderUserID uuid.UUID) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Check whether the new master is the guild's member
-		var newMaster domain.GuildAttendee
-		err := tx.Where("guild_id = ? AND user_id = ?", guildID, newLeaderUserID).
-			First(&newMaster).Error
-		if err != nil {
+func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.UUID, callerID uuid.UUID, newLeaderUserID uuid.UUID) error {
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the guild row and verify it exists.
+		var guild domain.Guild
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", guildID).First(&guild).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return domain.ErrNotGuildMember
+				return domain.ErrNotFound
 			}
+			return err
+		}
+
+		// Lock the caller's membership row and verify they are the current master.
+		var caller domain.GuildAttendee
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("guild_id = ? AND user_id = ? AND left_at IS NULL", guildID, callerID).
+			First(&caller).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrNotGuildMaster
+		}
+		if err != nil {
+			return err
+		}
+		if caller.Role != domain.GuildAttendeeRoleMaster {
+			return domain.ErrNotGuildMaster
+		}
+
+		// Verify the new leader is a current member.
+		var newMaster domain.GuildAttendee
+		if err := tx.Where("guild_id = ? AND user_id = ? AND left_at IS NULL", guildID, newLeaderUserID).
+			First(&newMaster).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.ErrNotGuildMember
+		} else if err != nil {
 			return err
 		}
 
@@ -103,7 +144,7 @@ func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.U
 		}
 
 		return nil
-	})
+	}))
 }
 
 func (r *gormGuildRepository) Create(ctx context.Context, guild *domain.Guild) error {
@@ -202,6 +243,17 @@ func (r *gormGuildAttendeeRepository) GetByUserID(ctx context.Context, userID uu
 		return nil, MapGormError(err)
 	}
 	return attendees, nil
+}
+
+func (r *gormGuildAttendeeRepository) GetByGuildAndUser(ctx context.Context, guildID uuid.UUID, userID uuid.UUID) (*domain.GuildAttendee, error) {
+	var attendee domain.GuildAttendee
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ? AND user_id = ?", guildID, userID).
+		First(&attendee).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &attendee, nil
 }
 
 func (r *gormGuildAttendeeRepository) Create(ctx context.Context, attendee *domain.GuildAttendee) error {

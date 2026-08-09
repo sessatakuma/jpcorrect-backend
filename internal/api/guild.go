@@ -2,7 +2,9 @@ package api
 
 import (
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"jpcorrect-backend/internal/domain"
@@ -77,7 +79,7 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		return
 	}
 	if count >= 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user has already created a guild"})
+		c.JSON(http.StatusConflict, gin.H{"error": "user has already created a guild"})
 		return
 	}
 
@@ -96,6 +98,10 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 	if err := a.guildRepo.CreateWithMaster(c.Request.Context(), &guild, &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
+			return
+		}
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user has already created a guild"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -242,11 +248,31 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		return
 	}
 
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerIDStr, ok := callerIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
+		return
+	}
+	callerID, err := uuid.Parse(callerIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
 	// 呼叫 Repo 執行 Transaction 更新
-	err = a.guildRepo.TransferLeader(c.Request.Context(), guildID, req.NewLeaderUserID)
+	err = a.guildRepo.TransferLeader(c.Request.Context(), guildID, callerID, req.NewLeaderUserID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Guild not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrNotGuildMaster) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can transfer leadership"})
 			return
 		}
 		if errors.Is(err, domain.ErrNotGuildMember) {
@@ -260,27 +286,57 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
 }
 
-// @Summary Get active guild invite link
-// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
-// @Tags guilds
-// @Accept json
-// @Produce json
-// @Param id path string true "Guild ID" format(uuid)
-// @Success 200 {object} domain.GuildInvite "Returns GuildInvite object, or null if no active link exists"
-// @Failure 400 {object} map[string]string "Invalid Guild ID format"
-// @Failure 500 {object} map[string]string "Internal server error"
-// @Router /v1/guilds/{id}/invite-link [get]
 type GuildInviteResponse struct {
 	Code      string     `json:"code"`
 	ExpiresAt *time.Time `json:"expires_at"`
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// @Summary Get active guild invite link
+// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
+// @Failure 400 {object} map[string]string "Invalid Guild ID format"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/invite-link [get]
 func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 	guildIDParam := c.Param("id")
 	guildID, err := uuid.Parse(guildIDParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerIDStr, ok := callerIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
+		return
+	}
+	callerID, err := uuid.Parse(callerIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
+		return
+	}
+	if attendee == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
 		return
 	}
 
@@ -324,16 +380,52 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		return
 	}
 
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerIDStr, ok := callerIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
+		return
+	}
+	callerID, err := uuid.Parse(callerIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
+		return
+	}
+	if attendee == nil || attendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can manage invite links"})
+		return
+	}
+
 	var input domain.GuildInvite
-	if err := c.ShouldBindJSON(&input); err != nil && c.Request.ContentLength > 0 {
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	now := time.Now()
+	const maxTTLSeconds int64 = 31536000 // 1 year
 	var expiresAt *time.Time
-	if input.TTLSeconds != nil && *input.TTLSeconds > 0 {
-		t := now.Add(time.Duration(*input.TTLSeconds) * time.Second)
+	if input.TTLSeconds != nil {
+		ttl := *input.TTLSeconds
+		if ttl <= 0 || ttl > maxTTLSeconds {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ttl_seconds must be between 1 and 31536000"})
+			return
+		}
+		t := now.Add(time.Duration(ttl) * time.Second)
 		expiresAt = &t
 	}
 
@@ -341,7 +433,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 	newInvite := &domain.GuildInvite{
 		ID:        uuid.New(),
 		GuildID:   guildID,
-		Code:      uuid.New().String()[:8], // Example: take the first 8 characters of the UUID as a simple invite code
+		Code:      strings.ReplaceAll(uuid.New().String(), "-", ""),
 		ExpiresAt: expiresAt,
 		CreatedAt: now,
 	}

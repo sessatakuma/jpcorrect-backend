@@ -43,7 +43,7 @@ type GuildRepository interface {
 	GetByID(ctx context.Context, guildID uuid.UUID) (*Guild, error)
 	CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateWithMaster(ctx context.Context, guild *Guild, attendee *GuildAttendee) error
-	TransferLeader(ctx context.Context, guildID uuid.UUID, newLeaderID uuid.UUID) error
+	TransferLeader(ctx context.Context, guildID uuid.UUID, callerID uuid.UUID, newLeaderID uuid.UUID) error
 
 	Create(ctx context.Context, guild *Guild) error
 	Update(ctx context.Context, guild *Guild) error
@@ -68,6 +68,7 @@ type GuildAttendeeRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*GuildAttendee, error)
 	GetByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildAttendee, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*GuildAttendee, error)
+	GetByGuildAndUser(ctx context.Context, guildID uuid.UUID, userID uuid.UUID) (*GuildAttendee, error)
 
 	Create(ctx context.Context, attendee *GuildAttendee) error
 	Update(ctx context.Context, attendee *GuildAttendee) error
