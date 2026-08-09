@@ -15,6 +15,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// Context keys for values stored in the gin context by the auth middleware.
+const (
+	ContextKeySupabaseID = "supabaseID"
+	ContextKeyEmail      = "email"
+)
+
 // SupabaseClaims extends standard JWT registered claims with Supabase-specific
 // fields (such as the user's email) that are needed by downstream handlers.
 type SupabaseClaims struct {
@@ -184,8 +190,8 @@ func (a *API) validateToken(c *gin.Context) error {
 	}
 
 	// Expose the Supabase ID and email to downstream handlers.
-	c.Set("supabaseID", supabaseID)
-	c.Set("email", claims.Email)
+	c.Set(ContextKeySupabaseID, supabaseID)
+	c.Set(ContextKeyEmail, claims.Email)
 
 	return nil
 }

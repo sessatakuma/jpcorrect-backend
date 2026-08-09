@@ -56,7 +56,7 @@ func (a *API) UserGetHandler(c *gin.Context) {
 // @Security BearerAuth
 // @Router /v1/users/me [get]
 func (a *API) UserMeHandler(c *gin.Context) {
-	val, exists := c.Get("supabaseID")
+	val, exists := c.Get(ContextKeySupabaseID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
@@ -90,7 +90,7 @@ func (a *API) UserMeHandler(c *gin.Context) {
 // @Security BearerAuth
 // @Router /v1/users/init [post]
 func (a *API) UserInitHandler(c *gin.Context) {
-	val, exists := c.Get("supabaseID")
+	val, exists := c.Get(ContextKeySupabaseID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
 		return
@@ -101,7 +101,7 @@ func (a *API) UserInitHandler(c *gin.Context) {
 		return
 	}
 
-	email, _ := c.Get("email")
+	email, _ := c.Get(ContextKeyEmail)
 	emailStr, _ := email.(string)
 
 	user, err := a.userRepo.InitUser(c.Request.Context(), supabaseID, emailStr)
@@ -181,7 +181,7 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 // @Security BearerAuth
 // @Router /v1/users/me [put]
 func (a *API) UserMeUpdateHandler(c *gin.Context) {
-	val, exists := c.Get("supabaseID")
+	val, exists := c.Get(ContextKeySupabaseID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
