@@ -12,7 +12,21 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
+
+// Context keys for values stored in the gin context by the auth middleware.
+const (
+	ContextKeySupabaseID = "supabaseID"
+	ContextKeyEmail      = "email"
+)
+
+// SupabaseClaims extends standard JWT registered claims with Supabase-specific
+// fields (such as the user's email) that are needed by downstream handlers.
+type SupabaseClaims struct {
+	jwt.RegisteredClaims
+	Email string `json:"email,omitempty"`
+}
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
 func (a *API) InitializeJWKS(initCtx context.Context) error {
@@ -137,7 +151,7 @@ func (a *API) validateToken(c *gin.Context) error {
 	a.jwksMutex.Unlock()
 
 	// Parse and validate the token
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+	token, err := jwt.ParseWithClaims(tokenString, &SupabaseClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
 		return domain.NewAuthError(
@@ -156,7 +170,7 @@ func (a *API) validateToken(c *gin.Context) error {
 	}
 
 	// Extract claims
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	claims, ok := token.Claims.(*SupabaseClaims)
 	if !ok {
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
@@ -165,8 +179,19 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
+	// The JWT subject is the Supabase user UUID.
+	supabaseID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid subject claim",
+			"",
+		)
+	}
+
+	// Expose the Supabase ID and email to downstream handlers.
+	c.Set(ContextKeySupabaseID, supabaseID)
+	c.Set(ContextKeyEmail, claims.Email)
 
 	return nil
 }

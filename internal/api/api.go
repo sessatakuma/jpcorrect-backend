@@ -50,6 +50,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
 	mistakeRepo := repository.NewGormMistakeRepository(db)
+
 	webrtcHub := NewHub()
 	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
 
@@ -188,7 +189,9 @@ func Register(r *gin.Engine, api *API) {
 		// Users
 		users := v1.Group("/users")
 		{
-			users.POST("", api.UserCreateHandler)
+			users.POST("/init", api.UserInitHandler)
+			users.GET("/me", api.UserMeHandler)
+			users.PUT("/me", api.UserMeUpdateHandler)
 			users.GET("/:id", api.UserGetHandler)
 			users.PUT("/:id", api.UserUpdateHandler)
 			users.DELETE("/:id", api.UserDeleteHandler)

@@ -10,6 +10,11 @@ import (
 	"github.com/google/uuid"
 )
 
+type UpdateMeRequest struct {
+	Name      string  `json:"nickname" binding:"required,max=50"`
+	AvatarURL *string `json:"avatar_url" binding:"omitempty,url"`
+}
+
 // @Summary Get a user by ID
 // @Tags users
 // @Accept json
@@ -41,33 +46,71 @@ func (a *API) UserGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// @Summary Create a user
+// @Summary Get the current user's profile
 // @Tags users
-// @Accept json
 // @Produce json
-// @Param user body domain.User true "User data"
-// @Success 201 {object} domain.User
-// @Failure 400 {object} map[string]string
-// @Failure 409 {object} map[string]string
+// @Success 200 {object} domain.User
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
-// @Router /v1/users [post]
-func (a *API) UserCreateHandler(c *gin.Context) {
-	var user domain.User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// @Security BearerAuth
+// @Router /v1/users/me [get]
+func (a *API) UserMeHandler(c *gin.Context) {
+	val, exists := c.Get(ContextKeySupabaseID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	supabaseID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error: invalid supabase ID type"})
 		return
 	}
 
-	if err := a.userRepo.Create(c.Request.Context(), &user); err != nil {
-		if errors.Is(err, domain.ErrDuplicateEntry) {
-			c.JSON(http.StatusConflict, gin.H{"error": "User already exists"})
+	user, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Initialize the authenticated user's account
+// @Description Finds or creates the local user record keyed by the Supabase identity from the JWT.
+// @Tags users
+// @Produce json
+// @Success 200 {object} domain.User
+// @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Security BearerAuth
+// @Router /v1/users/init [post]
+func (a *API) UserInitHandler(c *gin.Context) {
+	val, exists := c.Get(ContextKeySupabaseID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authentication info"})
+		return
+	}
+	supabaseID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error: invalid supabase ID type"})
+		return
+	}
+
+	email, _ := c.Get(ContextKeyEmail)
+	emailStr, _ := email.(string)
+
+	user, err := a.userRepo.InitUser(c.Request.Context(), supabaseID, emailStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to initialize user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
 }
 
 // @Summary Update a user
@@ -123,6 +166,63 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, updated)
+}
+
+// @Summary Update the current user's profile
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param body body UpdateMeRequest true "Fields to update"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 404 {object} map[string]string
+// @Failure 500 {object} map[string]string
+// @Security BearerAuth
+// @Router /v1/users/me [put]
+func (a *API) UserMeUpdateHandler(c *gin.Context) {
+	val, exists := c.Get(ContextKeySupabaseID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	supabaseID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error: invalid supabase ID type"})
+		return
+	}
+
+	var inputData UpdateMeRequest
+	if err := c.ShouldBindJSON(&inputData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := a.userRepo.GetBySupabaseID(c.Request.Context(), supabaseID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	user.Name = inputData.Name
+	if inputData.AvatarURL != nil {
+		user.AvatarURL = inputData.AvatarURL
+	}
+
+	if err := a.userRepo.Update(c.Request.Context(), user); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusConflict, gin.H{"error": "User nickname or data conflict"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
 }
 
 // @Summary Delete a user
