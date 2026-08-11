@@ -74,3 +74,26 @@ type GuildAttendeeRepository interface {
 	Update(ctx context.Context, attendee *GuildAttendee) error
 	Delete(ctx context.Context, id uuid.UUID) error
 }
+
+type GuildApplicationStatus string
+
+const (
+	GuildApplicationStatusPending  GuildApplicationStatus = "pending"
+	GuildApplicationStatusApproved GuildApplicationStatus = "approved"
+	GuildApplicationStatusRejected GuildApplicationStatus = "rejected"
+)
+
+type GuildApplication struct {
+	ID        uuid.UUID              `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID   uuid.UUID              `gorm:"type:uuid;not null;index" json:"guild_id"`
+	UserID    uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
+	Status    GuildApplicationStatus `gorm:"type:varchar(20);default:'pending';not null" json:"status"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+type GuildApplicationRepository interface {
+	Create(ctx context.Context, app *GuildApplication) error
+	GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*GuildApplication, error)
+	ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildApplication, error)
+}

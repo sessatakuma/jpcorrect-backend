@@ -33,6 +33,7 @@ type API struct {
 	userRepo          domain.UserRepository
 	guildRepo         domain.GuildRepository
 	guildAttendeeRepo domain.GuildAttendeeRepository
+	applicationRepo   domain.GuildApplicationRepository
 	eventRepo         domain.EventRepository
 	eventAttendeeRepo domain.EventAttendeeRepository
 	transcriptRepo    domain.TranscriptRepository
@@ -46,6 +47,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
+	applicationRepo := repository.NewGuildApplicationRepository(db)
 	eventRepo := repository.NewGormEventRepository(db)
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
@@ -82,6 +84,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 		userRepo:          userRepo,
 		guildRepo:         guildRepo,
 		guildAttendeeRepo: guildAttendeeRepo,
+		applicationRepo:   applicationRepo,
 		eventRepo:         eventRepo,
 		eventAttendeeRepo: eventAttendeeRepo,
 		transcriptRepo:    transcriptRepo,
@@ -153,6 +156,8 @@ func Register(r *gin.Engine, api *API) {
 			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
 			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
 			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
+			guilds.POST("/:id/applications", api.GuildApplicationCreateHandler)
+			guilds.GET("/:id/applications", api.GuildApplicationsHandler)
 		}
 
 		// Guild Attendees

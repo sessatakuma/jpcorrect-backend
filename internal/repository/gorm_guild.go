@@ -270,3 +270,43 @@ func (r *gormGuildAttendeeRepository) Update(ctx context.Context, attendee *doma
 func (r *gormGuildAttendeeRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.GuildAttendee{}, "id = ?", id).Error)
 }
+
+type guildApplicationRepository struct {
+	db *gorm.DB
+}
+
+func NewGuildApplicationRepository(db *gorm.DB) domain.GuildApplicationRepository {
+	return &guildApplicationRepository{db: db}
+}
+
+func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.GuildApplication) error {
+	if app.ID == uuid.Nil {
+		app.ID = uuid.New()
+	}
+	return MapGormError(r.db.WithContext(ctx).Create(app).Error)
+}
+
+func (r *guildApplicationRepository) GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*domain.GuildApplication, error) {
+	var app domain.GuildApplication
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ? AND user_id = ? AND status = ?", guildID, userID, domain.GuildApplicationStatusPending).
+		First(&app).Error
+
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &app, nil
+}
+
+func (r *guildApplicationRepository) ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*domain.GuildApplication, error) {
+	var apps []*domain.GuildApplication
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ? AND status = ?", guildID, domain.GuildApplicationStatusPending).
+		Order("created_at ASC").
+		Find(&apps).Error
+
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return apps, nil
+}
