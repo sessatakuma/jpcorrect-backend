@@ -8,6 +8,15 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_api.GuildInviteResponse:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+    type: object
   jpcorrect-backend_internal_domain.Event:
     properties:
       actual_duration:
@@ -112,6 +121,21 @@ definitions:
     x-enum-varnames:
     - GuildAttendeeRoleMember
     - GuildAttendeeRoleMaster
+  jpcorrect-backend_internal_domain.GuildInvite:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      guild_id:
+        type: string
+      id:
+        type: string
+      ttl_seconds:
+        type: integer
+    type: object
   jpcorrect-backend_internal_domain.Mistake:
     properties:
       comment:
@@ -850,42 +874,67 @@ paths:
       summary: Get a guild by ID
       tags:
       - guilds
-    put:
+  /v1/guilds/{id}/invite-link:
+    get:
       consumes:
       - application/json
+      description: Get the currently active invite link for a guild. Returns 200 with
+        null if expired or not found.
       parameters:
       - description: Guild ID
+        format: uuid
         in: path
         name: id
         required: true
         type: string
-      - description: Guild data
-        in: body
-        name: guild
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns the active invite link, or null if expired or not found
+          schema:
+            $ref: '#/definitions/internal_api.GuildInviteResponse'
+        "400":
+          description: Invalid Guild ID format
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get active guild invite link
+      tags:
+      - guilds
+    post:
+      consumes:
+      - application/json
+      description: Creates a new active invite link for a guild and expires any existing
+        active links within a single transaction.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
         required: true
+        type: string
+      - description: Invite Link Options (e.g. {
+        in: body
+        name: request
         schema:
-          $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
         "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Conflict
+          description: Invalid Guild ID or Request Body
           schema:
             additionalProperties:
               type: string
@@ -896,7 +945,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      summary: Update a guild
+      summary: Create a new guild invite link
       tags:
       - guilds
   /v1/mark-accent:
