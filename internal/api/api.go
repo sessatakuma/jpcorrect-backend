@@ -158,6 +158,8 @@ func Register(r *gin.Engine, api *API) {
 			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
 			guilds.POST("/:id/applications", api.GuildApplicationCreateHandler)
 			guilds.GET("/:id/applications", api.GuildApplicationsHandler)
+			guilds.POST("/:id/applications/:app_id/approve", api.GuildApplicationApproveHandler)
+			guilds.POST("/:id/applications/:app_id/reject", api.GuildApplicationRejectHandler)
 		}
 
 		// Guild Attendees

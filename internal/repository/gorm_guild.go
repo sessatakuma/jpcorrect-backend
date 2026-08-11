@@ -279,11 +279,13 @@ func NewGuildApplicationRepository(db *gorm.DB) domain.GuildApplicationRepositor
 	return &guildApplicationRepository{db: db}
 }
 
-func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.GuildApplication) error {
-	if app.ID == uuid.Nil {
-		app.ID = uuid.New()
+func (r *guildApplicationRepository) GetByID(ctx context.Context, appID uuid.UUID) (*domain.GuildApplication, error) {
+	var app domain.GuildApplication
+	err := r.db.WithContext(ctx).First(&app, "id = ?", appID).Error
+	if err != nil {
+		return nil, MapGormError(err)
 	}
-	return MapGormError(r.db.WithContext(ctx).Create(app).Error)
+	return &app, nil
 }
 
 func (r *guildApplicationRepository) GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*domain.GuildApplication, error) {
@@ -309,4 +311,48 @@ func (r *guildApplicationRepository) ListPendingByGuildID(ctx context.Context, g
 		return nil, MapGormError(err)
 	}
 	return apps, nil
+}
+
+func (r *guildApplicationRepository) ApproveWithTx(ctx context.Context, app *domain.GuildApplication, newAttendee *domain.GuildAttendee) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		app.Status = domain.GuildApplicationStatusApproved
+		app.UpdatedAt = now
+		if err := tx.Save(app).Error; err != nil {
+			return err
+		}
+
+		if newAttendee.ID == uuid.Nil {
+			newAttendee.ID = uuid.New()
+		}
+		newAttendee.JoinedAt = &now
+		if err := tx.Create(newAttendee).Error; err != nil {
+			return err
+		}
+
+		// Reject all pending from this applicant under other guilds
+		err := tx.Model(&domain.GuildApplication{}).
+			Where("user_id = ? AND status = ? AND id != ?", app.UserID, domain.GuildApplicationStatusPending, app.ID).
+			Updates(map[string]interface{}{
+				"status":     domain.GuildApplicationStatusRejected,
+				"updated_at": now,
+			}).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.GuildApplication) error {
+	if app.ID == uuid.Nil {
+		app.ID = uuid.New()
+	}
+	return MapGormError(r.db.WithContext(ctx).Create(app).Error)
+}
+
+func (r *guildApplicationRepository) Update(ctx context.Context, app *domain.GuildApplication) error {
+	app.UpdatedAt = time.Now()
+	return MapGormError(r.db.WithContext(ctx).Save(app).Error)
 }

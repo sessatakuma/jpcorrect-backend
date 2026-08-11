@@ -93,7 +93,11 @@ type GuildApplication struct {
 }
 
 type GuildApplicationRepository interface {
-	Create(ctx context.Context, app *GuildApplication) error
+	GetByID(ctx context.Context, appID uuid.UUID) (*GuildApplication, error)
 	GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*GuildApplication, error)
 	ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildApplication, error)
+	ApproveWithTx(ctx context.Context, app *GuildApplication, newAttendee *GuildAttendee) error
+
+	Create(ctx context.Context, app *GuildApplication) error
+	Update(ctx context.Context, app *GuildApplication) error
 }
