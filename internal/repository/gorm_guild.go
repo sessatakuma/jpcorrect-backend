@@ -376,3 +376,27 @@ func (r *guildDefaultSlotRepository) GetByGuildID(ctx context.Context, guildID u
 	}
 	return &slot, nil
 }
+
+func (r *guildDefaultSlotRepository) DeleteByGuildID(ctx context.Context, guildID uuid.UUID) error {
+	res := r.db.WithContext(ctx).Where("guild_id = ?", guildID).Delete(&domain.GuildDefaultSlot{})
+	if res.Error != nil {
+		return MapGormError(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *guildDefaultSlotRepository) Upsert(ctx context.Context, slot *domain.GuildDefaultSlot) error {
+	if slot.ID == uuid.Nil {
+		slot.ID = uuid.New()
+	}
+
+	err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "guild_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"day_of_week", "start_time", "end_time", "updated_at"}),
+	}).Create(slot).Error
+
+	return MapGormError(err)
+}

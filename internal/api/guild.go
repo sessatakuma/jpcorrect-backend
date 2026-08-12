@@ -855,6 +855,178 @@ func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
 	})
 }
 
+// GuildDefaultSlotUpsertHandler Set or update preset time slots
+// @Summary Upsert guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Param request body domain.GuildDefaultSlotUpsertReq true "Upsert Request Body"
+// @Success 200 {object} map[string]interface{} "Success"
+// @Failure 400 {object} map[string]string "Invalid request body or guild_id"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden: only master can manage default slot"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [put]
+type GuildDefaultSlotUpsertReq struct {
+	DayOfWeek int    `json:"day_of_week" binding:"gte=0,lte=6"`
+	StartTime string `json:"start_time" binding:"required"`
+	EndTime   string `json:"end_time" binding:"required"`
+}
+
+func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	var req GuildDefaultSlotUpsertReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Check the caller's identity
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the caller is the member of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+	// Check if the caller is the master of the guild
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can manage default slot"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	slot := &domain.GuildDefaultSlot{
+		ID:        uuid.New(),
+		GuildID:   guildID,
+		DayOfWeek: req.DayOfWeek,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+	}
+
+	if err := a.defaultSlotRepo.Upsert(ctx, slot); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upsert default slot"})
+		return
+	}
+
+	// Requery the latest slot records and return
+	latestSlot, err := a.defaultSlotRepo.GetByGuildID(ctx, guildID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch updated default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": latestSlot,
+	})
+}
+
+// GuildDefaultSlotDeleteHandler deletes the default time slot
+// @Summary Delete guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Success 200 {object} map[string]string "Success"
+// @Failure 400 {object} map[string]string "Invalid guild_id"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden: only master can delete default slot"
+// @Failure 404 {object} map[string]string "Guild or default slot not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [delete]
+func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+	// Check if the caller is the member of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+	// Check if the caller is the master of the guild
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can delete default slot"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Perform deletion
+	err = a.defaultSlotRepo.DeleteByGuildID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "default slot not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "default slot deleted successfully",
+	})
+}
+
 // @Summary Get a guild attendee by ID
 // @Tags guild-attendees
 // @Accept json

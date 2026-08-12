@@ -164,6 +164,8 @@ func Register(r *gin.Engine, api *API) {
 			guilds.POST("/:id/applications/:app_id/approve", api.GuildApplicationApproveHandler)
 			guilds.POST("/:id/applications/:app_id/reject", api.GuildApplicationRejectHandler)
 			guilds.GET("/:id/default-slot", api.GuildDefaultSlotGetHandler)
+			guilds.PUT("/:id/default-slot", api.GuildDefaultSlotUpsertHandler)
+			guilds.DELETE("/:id/default-slot", api.GuildDefaultSlotDeleteHandler)
 		}
 
 		// Guild Attendees

@@ -115,4 +115,7 @@ type GuildDefaultSlot struct {
 
 type GuildDefaultSlotRepository interface {
 	GetByGuildID(ctx context.Context, guildID uuid.UUID) (*GuildDefaultSlot, error)
+	DeleteByGuildID(ctx context.Context, guildID uuid.UUID) error
+
+	Upsert(ctx context.Context, slot *GuildDefaultSlot) error
 }
