@@ -101,3 +101,18 @@ type GuildApplicationRepository interface {
 	Create(ctx context.Context, app *GuildApplication) error
 	Update(ctx context.Context, app *GuildApplication) error
 }
+
+type GuildDefaultSlot struct {
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID   uuid.UUID      `gorm:"type:uuid;not null;uniqueIndex" json:"guild_id"`
+	DayOfWeek int            `json:"day_of_week"`
+	StartTime string         `gorm:"type:varchar(5)" json:"start_time"`
+	EndTime   string         `gorm:"type:varchar(5)" json:"end_time"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at,omitempty"`
+}
+
+type GuildDefaultSlotRepository interface {
+	GetByGuildID(ctx context.Context, guildID uuid.UUID) (*GuildDefaultSlot, error)
+}

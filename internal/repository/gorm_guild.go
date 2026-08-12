@@ -356,3 +356,23 @@ func (r *guildApplicationRepository) Update(ctx context.Context, app *domain.Gui
 	app.UpdatedAt = time.Now()
 	return MapGormError(r.db.WithContext(ctx).Save(app).Error)
 }
+
+type guildDefaultSlotRepository struct {
+	db *gorm.DB
+}
+
+func NewGuildDefaultSlotRepository(db *gorm.DB) domain.GuildDefaultSlotRepository {
+	return &guildDefaultSlotRepository{db: db}
+}
+
+func (r *guildDefaultSlotRepository) GetByGuildID(ctx context.Context, guildID uuid.UUID) (*domain.GuildDefaultSlot, error) {
+	var slot domain.GuildDefaultSlot
+	err := r.db.WithContext(ctx).Where("guild_id = ?", guildID).First(&slot).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &slot, nil
+}

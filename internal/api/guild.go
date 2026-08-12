@@ -808,6 +808,53 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 	})
 }
 
+// GuildDefaultSlotGetHandler retrieves the default time slot (may be null)
+// @Summary Get guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Success 200 {object} map[string]interface{} "Success (data field contains GuildDefaultSlot or null)"
+// @Failure 400 {object} map[string]string "Invalid guild_id format"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [get]
+func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Query the Guild's preset time slots.
+	slot, err := a.defaultSlotRepo.GetByGuildID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusOK, gin.H{
+				"data": nil,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": slot,
+	})
+}
+
 // @Summary Get a guild attendee by ID
 // @Tags guild-attendees
 // @Accept json
