@@ -166,6 +166,7 @@ func Register(r *gin.Engine, api *API) {
 			guilds.GET("/:id/default-slot", api.GuildDefaultSlotGetHandler)
 			guilds.PUT("/:id/default-slot", api.GuildDefaultSlotUpsertHandler)
 			guilds.DELETE("/:id/default-slot", api.GuildDefaultSlotDeleteHandler)
+			guilds.GET("/discover", api.GuildDiscoverHandler)
 		}
 
 		// Guild Attendees

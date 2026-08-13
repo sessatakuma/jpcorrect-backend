@@ -210,6 +210,35 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 	})
 }
 
+func (r *gormGuildRepository) Discover(ctx context.Context, page, pageSize int) (*domain.GuildDiscoverResult, error) {
+	var guilds []*domain.Guild
+	var totalCount int64
+
+	db := r.db.WithContext(ctx).Model(&domain.Guild{})
+
+	// Calculate the total count of public guilds
+	if err := db.Count(&totalCount).Error; err != nil {
+		return nil, MapGormError(err)
+	}
+
+	// Calculate the pagination offset
+	offset := (page - 1) * pageSize
+	err := db.Order("updated_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&guilds).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+
+	return &domain.GuildDiscoverResult{
+		Items:      guilds,
+		TotalCount: totalCount,
+		Page:       page,
+		PageSize:   pageSize,
+	}, nil
+}
+
 type gormGuildAttendeeRepository struct {
 	db *gorm.DB
 }

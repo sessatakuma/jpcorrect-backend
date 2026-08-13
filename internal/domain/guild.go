@@ -39,6 +39,13 @@ type GuildInvite struct {
 	TTLSeconds *int64     `gorm:"-" json:"ttl_seconds,omitempty"`
 }
 
+type GuildDiscoverResult struct {
+	Items      []*Guild `json:"items"`
+	TotalCount int64    `json:"total_count"`
+	Page       int      `json:"page"`
+	PageSize   int      `json:"page_size"`
+}
+
 type GuildRepository interface {
 	GetByID(ctx context.Context, guildID uuid.UUID) (*Guild, error)
 	CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
@@ -51,6 +58,7 @@ type GuildRepository interface {
 
 	GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*GuildInvite, error)
 	CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *GuildInvite, now time.Time) error
+	Discover(ctx context.Context, page, pageSize int) (*GuildDiscoverResult, error)
 }
 
 // GuildAttendee represents a member of a guild.

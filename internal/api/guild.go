@@ -808,7 +808,6 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 	})
 }
 
-// GuildDefaultSlotGetHandler retrieves the default time slot (may be null)
 // @Summary Get guild default slot
 // @Tags guilds
 // @Accept json
@@ -855,7 +854,6 @@ func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
 	})
 }
 
-// GuildDefaultSlotUpsertHandler Set or update preset time slots
 // @Summary Upsert guild default slot
 // @Tags guilds
 // @Accept json
@@ -953,7 +951,6 @@ func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
 	})
 }
 
-// GuildDefaultSlotDeleteHandler deletes the default time slot
 // @Summary Delete guild default slot
 // @Tags guilds
 // @Accept json
@@ -1024,6 +1021,48 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "default slot deleted successfully",
+	})
+}
+
+// @Summary Discover public guilds
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default 1)" default(1)
+// @Param page_size query int false "Page size (default 10, max 100)" default(10)
+// @Success 200 {object} map[string]interface{} "Success"
+// @Failure 400 {object} map[string]string "Invalid query parameters"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/discover [get]
+type GuildDiscoverReq struct {
+	Page     int `form:"page,default=1" binding:"omitempty,gte=1"`
+	PageSize int `form:"page_size,default=10" binding:"omitempty,gte=1,lte=100"`
+}
+
+func (a *API) GuildDiscoverHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req GuildDiscoverReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid query parameters: " + err.Error()})
+		return
+	}
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+
+	// Discover public guilds with pagination
+	result, err := a.guildRepo.Discover(ctx, req.Page, req.PageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to discover guilds"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": result,
 	})
 }
 
