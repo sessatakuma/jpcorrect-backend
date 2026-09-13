@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [get]
 func (a *API) GuildGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds [post]
 func (a *API) GuildCreateHandler(c *gin.Context) {
 	var guild domain.Guild
@@ -81,6 +83,7 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [put]
 func (a *API) GuildUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -135,6 +138,7 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [delete]
 func (a *API) GuildDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -175,6 +179,7 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [get]
 func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -206,6 +211,7 @@ func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees [post]
 func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	var attendee domain.GuildAttendee
@@ -237,6 +243,7 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [put]
 func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -291,6 +298,7 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [delete]
 func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -330,6 +338,7 @@ func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/guild/{guild_id} [get]
 func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 	guildIDStr := c.Param("guild_id")
@@ -356,6 +365,7 @@ func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/user/{user_id} [get]
 func (a *API) GuildAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")

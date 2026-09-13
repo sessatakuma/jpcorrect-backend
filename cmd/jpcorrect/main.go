@@ -6,6 +6,12 @@
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
+// @description JWT issued by the configured JWKS provider. Paste the raw token; the "Bearer " scheme prefix is optional (added automatically if missing).
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @description Static API key (matches CLIENT_API_KEY) for non-user-specific service access to the /v1 api-tools endpoints. Use this when the caller has no per-user identity; otherwise use BearerAuth.
 package main
 
 import (

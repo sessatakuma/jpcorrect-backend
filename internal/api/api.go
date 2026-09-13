@@ -23,6 +23,7 @@ import (
 type API struct {
 	db                *gorm.DB
 	apiToolsURL       string
+	clientAPIKey      string
 	proxyTransport    *http.Transport
 	jwksURL           string
 	jwksCache         keyfunc.Keyfunc
@@ -42,7 +43,7 @@ type API struct {
 	upgrader          websocket.Upgrader
 }
 
-func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
+func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
@@ -77,6 +78,7 @@ func NewAPI(url string, transport *http.Transport, db *gorm.DB, jwksURL string, 
 	return &API{
 		db:                db,
 		apiToolsURL:       url,
+		clientAPIKey:      clientAPIKey,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
 		userRepo:          userRepo,
@@ -110,18 +112,22 @@ func Register(r *gin.Engine, api *API) {
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
 
+	// API Tools — non-user-specific service access, X-API-Key only
+	apiTools := r.Group("/v1")
+	apiTools.Use(api.APIKeyMiddleware())
+	{
+		apiTools.POST("/mark-accent", api.MarkAccentHandler)
+		apiTools.POST("/mark-accent/stream", api.MarkAccentStreamHandler)
+		apiTools.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
+		apiTools.POST("/usage-query/url", api.UsageQueryURLHandler)
+		apiTools.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)
+		apiTools.POST("/dict-query", api.DictQueryHandler)
+		apiTools.POST("/sentence-query", api.SentenceQueryHandler)
+	}
+
 	v1 := r.Group("/v1")
 	v1.Use(api.AuthMiddleware())
 	{
-		// API Tools Handlers
-		v1.POST("/mark-accent", api.MarkAccentHandler)
-		v1.POST("/mark-furigana", api.MarkFuriganaHandler)
-		v1.POST("/usage-query/headwords", api.UsageQueryHeadWordsHandler)
-		v1.POST("/usage-query/url", api.UsageQueryURLHandler)
-		v1.POST("/usage-query/id-details", api.UsageQueryIDDetailsHandler)
-		v1.POST("/dict-query", api.DictQueryHandler)
-		v1.POST("/sentence-query", api.SentenceQueryHandler)
-
 		// Mistakes
 		mistakes := v1.Group("/mistakes")
 		{

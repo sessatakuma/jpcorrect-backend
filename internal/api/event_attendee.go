@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees/{id} [get]
 func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees [post]
 func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
 	var attendee domain.EventAttendee
@@ -81,6 +83,7 @@ func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees/{id} [put]
 func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -135,6 +138,7 @@ func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees/{id} [delete]
 func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -174,6 +178,7 @@ func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.EventAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees/event/{event_id} [get]
 func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
@@ -200,6 +205,7 @@ func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 // @Success 200 {array} domain.EventAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/event-attendees/user/{user_id} [get]
 func (a *API) EventAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")

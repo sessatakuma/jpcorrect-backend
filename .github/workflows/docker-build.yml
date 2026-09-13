@@ -1,0 +1,62 @@
+---
+name: Docker Build Check
+
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - "cmd/**"
+      - "internal/**"
+      - "docs/**"
+      - ".dockerignore"
+      - ".github/workflows/docker-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: backend:pr-${{ github.event.number || github.run_id }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke-test the built image (offline, read-only, no network)
+        # distroless has no shell, so run the binary directly. --network none
+        # + --read-only prove the image is self-contained: it must reach its
+        # own DB error offline, which fails the PR if it cannot execute.
+        # Accept either startup DB error: gorm's pgx dialector connects eagerly
+        # in NewGormDB ("failed to connect to database"), but a lazy driver or
+        # a valid-looking DSN would instead surface at AutoMigrate ("failed to
+        # run auto migrate"). Both prove the binary started and ran offline.
+        run: |
+          img=backend:pr-${{ github.event.number || github.run_id }}
+          out=$(docker run --rm --network none --read-only --tmpfs /tmp \
+            "$img" 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -qE \
+            "failed to connect to database|failed to run auto migrate"

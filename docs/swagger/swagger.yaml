@@ -8,6 +8,349 @@ definitions:
         description: Valid is true if Time is not NULL
         type: boolean
     type: object
+  internal_api.APIToolsError:
+    properties:
+      code:
+        example: 0
+        type: integer
+      message:
+        example: ' '
+        type: string
+    type: object
+  internal_api.AccentInfo:
+    properties:
+      accent_marking_type:
+        example: 1
+        type: integer
+      furigana:
+        example: か
+        type: string
+      length:
+        example: 1
+        type: integer
+    type: object
+  internal_api.Definition:
+    properties:
+      meanings:
+        example:
+        - teacher
+        items:
+          type: string
+        type: array
+      pos:
+        example:
+        - noun
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.DictQueryRequest:
+    properties:
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.DictQueryResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.DictQueryWordResult'
+        type: array
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.DictQueryWordResult:
+    properties:
+      definitions:
+        items:
+          $ref: '#/definitions/internal_api.Definition'
+        type: array
+      furigana:
+        example:
+        - せんせい
+        items:
+          type: string
+        type: array
+      id:
+        example: 1387990
+        type: integer
+      kanji:
+        example:
+        - 先生
+        items:
+          type: string
+        type: array
+    type: object
+  internal_api.HeadWord:
+    properties:
+      freq:
+        example: 1234
+        type: integer
+      headword:
+        example: 走る
+        type: string
+      headword_id:
+        example: V.00093
+        type: string
+      id:
+        example: 1
+        type: integer
+      romaji_display:
+        example: hashiru
+        type: string
+      yomi_display:
+        example: ハシ・ル
+        type: string
+    type: object
+  internal_api.IdDetails:
+    properties:
+      base:
+        additionalProperties: {}
+        type: object
+      katuyokei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      patternfreqorder:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      setuzoku:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      shojikei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      subcorpus:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+      subcorpus_shojikei:
+        items:
+          additionalProperties: {}
+          type: object
+        type: array
+    type: object
+  internal_api.MarkAccentRequest:
+    properties:
+      render_english_furigana:
+        example: false
+        type: boolean
+      render_katakana_furigana:
+        example: false
+        type: boolean
+      script:
+        enum:
+        - hiragana
+        - katakana
+        - romaji
+        example: hiragana
+        type: string
+      text:
+        example: お金を稼ぐ
+        type: string
+    type: object
+  internal_api.MarkAccentResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentResult'
+        type: array
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.MarkAccentStreamChunk:
+    properties:
+      chunk:
+        example: 0
+        type: integer
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentResult'
+        type: array
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+      subchunk:
+        example: 0
+        type: integer
+    type: object
+  internal_api.ProxyErrorResponse:
+    properties:
+      error:
+        example: Failed to contact external API
+        type: string
+    type: object
+  internal_api.SentenceQueryRequest:
+    properties:
+      id:
+        example: 1387990
+        type: integer
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.SentenceQueryResponse:
+    properties:
+      error:
+        type: string
+        x-nullable: "true"
+      result:
+        allOf:
+        - $ref: '#/definitions/internal_api.SentenceQueryWordResult'
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.SentenceQueryWordResult:
+    properties:
+      id:
+        example: 1387990
+        type: integer
+      sentence:
+        items:
+          $ref: '#/definitions/internal_api.WordSentence'
+        type: array
+      word:
+        example: 先生
+        type: string
+    type: object
+  internal_api.UsageQueryHeadWordsRequest:
+    properties:
+      site:
+        example: NLB
+        type: string
+      word:
+        example: 走る
+        type: string
+    type: object
+  internal_api.UsageQueryHeadWordsResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.HeadWord'
+        type: array
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryIDDetailsRequest:
+    properties:
+      headword_id:
+        example: V.00093
+        type: string
+      site:
+        example: NLB
+        type: string
+    type: object
+  internal_api.UsageQueryIDDetailsResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        allOf:
+        - $ref: '#/definitions/internal_api.IdDetails'
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryURLResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.APIToolsError'
+      result:
+        items:
+          $ref: '#/definitions/internal_api.UsageQueryWordURL'
+        type: array
+        x-nullable: "true"
+      status:
+        example: 200
+        type: integer
+    type: object
+  internal_api.UsageQueryWordURL:
+    properties:
+      url:
+        example: https://nlb.ninjal.ac.jp/headword/V.00093/
+        type: string
+      word:
+        example: 走る
+        type: string
+    type: object
+  internal_api.WordAccentResult:
+    properties:
+      accent:
+        items:
+          $ref: '#/definitions/internal_api.AccentInfo'
+        type: array
+      furigana:
+        example: おかね
+        type: string
+      kernel_absorbed:
+        example: false
+        type: boolean
+      lexical_kernel:
+        example: 0
+        type: integer
+      lexical_kernel_alts:
+        items:
+          type: integer
+        type: array
+      subword:
+        items:
+          $ref: '#/definitions/internal_api.WordAccentSubword'
+        type: array
+      surface:
+        example: お金
+        type: string
+    type: object
+  internal_api.WordAccentSubword:
+    properties:
+      furigana:
+        example: かね
+        type: string
+      lexical_kernel:
+        example: 0
+        type: integer
+      lexical_kernel_alts:
+        items:
+          type: integer
+        type: array
+      surface:
+        example: 金
+        type: string
+    type: object
+  internal_api.WordSentence:
+    properties:
+      en:
+        example: I will ask the teacher.
+        type: string
+      jp:
+        example: 先生に聞いてみます。
+        type: string
+    type: object
   jpcorrect-backend_internal_domain.Event:
     properties:
       actual_duration:
@@ -238,27 +581,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for dictionary queries
+      description: 'Look up words in JMdict (Japanese-Multilingual Dictionary). Returns
+        kanji forms, furigana readings, parts of speech, and English definitions.
+        Supports searching by kanji, kana, or romaji. Body convention: the inner `status`
+        carries the real result code; `error` is `null` on success and populated only
+        when `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to look up in the dictionary
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.DictQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.DictQueryResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Dictionary query
       tags:
       - api-tools
@@ -298,6 +645,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create an event attendee
       tags:
       - event-attendees
@@ -340,6 +689,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete an event attendee
       tags:
       - event-attendees
@@ -377,6 +728,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get an event attendee by ID
       tags:
       - event-attendees
@@ -426,6 +779,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update an event attendee
       tags:
       - event-attendees
@@ -460,6 +815,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get event attendees by event ID
       tags:
       - event-attendees
@@ -494,6 +851,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get event attendees by user ID
       tags:
       - event-attendees
@@ -533,6 +892,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a guild attendee
       tags:
       - guild-attendees
@@ -575,6 +936,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a guild attendee
       tags:
       - guild-attendees
@@ -612,6 +975,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a guild attendee by ID
       tags:
       - guild-attendees
@@ -661,6 +1026,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a guild attendee
       tags:
       - guild-attendees
@@ -695,6 +1062,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get guild attendees by guild ID
       tags:
       - guild-attendees
@@ -729,6 +1098,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get guild attendees by user ID
       tags:
       - guild-attendees
@@ -768,6 +1139,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a guild
       tags:
       - guilds
@@ -810,6 +1183,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a guild
       tags:
       - guilds
@@ -847,6 +1222,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a guild by ID
       tags:
       - guilds
@@ -896,6 +1273,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a guild
       tags:
       - guilds
@@ -903,56 +1282,68 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for marking accent
+      description: 'Analyze Japanese text and return per-mora pitch (accent) patterns
+        for each word. `accent_marking_type` values: 0=low/unknown, 1=heiban (high
+        plateau), 2=fall kernel. Optional flags control whether English-letter and
+        katakana tokens carry furigana, and `script` rewrites every furigana field
+        to hiragana, katakana, or romaji. Body convention: the inner `status` carries
+        the real result code; `error` is `null` on success and populated only when
+        `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Japanese text to analyze for accent patterns
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.MarkAccentRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.MarkAccentResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Mark Japanese accent
       tags:
       - api-tools
-  /v1/mark-furigana:
+  /v1/mark-accent/stream:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for marking furigana
+      description: 'Same input and per-chunk output as /v1/mark-accent, but streamed
+        as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes.
+        Each line carries `{"chunk": <line_idx>, "subchunk": <sub_idx>, ...AccentResponse}`
+        so clients can interleave UI rendering with later chunks still in flight.
+        Body convention: each chunk''s inner `status` carries the real result code;
+        `error` is `null` on success and populated only when `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Japanese text to analyze for accent patterns
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.MarkAccentRequest'
       produces:
-      - application/json
+      - application/x-ndjson
       responses:
         "200":
-          description: OK
+          description: One NDJSON line per chunk; full response is a stream of these
+            objects separated by '\\n'
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.MarkAccentStreamChunk'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Mark furigana
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Mark Japanese accent (streaming NDJSON)
       tags:
       - api-tools
   /v1/mistakes:
@@ -991,6 +1382,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a mistake
       tags:
       - mistakes
@@ -1033,6 +1426,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a mistake
       tags:
       - mistakes
@@ -1070,6 +1465,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a mistake by ID
       tags:
       - mistakes
@@ -1119,6 +1516,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a mistake
       tags:
       - mistakes
@@ -1153,6 +1552,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get mistakes by event ID
       tags:
       - mistakes
@@ -1187,6 +1588,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get mistakes by user ID
       tags:
       - mistakes
@@ -1226,6 +1629,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a practice
       tags:
       - practices
@@ -1268,6 +1673,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a practice
       tags:
       - practices
@@ -1305,6 +1712,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a practice by ID
       tags:
       - practices
@@ -1354,6 +1763,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a practice
       tags:
       - practices
@@ -1388,6 +1799,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get practices by user ID
       tags:
       - practices
@@ -1395,27 +1808,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for sentence queries
+      description: 'Find example sentences containing a given word from JMdict. Requires
+        both the word and its JMdict entry ID (obtained from the dict-query endpoint).
+        Returns bilingual Japanese-English sentence pairs. Body convention: the inner
+        `status` carries the real result code; `error` is an empty string on success
+        and populated only when `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word and its JMdict entry ID
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.SentenceQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.SentenceQueryResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Sentence query
       tags:
       - api-tools
@@ -1455,6 +1872,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a transcript
       tags:
       - transcripts
@@ -1497,6 +1916,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a transcript
       tags:
       - transcripts
@@ -1534,6 +1955,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a transcript by ID
       tags:
       - transcripts
@@ -1583,6 +2006,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a transcript
       tags:
       - transcripts
@@ -1617,6 +2042,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get transcripts by event ID
       tags:
       - transcripts
@@ -1651,6 +2078,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get transcripts by user ID
       tags:
       - transcripts
@@ -1658,27 +2087,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query headwords
+      description: 'Search for headwords in Japanese language corpora. Supports lookup
+        by kanji, kana, or romaji. Returns matching headword entries with readings
+        and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba
+        Web Corpus). Body convention: the inner `status` carries the real result code;
+        `error` is `null` on success and populated only when `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to search (kanji, kana, or romaji) and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryHeadWordsResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Query usage headwords
       tags:
       - api-tools
@@ -1686,27 +2119,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query by ID details
+      description: 'Retrieve detailed usage information for a specific headword by
+        its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei),
+        and collocation data. The headword_id must be obtained from the headwords
+        endpoint first. Body convention: the inner `status` carries the real result
+        code; `error` is `null` on success and populated only when `status != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Headword ID and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryIDDetailsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryIDDetailsResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Query usage by ID details
       tags:
       - api-tools
@@ -1714,27 +2151,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Proxy to external API tools service for usage query by URL
+      description: 'Given a word, return URLs to the corresponding headword detail
+        pages in the selected corpus (NLB or NLT). Uses the same request format as
+        the headwords endpoint. Body convention: the inner `status` carries the real
+        result code; `error` is `null` on success and populated only when `status
+        != 200`.'
       parameters:
-      - description: Request body (forwarded to API tools)
+      - description: Word to search and corpus site
         in: body
         name: body
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            type: object
+            $ref: '#/definitions/internal_api.UsageQueryURLResponse'
         "502":
           description: Bad Gateway
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+      security:
+      - ApiKeyAuth: []
       summary: Query usage by URL
       tags:
       - api-tools
@@ -1774,6 +2215,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Create a user
       tags:
       - users
@@ -1816,6 +2259,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete a user
       tags:
       - users
@@ -1853,6 +2298,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a user by ID
       tags:
       - users
@@ -1902,6 +2349,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Update a user
       tags:
       - users
@@ -1934,6 +2383,8 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get a user by email
       tags:
       - users
@@ -1962,11 +2413,22 @@ paths:
             additionalProperties:
               type: string
             type: object
+      security:
+      - BearerAuth: []
       summary: Get users by name
       tags:
       - users
 securityDefinitions:
+  ApiKeyAuth:
+    description: Static API key (matches CLIENT_API_KEY) for non-user-specific service
+      access to the /v1 api-tools endpoints. Use this when the caller has no per-user
+      identity; otherwise use BearerAuth.
+    in: header
+    name: X-API-Key
+    type: apiKey
   BearerAuth:
+    description: JWT issued by the configured JWKS provider. Paste the raw token;
+      the "Bearer " scheme prefix is optional (added automatically if missing).
     in: header
     name: Authorization
     type: apiKey

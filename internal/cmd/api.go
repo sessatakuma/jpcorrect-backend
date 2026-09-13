@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -39,6 +40,13 @@ func Execute() {
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
+		// Bound how long the api-tools proxy waits on a stalled upstream. A dead
+		// or hung api-tools (e.g. its external OJAD dependency timing out) would
+		// otherwise pin the inbound request open indefinitely. ResponseHeaderTimeout
+		// only limits time-to-first-byte, so it is safe for the NDJSON streaming
+		// handler: the long-lived body stream is not affected once headers arrive.
+		DialContext:           (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+		ResponseHeaderTimeout: 60 * time.Second,
 	}
 
 	jwksURL := os.Getenv("JWKS_URL")
@@ -54,7 +62,7 @@ func Execute() {
 		}
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), transport, db, jwksURL, allowedOrigins)
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("CLIENT_API_KEY"), transport, db, jwksURL, allowedOrigins)
 	defer a.Close()
 
 	initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
