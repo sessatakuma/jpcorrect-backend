@@ -53,7 +53,10 @@ services:
         restart: unless-stopped
 
     backend-prod:
-        image: ${BACKEND_PROD_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:stable}
+        # Wrapped with >- purely to stay under the 80-col YAML lint; this
+        # folds back to a single line.
+        image: >-
+            ${BACKEND_PROD_IMAGE:-ghcr.io/sessatakuma/jpcorrect-backend:stable}
         container_name: jpcorrect-backend-prod
         depends_on:
             postgres-prod:
@@ -138,7 +141,7 @@ services:
         restart: unless-stopped
 
     api-tools-dev:
-        # :dev is published by the API-tools repo's CD on every main-branch push.
+        # :dev is published by the API-tools repo's CD on every main push.
         # Pinned by hand for now (see the watchtower labels below).
         image: ${API_TOOLS_DEV_IMAGE:-ghcr.io/sessatakuma/api-tools:dev}
         container_name: jpcorrect-api-tools-dev

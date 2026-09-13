@@ -22,6 +22,9 @@ jobs:
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
+      # Hoisted out of the tags list below to keep those lines under 80 cols.
+      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      IS_MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -53,11 +56,11 @@ jobs:
             # :latest stays an alias of :dev so it can't go stale and hand an
             # old build to anyone who pulls the conventional tag.
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=stable,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=stable,enable=${{ env.IS_RELEASE }}
             # Manual runs (workflow_dispatch) publish a throwaway :test tag so a
             # feature branch can be deployed to the dev env without touching
             # :latest/:stable. Safe to overwrite/delete in GHCR afterwards.
-            type=raw,value=test,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=test,enable=${{ env.IS_MANUAL }}
 
       - name: Build and push
         uses: docker/build-push-action@v7

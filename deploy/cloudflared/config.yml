@@ -1,8 +1,12 @@
+---
 # Tunnel `jb` routes two hostnames at this single host:
-#   api.sessatakuma.dev      → backend-prod (no edge auth; app enforces JWT/API key)
-#   api-dev.sessatakuma.dev  → backend-dev  (gated by Cloudflare Access Zero Trust policy)
+#   api.sessatakuma.dev      → backend-prod
+#     no edge auth; the app enforces JWT / X-API-Key itself
+#   api-dev.sessatakuma.dev  → backend-dev
+#     gated at the edge by a Cloudflare Access Zero Trust policy
 tunnel: jb
-credentials-file: /home/nonroot/.cloudflared/e675aa1e-81a3-4ce2-8147-487521bad542.json
+credentials-file: >-
+  /home/nonroot/.cloudflared/e675aa1e-81a3-4ce2-8147-487521bad542.json
 
 ingress:
   - hostname: api.sessatakuma.dev
