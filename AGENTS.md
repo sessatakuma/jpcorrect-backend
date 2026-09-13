@@ -108,6 +108,19 @@ for the `:stable` images; `watchtower-dev` polls every 5 min for the `:dev`
 images. Each watchtower only touches containers carrying the matching
 `com.centurylinklabs.watchtower.scope=<env>` label.
 
+**Only the two backends auto-update.** Both `api-tools-*` services carry
+`com.centurylinklabs.watchtower.enable=false` because API-tools still publishes
+amd64-only images, which would be unrunnable on the arm64 deploy host. Flip them
+back on after [API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)
+merges and republishes multi-arch tags — see `deploy/README.md`.
+
+Every app container runs with `read_only: true` + `tmpfs: /tmp` +
+`no-new-privileges` (verified for both the Go backend and the Python api-tools
+image); Postgres keeps a writable rootfs but still gets `no-new-privileges`.
+`cloudflared` and `watchtower` are pinned to explicit versions rather than
+`:latest` — watchtower holds the Docker socket, so it is the last thing that
+should float.
+
 Each env has its own Postgres + api-tools on an isolated bridge network — only the backends and cloudflared need cross-env reachability:
 
 | Container | prod-net | dev-net | jpcorrect-shared |
@@ -145,7 +158,9 @@ docker run --rm -v $PWD/deploy/cloudflared/creds:/home/nonroot/.cloudflared \
 #     Policy: e.g. include emails ending in @sessatakuma.dev
 # Do NOT add an Access app for api.sessatakuma.dev (prod stays publicly reachable).
 
-# GHCR auth (only if the image is private — Watchtower mounts ~/.docker/config.json):
+# GHCR auth — REQUIRED, both packages are private. This also creates
+# ~/.docker/config.json, which the watchtower services bind-mount; it must exist
+# before `make -C deploy up-infra` or Docker creates a directory in its place.
 docker login ghcr.io -u <github-user>   # paste a PAT with read:packages
 ```
 

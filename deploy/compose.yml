@@ -20,6 +20,11 @@ services:
             interval: 5s
             timeout: 5s
             retries: 5
+        # Rootfs has to stay writable (initdb + PGDATA), but nothing here needs
+        # to gain privileges. Verified that the entrypoint's drop to the
+        # postgres user still works under this.
+        security_opt:
+            - no-new-privileges:true
         networks:
             - prod-net
         restart: unless-stopped
@@ -38,6 +43,11 @@ services:
             interval: 5s
             timeout: 5s
             retries: 5
+        # Rootfs has to stay writable (initdb + PGDATA), but nothing here needs
+        # to gain privileges. Verified that the entrypoint's drop to the
+        # postgres user still works under this.
+        security_opt:
+            - no-new-privileges:true
         networks:
             - dev-net
         restart: unless-stopped
@@ -77,6 +87,14 @@ services:
             - env/dev
         expose:
             - "8080"
+        # Same runtime hardening as backend-prod — dev skips the app-level
+        # middlewares, so the container-level guarantees matter more here, not
+        # less.
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         networks:
             - dev-net
             - jpcorrect-shared
@@ -94,29 +112,48 @@ services:
     # local UniDic dict).
     api-tools-prod:
         # :stable is published by the API-tools repo's CD on v*.*.* git tags.
-        # Updated by watchtower-prod (cron 03:00 Asia/Taipei) along with backend-prod.
+        # Pinned by hand for now (see the watchtower labels below).
         image: ${API_TOOLS_PROD_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
         container_name: jpcorrect-api-tools-prod
         expose:
             - "8000"
+        # Verified on the arm64 deploy host: the OpenJTalk/UniDic dicts are
+        # baked into /app/.venv and only /tmp is written at runtime, so the
+        # rootfs can stay read-only.
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         networks:
             - prod-net
         labels:
-            - com.centurylinklabs.watchtower.enable=true
+            # Auto-update is OFF for api-tools until sessatakuma/API-tools#64
+            # (multi-arch images) merges: the published :stable / :dev tags are
+            # amd64-only, so a watchtower pull would replace a working arm64
+            # image with one this host cannot run. Flip both api-tools services
+            # back to enable=true once #64 has landed and republished the tags.
+            - com.centurylinklabs.watchtower.enable=false
             - com.centurylinklabs.watchtower.scope=prod
         restart: unless-stopped
 
     api-tools-dev:
         # :dev is published by the API-tools repo's CD on every main-branch push.
-        # Updated by watchtower-dev (5-minute poll) along with backend-dev.
+        # Pinned by hand for now (see the watchtower labels below).
         image: ${API_TOOLS_DEV_IMAGE:-ghcr.io/sessatakuma/api-tools:dev}
         container_name: jpcorrect-api-tools-dev
         expose:
             - "8000"
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         networks:
             - dev-net
         labels:
-            - com.centurylinklabs.watchtower.enable=true
+            # Gated off for the same reason as api-tools-prod — see above.
+            - com.centurylinklabs.watchtower.enable=false
             - com.centurylinklabs.watchtower.scope=dev
         restart: unless-stopped
 
@@ -134,6 +171,8 @@ services:
             # the dir above, so the credentials dir stays a pure secrets-only
             # location and the routing config gets reviewed via PR.
             - ./cloudflared/config.yml:/home/nonroot/.cloudflared/config.yml:ro
+        security_opt:
+            - no-new-privileges:true
         networks:
             - jpcorrect-shared
         restart: unless-stopped
@@ -143,11 +182,21 @@ services:
     # That lets prod and dev run on independent cadences: prod waits for an
     # off-hours window, dev keeps the tight 5-minute loop.
     watchtower-prod:
-        image: containrrr/watchtower:latest
+        # Pinned: :latest on a dormant project is a moving target, and this
+        # container holds the docker socket. Verified working on the arm64
+        # deploy host.
+        image: containrrr/watchtower:1.7.1
         container_name: jpcorrect-watchtower-prod
         volumes:
+            # Root-equivalent on the host — this is why the two watchtowers are
+            # scope-split and nothing else mounts the socket.
             - /var/run/docker.sock:/var/run/docker.sock
             - ${HOME}/.docker/config.json:/config.json:ro
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         environment:
             # containrrr/watchtower:latest is stale (project is essentially
             # dormant) and defaults to Docker API v1.25, which modern daemons
@@ -167,11 +216,16 @@ services:
         restart: unless-stopped
 
     watchtower-dev:
-        image: containrrr/watchtower:latest
+        image: containrrr/watchtower:1.7.1
         container_name: jpcorrect-watchtower-dev
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ${HOME}/.docker/config.json:/config.json:ro
+        read_only: true
+        tmpfs:
+            - /tmp
+        security_opt:
+            - no-new-privileges:true
         environment:
             DOCKER_API_VERSION: "1.41"
             WATCHTOWER_LABEL_ENABLE: "true"
