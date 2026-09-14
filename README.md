@@ -161,7 +161,7 @@ runs **two backend instances** on one host behind a single Cloudflare Tunnel:
 - **prod** (`backend-prod` → `api.sessatakuma.dev`) — `GIN_MODE=release`, full
   auth, image `:stable` (pushed on `v*.*.*` git tags).
 - **dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`, app
-  middlewares skipped (gated at the edge by Cloudflare Access), image `:latest`
+  middlewares skipped (gated at the edge by Cloudflare Access), image `:dev`
   (every main merge).
 
 ```bash
@@ -194,8 +194,8 @@ Each env's Postgres is reachable only from its own bridge network (never
 published to the host), and `cloudflared` is the single ingress — no container
 ports are exposed.
 
-See **AGENTS.md → "Deployment stack (two environments on one host)"** for the
-full network table, one-time host setup, and the `deploy/` file layout.
+See **AGENTS.md → "Deployment"** for the env split and image-tag rules, and
+**`deploy/README.md`** for one-time host setup and day-to-day operations.
 
 ### Cloudflare Tunnel
 
@@ -213,7 +213,7 @@ hostnames onto the two backends:
 | `api-dev.sessatakuma.dev` | `http://backend-dev:8080` | Cloudflare Access Zero Trust policy |
 
 Register the routes once with `cloudflared tunnel route dns` — see
-**AGENTS.md → "One-time host setup"**.
+**`deploy/README.md` → "One-time host setup"**.
 
 > The upstream host is the Compose **service name**, and `cloudflared` runs
 > inside Docker: do **not** use `localhost:8080`, which inside the tunnel
