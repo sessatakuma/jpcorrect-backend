@@ -134,7 +134,7 @@ docker compose logs -f
 docker compose stop
 
 # Run API-tools locally with uv on 127.0.0.1:8000 (clone the sibling repo first)
-cd API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
+cd ../API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
 
 # Run backend locally with air
 make air
@@ -173,14 +173,22 @@ cp deploy/env/dev.example  deploy/env/dev    # dev: leave CLIENT_API_KEY / JWKS_
 # env a unique random password and mirror it, URL-encoded, into that env's
 # DATABASE_URL before continuing.
 
-make -C deploy up     # both envs + cloudflared + watchtower
+make -C deploy up     # both envs + cloudflared + both watchtowers
 make -C deploy down   # everything
 ```
 
-Each env has its own Postgres on an isolated bridge network, and both backends
-reach the sibling `jpcorrect-api-tools` container over the external
-`jpcorrect-shared` network. A `watchtower` container polls GHCR every 5 min and
-auto-restarts whichever backend image changed.
+Each env has its own Postgres **and its own api-tools** on an isolated bridge
+network, so `backend-dev` cannot reach `postgres-prod` or `api-tools-prod` at
+all. Each backend talks to its own instance over that env-net
+(`http://jpcorrect-api-tools-prod:8000` / `...-dev:8000`); only the backends and
+`cloudflared` sit on the shared `jpcorrect-shared` network.
+
+Two `watchtower` containers keep the envs on separate update cadences, matched
+by a `com.centurylinklabs.watchtower.scope=<env>` label:
+
+- `watchtower-dev` polls GHCR every 5 min for the `:dev` images
+- `watchtower-prod` runs once a day at 03:00 Asia/Taipei for the `:stable`
+  images, so a bad release cannot take prod down mid-day
 
 Each env's Postgres is reachable only from its own bridge network (never
 published to the host), and `cloudflared` is the single ingress — no container
@@ -195,13 +203,21 @@ full network table, one-time host setup, and the `deploy/` file layout.
 `deploy/cloudflared/config.yml` and credentials live in
 `deploy/cloudflared/creds/` (gitignored).
 
-Configure the Cloudflare public hostname to forward to:
+Ingress is file-driven, so there is nothing to configure in the Cloudflare
+dashboard beyond the DNS routes. `deploy/cloudflared/config.yml` maps the two
+hostnames onto the two backends:
 
-```text
-http://backend:8080
-```
+| Hostname | Upstream | Edge auth |
+| --- | --- | --- |
+| `api.sessatakuma.dev` | `http://backend-prod:8080` | none; the app enforces JWT / `X-API-Key` |
+| `api-dev.sessatakuma.dev` | `http://backend-dev:8080` | Cloudflare Access Zero Trust policy |
 
-> `cloudflared` runs inside Docker, so do **not** use `localhost:8080` as the Cloudflare service URL. Inside the tunnel container, `localhost` points to itself, not the `backend` service.
+Register the routes once with `cloudflared tunnel route dns` — see
+**AGENTS.md → "One-time host setup"**.
+
+> The upstream host is the Compose **service name**, and `cloudflared` runs
+> inside Docker: do **not** use `localhost:8080`, which inside the tunnel
+> container points at the tunnel itself rather than at a backend.
 
 ### Environment files
 

@@ -16,7 +16,7 @@ Japanese language correction platform backend: Go 1.25+, Gin, PostgreSQL, GORM.
 - `internal/repository/`: GORM implementations
 - `internal/cmd/`: Command execution and server setup
 - `internal/database/`: Database connection and GORM config
-- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). For **local dev**, cloned into `./API-tools/` and run with `uv` (`uv run uvicorn main:app ...`). For the **deploy stack**, it is pulled from GHCR as the `api-tools-prod` (`:stable`) and `api-tools-dev` (`:dev`) services in `deploy/compose.yml` (no local clone) — one per env, mirroring the backend split. Reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
+- `API-tools/`: Sibling Python FastAPI service in a **separate repo** ([sessatakuma/API-tools](https://github.com/sessatakuma/API-tools)). For **local dev**, cloned as a sibling at `../API-tools/` and run with `uv` (`uv run uvicorn main:app ...`). For the **deploy stack**, it is pulled from GHCR as the `api-tools-prod` (`:stable`) and `api-tools-dev` (`:dev`) services in `deploy/compose.yml` (no local clone) — one per env, mirroring the backend split. Reached at runtime via `API_TOOLS_URL`. Not a submodule — coupling is HTTP-only, see "API-tools compatibility" below.
 
 ## API-tools compatibility
 
@@ -51,7 +51,7 @@ docker compose logs -f                # tail Postgres logs
 docker compose stop                   # stop Postgres
 
 # Run Python API-tools on 127.0.0.1:8000 via uv (clone the repo as a sibling first)
-cd API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
+cd ../API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
 
 make air                              # run backend with live reload (go tool air)
 make swag                             # regenerate Swagger docs
