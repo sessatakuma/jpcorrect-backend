@@ -110,11 +110,15 @@ for the `:stable` images; `watchtower-dev` polls every 5 min for the `:dev`
 images. Each watchtower only touches containers carrying the matching
 `com.centurylinklabs.watchtower.scope=<env>` label.
 
-**Only the two backends auto-update.** Both `api-tools-*` services carry
-`com.centurylinklabs.watchtower.enable=false` because API-tools still publishes
-amd64-only images, which would be unrunnable on the arm64 deploy host. Flip them
-back on after [API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)
-merges and republishes multi-arch tags — see `deploy/README.md`.
+**All four app containers auto-update.** Both `api-tools-*` services now carry
+`com.centurylinklabs.watchtower.enable=true`, unblocked by
+[API-tools#64](https://github.com/sessatakuma/API-tools/pull/64), which switched
+that repo's CD to multi-arch (amd64 + arm64) builds so the published tags run on
+the arm64 deploy host. `api-tools-dev` follows `:dev` on every API-tools main
+merge; `api-tools-prod` follows `:stable`, which is only republished when a
+`v*.*.*` tag is pushed there, so prod moves at release cadence. Before pointing
+`watchtower-prod` at a tag, confirm its manifest has a `linux/arm64` entry —
+see `deploy/README.md`.
 
 Every app container runs with `read_only: true` + `tmpfs: /tmp` +
 `no-new-privileges` (verified for both the Go backend and the Python api-tools

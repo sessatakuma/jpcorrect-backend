@@ -206,34 +206,42 @@ Each watchtower only touches containers carrying the matching
 truly independent — dev rolling forward never triggers a prod restart and
 vice versa.
 
-### api-tools is opted out of auto-update (for now)
+### api-tools auto-updates too
 
 Both `api-tools-*` services carry
-`com.centurylinklabs.watchtower.enable=false`. The backend's GHCR images are
-multi-arch (amd64 + arm64) as of #38, but API-tools still publishes
-**amd64-only** tags — so on the arm64 deploy host a watchtower pull would swap a
-working locally-built arm64 image for one the host cannot execute.
+`com.centurylinklabs.watchtower.enable=true`. This was gated off while API-tools
+published **amd64-only** tags, which the arm64 deploy host cannot execute;
+**[sessatakuma/API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)**
+switched that repo's CD to `platforms: linux/amd64,linux/arm64`, so both tags
+now carry an arm64 manifest and a watchtower pull is safe.
 
-Re-enable (flip both labels to `enable=true` and recreate the two containers)
-once **[sessatakuma/API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)**
-has merged *and* its CD has republished `:stable` / `:dev` as multi-arch. Check
-before flipping:
+The two run on different cadences, because that is how API-tools tags its
+images:
+
+| Service | Tag | Republished when | Watchtower |
+| --- | --- | --- | --- |
+| `api-tools-dev` | `:dev` | every push to API-tools `main` | `watchtower-dev`, polls every 5 min |
+| `api-tools-prod` | `:stable` | a `v*.*.*` tag is pushed in API-tools | `watchtower-prod`, daily at 03:00 Taipei |
+
+So dev tracks API-tools `main` within minutes, while prod only moves when that
+repo cuts a release.
+
+### Check a tag is multi-arch before prod pulls it
+
+`:stable` is only republished on a `v*.*.*` tag push, so a release cut before
+API-tools#64 is still amd64-only and letting `watchtower-prod` pull it would
+break prod. Verify the manifest first:
 
 ```bash
-docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:dev | grep Platform
+docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:stable \
+  | grep Platform
 # needs both linux/amd64 and linux/arm64
 ```
 
-Until then, keep the tags pinned by hand via `API_TOOLS_PROD_IMAGE` /
-`API_TOOLS_DEV_IMAGE`.
-
-### Before enabling watchtower-prod on an arm64 host
-
-`:stable` is only republished when a `v*.*.*` tag is pushed. If the newest
-`:stable` on GHCR predates the multi-arch switch it is amd64-only, and letting
-`watchtower-prod` pull it would break prod. Push a `v*.*.*` tag first, confirm
-the manifest has a `linux/arm64` entry (same `imagetools inspect` command as
-above), then bring `watchtower-prod` up.
+If a tag is missing `linux/arm64`, push a fresh `v*.*.*` tag in API-tools and
+wait for its CD to finish before `watchtower-prod`'s next run. To hold a known
+good image in the meantime, pin it by digest via `API_TOOLS_PROD_IMAGE` /
+`API_TOOLS_DEV_IMAGE` — an image reference watchtower will not move off.
 
 ### Verifying watchtower without touching a running env
 

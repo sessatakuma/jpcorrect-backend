@@ -120,8 +120,8 @@ services:
     # old YAHOO_API_KEY is gone — accent/furigana now come from the bundled
     # local UniDic dict).
     api-tools-prod:
-        # :stable is published by the API-tools repo's CD on v*.*.* git tags.
-        # Pinned by hand for now (see the watchtower labels below).
+        # :stable is published by the API-tools repo's CD on v*.*.* git tags,
+        # multi-arch (amd64 + arm64) since API-tools#64.
         image: ${API_TOOLS_PROD_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
         container_name: jpcorrect-api-tools-prod
         expose:
@@ -137,18 +137,18 @@ services:
         networks:
             - prod-net
         labels:
-            # Auto-update is OFF for api-tools until sessatakuma/API-tools#64
-            # (multi-arch images) merges: the published :stable / :dev tags are
-            # amd64-only, so a watchtower pull would replace a working arm64
-            # image with one this host cannot run. Flip both api-tools services
-            # back to enable=true once #64 has landed and republished the tags.
-            - com.centurylinklabs.watchtower.enable=false
+            # Auto-updates with the rest of prod. API-tools#64 landed, so the
+            # published tags carry a linux/arm64 entry this host can execute.
+            # watchtower-prod only pulls :stable, which API-tools republishes
+            # on a v*.*.* tag push, so api-tools-prod moves at release cadence
+            # rather than on every main merge.
+            - com.centurylinklabs.watchtower.enable=true
             - com.centurylinklabs.watchtower.scope=prod
         restart: unless-stopped
 
     api-tools-dev:
-        # :dev is published by the API-tools repo's CD on every main push.
-        # Pinned by hand for now (see the watchtower labels below).
+        # :dev is published by the API-tools repo's CD on every main push,
+        # multi-arch since API-tools#64.
         image: ${API_TOOLS_DEV_IMAGE:-ghcr.io/sessatakuma/api-tools:dev}
         container_name: jpcorrect-api-tools-dev
         expose:
@@ -161,8 +161,10 @@ services:
         networks:
             - dev-net
         labels:
-            # Gated off for the same reason as api-tools-prod — see above.
-            - com.centurylinklabs.watchtower.enable=false
+            # Same deal as api-tools-prod, on the dev cadence: watchtower-dev
+            # polls every 5 min, so an API-tools main merge reaches dev within
+            # minutes while prod waits for a release tag.
+            - com.centurylinklabs.watchtower.enable=true
             - com.centurylinklabs.watchtower.scope=dev
         restart: unless-stopped
 
