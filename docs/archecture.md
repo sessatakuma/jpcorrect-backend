@@ -580,7 +580,9 @@ upgrader := websocket.Upgrader{
 │   ├── database-design.md         # Schema, ERD, Developer Notes
 │   └── refactor-pgx-to-gorm.md    # Migration summary
 ├── Dockerfile                     # Multi-stage build
-├── compose.deploy.yml             # Deploy stack (backend + postgres + cloudflared)
+├── compose.yml                    # Local-dev Postgres only
+├── deploy/                        # Deploy stack (prod + dev envs, cloudflared,
+│                                  #   watchtower) — see deploy/README.md
 └── AGENTS.md                      # AI coding guidelines
 ```
 

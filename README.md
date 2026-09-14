@@ -105,11 +105,15 @@ Common annotations:
 
 ## Local Development and Deployment
 
-This repository now uses a **single Docker Compose file**:
+This repository uses two Docker Compose files, each named `compose.yml` (docker's
+default) within its own context:
 
-- `compose.deploy.yml` for deployment infrastructure and containerized services
+- `compose.yml` (repo root) — local-dev Postgres only (`docker compose up -d`); the backend
+  and `api-tools` run on the host
+- `deploy/compose.yml` — the two-env deployment stack (backend-prod + backend-dev
+  + cloudflared + watchtower)
 
-Local development is handled through the `Makefile` instead of a separate all-in-one compose stack.
+Local development is driven through the `Makefile` rather than an all-in-one stack.
 
 ### Local development
 
@@ -119,20 +123,18 @@ Copy the local development environment file first:
 cp .env.example .env
 ```
 
-Useful local targets:
+Useful local commands:
 
 ```bash
-# Start only PostgreSQL in Docker (bound to 127.0.0.1:5432)
-make db-up
+# Start only PostgreSQL in Docker (root compose.yml, bound to 127.0.0.1:5432)
+docker compose up -d
 
-# Follow PostgreSQL logs
-make db-logs
+# Follow PostgreSQL logs / stop it
+docker compose logs -f
+docker compose stop
 
-# Stop PostgreSQL
-make db-down
-
-# Run API-tools locally with uv on 127.0.0.1:8000
-make api-tools
+# Run API-tools locally with uv on 127.0.0.1:8000 (clone the sibling repo first)
+cd ../API-tools && uv run uvicorn main:app --host 127.0.0.1 --port 8000
 
 # Run backend locally with air
 make air
@@ -142,7 +144,7 @@ In this workflow:
 
 - backend runs on your host machine
 - `api-tools` runs on your host machine through `uv run`
-- PostgreSQL runs in Docker via `compose.deploy.yml`
+- PostgreSQL runs in Docker via `compose.yml`
 
 The local `.env.example` is configured for this workflow with host-reachable values such as:
 
@@ -153,52 +155,76 @@ API_TOOLS_URL=http://127.0.0.1:8000
 
 ### Deployment / CD stack
 
-For deployment, use a dedicated deploy env file:
+All deploy files live under `deploy/`. The stack (`deploy/compose.yml`)
+runs **two backend instances** on one host behind a single Cloudflare Tunnel:
+
+- **prod** (`backend-prod` → `api.sessatakuma.dev`) — `GIN_MODE=release`, full
+  auth, image `:stable` (pushed on `v*.*.*` git tags).
+- **dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`, app
+  middlewares skipped (gated at the edge by Cloudflare Access), image `:latest`
+  (every main merge).
 
 ```bash
-cp .env.deploy.example .env.deploy
-# Set POSTGRES_PASSWORD to a unique random value and put its URL-encoded form
-# in DATABASE_URL before continuing.
-BACKEND_ENV_FILE=.env.deploy docker compose -f compose.deploy.yml --env-file .env.deploy up -d
+cp deploy/.env.example     deploy/.env      # POSTGRES_PROD_PASSWORD + POSTGRES_DEV_PASSWORD
+cp deploy/env/prod.example deploy/env/prod   # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
+cp deploy/env/dev.example  deploy/env/dev    # dev: leave CLIENT_API_KEY / JWKS_URL empty
+# deploy/.env is the compose interpolation source (env/prod and env/dev are
+# service env_files, which compose never reads during interpolation). Give each
+# env a unique random password and mirror it, URL-encoded, into that env's
+# DATABASE_URL before continuing.
+
+make -C deploy up     # both envs + cloudflared + both watchtowers
+make -C deploy down   # everything
 ```
 
-For this mode, `.env.deploy` should use deployment-ready values such as:
+Each env has its own Postgres **and its own api-tools** on an isolated bridge
+network, so `backend-dev` cannot reach `postgres-prod` or `api-tools-prod` at
+all. Each backend talks to its own instance over that env-net
+(`http://jpcorrect-api-tools-prod:8000` / `...-dev:8000`); only the backends and
+`cloudflared` sit on the shared `jpcorrect-shared` network.
 
-```text
-DATABASE_URL=postgres://...@postgres:5432/...
-API_TOOLS_URL=http://jpcorrect-api-tools:8000
-```
+Two `watchtower` containers keep the envs on separate update cadences, matched
+by a `com.centurylinklabs.watchtower.scope=<env>` label:
 
-`POSTGRES_PASSWORD` is required by Compose and must be a unique random value.
-Use the same value (URL-encoded when needed) in `DATABASE_URL`.
+- `watchtower-dev` polls GHCR every 5 min for the `:dev` images
+- `watchtower-prod` runs once a day at 03:00 Asia/Taipei for the `:stable`
+  images, so a bad release cannot take prod down mid-day
 
-This stack is intended for CD / production-style deploys:
+Each env's Postgres is reachable only from its own bridge network (never
+published to the host), and `cloudflared` is the single ingress — no container
+ports are exposed.
 
-- `backend` runs from `BACKEND_IMAGE` (for example a GHCR image)
-- `postgres` runs in Docker and is bound only to `127.0.0.1`
-- `cloudflared` forwards traffic to `http://backend:8080`
-- `backend` reaches `api-tools` by container name over the external `jpcorrect-shared` bridge (`http://jpcorrect-api-tools:8000`)
-
-The shared bridge lets `api-tools` keep an independent lifecycle in its own compose stack while staying reachable by name. Create the network once (`docker network create jpcorrect-shared`) and bring up the API-tools repo's compose so its container exists for DNS resolution.
+See **AGENTS.md → "Deployment stack (two environments on one host)"** for the
+full network table, one-time host setup, and the `deploy/` file layout.
 
 ### Cloudflare Tunnel
 
-`cloudflared` is part of `compose.deploy.yml`.
+`cloudflared` is part of `deploy/compose.yml`; ingress is defined in
+`deploy/cloudflared/config.yml` and credentials live in
+`deploy/cloudflared/creds/` (gitignored).
 
-Configure the Cloudflare public hostname to forward to:
+Ingress is file-driven, so there is nothing to configure in the Cloudflare
+dashboard beyond the DNS routes. `deploy/cloudflared/config.yml` maps the two
+hostnames onto the two backends:
 
-```text
-http://backend:8080
-```
+| Hostname | Upstream | Edge auth |
+| --- | --- | --- |
+| `api.sessatakuma.dev` | `http://backend-prod:8080` | none; the app enforces JWT / `X-API-Key` |
+| `api-dev.sessatakuma.dev` | `http://backend-dev:8080` | Cloudflare Access Zero Trust policy |
 
-> `cloudflared` runs inside Docker, so do **not** use `localhost:8080` as the Cloudflare service URL. Inside the tunnel container, `localhost` points to itself, not the `backend` service.
+Register the routes once with `cloudflared tunnel route dns` — see
+**AGENTS.md → "One-time host setup"**.
+
+> The upstream host is the Compose **service name**, and `cloudflared` runs
+> inside Docker: do **not** use `localhost:8080`, which inside the tunnel
+> container points at the tunnel itself rather than at a backend.
 
 ### Environment files
 
-- `.env.example`: local development defaults for `make db-up`, `make api-tools`, and `make air`
-- `.env.deploy.example`: deployment defaults for `compose.deploy.yml`
+- `.env.example`: local development defaults for `docker compose up -d`, `uv run uvicorn ...`, and `make air`
+- `deploy/env/prod.example` / `deploy/env/dev.example`: deploy defaults for `backend-prod` / `backend-dev`
 - `.env`: your local development environment file (gitignored)
-- `.env.deploy`: your deployment environment file (gitignored)
+- `deploy/env/prod` / `deploy/env/dev`: your per-env deploy files (gitignored)
 - `API-tools/.env.example`: standalone `api-tools` local runtime example
 
 ### Why this layout
