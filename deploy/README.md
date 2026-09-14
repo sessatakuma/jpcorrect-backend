@@ -1,7 +1,6 @@
 # Deploy operations
 
-Operational notes for this host. For the architecture and env split see
-[`../README.md`](../README.md) → *Deployment / CD stack*. This file documents
+Operational notes for this host. This file documents
 the one-time host setup plus the day-to-day ops gotchas you can't read off the
 `compose.yml`.
 
