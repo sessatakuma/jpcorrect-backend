@@ -1,8 +1,8 @@
 # Deploy operations
 
 Operational notes for this host. For the architecture and env split see
-[`../AGENTS.md`](../AGENTS.md) → *Deployment*. This file documents the one-time
-host setup plus the day-to-day ops gotchas you can't read off the
+[`../README.md`](../README.md) → *Deployment / CD stack*. This file documents
+the one-time host setup plus the day-to-day ops gotchas you can't read off the
 `compose.yml`.
 
 ## One-time host setup
@@ -239,11 +239,9 @@ vice versa.
 ### api-tools auto-updates too
 
 Both `api-tools-*` services carry
-`com.centurylinklabs.watchtower.enable=true`. This was gated off while API-tools
-published **amd64-only** tags, which the arm64 deploy host cannot execute;
-**[sessatakuma/API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)**
-switched that repo's CD to `platforms: linux/amd64,linux/arm64`, so both tags
-now carry an arm64 manifest and a watchtower pull is safe.
+`com.centurylinklabs.watchtower.enable=true`; API-tools publishes multi-arch
+(`linux/amd64,linux/arm64`) images, so a watchtower pull is safe on this arm64
+machine.
 
 The two run on different cadences, because that is how API-tools tags its
 images:
@@ -258,9 +256,9 @@ repo cuts a release.
 
 ### Check a tag is multi-arch before prod pulls it
 
-`:stable` is only republished on a `v*.*.*` tag push, so a release cut before
-API-tools#64 is still amd64-only and letting `watchtower-prod` pull it would
-break prod. Verify the manifest first:
+Watchtower pulls whatever digest currently sits behind the tag, so before
+letting `watchtower-prod` pull a manually pinned or freshly cut tag, verify
+the manifest carries arm64:
 
 ```bash
 docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:stable \
@@ -268,9 +266,8 @@ docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:stable \
 # needs both linux/amd64 and linux/arm64
 ```
 
-If a tag is missing `linux/arm64`, push a fresh `v*.*.*` tag in API-tools and
-wait for its CD to finish before `watchtower-prod`'s next run. To hold a known
-good image in the meantime, pin it by digest via `API_TOOLS_PROD_IMAGE` /
+If a tag is missing `linux/arm64`, don't let `watchtower-prod` pull it. To
+hold a known-good image, pin it by digest via `API_TOOLS_PROD_IMAGE` /
 `API_TOOLS_DEV_IMAGE` — an image reference watchtower will not move off.
 
 ### Verifying watchtower without touching a running env

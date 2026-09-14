@@ -121,7 +121,7 @@ services:
     # local UniDic dict).
     api-tools-prod:
         # :stable is published by the API-tools repo's CD on v*.*.* git tags,
-        # multi-arch (amd64 + arm64) since API-tools#64.
+        # multi-arch (amd64 + arm64).
         image: ${API_TOOLS_PROD_IMAGE:-ghcr.io/sessatakuma/api-tools:stable}
         container_name: jpcorrect-api-tools-prod
         expose:
@@ -137,8 +137,8 @@ services:
         networks:
             - prod-net
         labels:
-            # Auto-updates with the rest of prod. API-tools#64 landed, so the
-            # published tags carry a linux/arm64 entry this host can execute.
+            # Auto-updates with the rest of prod; the published API-tools
+            # tags carry a linux/arm64 entry this host can execute.
             # watchtower-prod only pulls :stable, which API-tools republishes
             # on a v*.*.* tag push, so api-tools-prod moves at release cadence
             # rather than on every main merge.
@@ -148,7 +148,7 @@ services:
 
     api-tools-dev:
         # :dev is published by the API-tools repo's CD on every main push,
-        # multi-arch since API-tools#64.
+        # multi-arch (amd64 + arm64).
         image: ${API_TOOLS_DEV_IMAGE:-ghcr.io/sessatakuma/api-tools:dev}
         container_name: jpcorrect-api-tools-dev
         expose:
