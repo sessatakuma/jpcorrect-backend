@@ -11,7 +11,11 @@ services:
         container_name: jpcorrect-postgres-prod
         environment:
             POSTGRES_USER: jpcorrect
-            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+            # Compose interpolates this from deploy/.env (see .env.example).
+            # A service `env_file` is NOT an interpolation source, so the
+            # password cannot live in env/prod — only its URL-encoded copy
+            # inside that file's DATABASE_URL.
+            POSTGRES_PASSWORD: ${POSTGRES_PROD_PASSWORD:?set in deploy/.env}
             POSTGRES_DB: jpcorrect
         volumes:
             - postgres_prod_data:/var/lib/postgresql/data
@@ -34,7 +38,9 @@ services:
         container_name: jpcorrect-postgres-dev
         environment:
             POSTGRES_USER: jpcorrect
-            POSTGRES_PASSWORD: jpcorrect_password
+            # Same deal as prod: unique per-deployment value out of
+            # deploy/.env, kept in sync with env/dev's DATABASE_URL.
+            POSTGRES_PASSWORD: ${POSTGRES_DEV_PASSWORD:?set in deploy/.env}
             POSTGRES_DB: jpcorrect
         volumes:
             - postgres_dev_data:/var/lib/postgresql/data

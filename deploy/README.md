@@ -26,6 +26,77 @@ bind-mount as `/config.json` to reuse the same credentials. **The file has to
 exist before `make -C deploy up-infra`** — Docker would otherwise create a
 *directory* at that path and watchtower would silently find no credentials.
 
+## Postgres passwords (`deploy/.env`)
+
+Each env's Postgres password is a Compose **interpolation** variable, so it has
+to come from `deploy/.env` — the file Compose auto-loads from the directory
+holding `compose.yml`:
+
+```bash
+cp deploy/.env.example deploy/.env    # then fill in both values
+```
+
+`env/prod` and `env/dev` cannot hold these. They are service `env_file`s, which
+Docker hands to the container at runtime and never consults during
+interpolation, so a password placed there leaves `${POSTGRES_PROD_PASSWORD}`
+unset and every `docker compose` command aborts before creating a service:
+
+```console
+$ make -C deploy up-prod
+error while interpolating services.postgres-prod.environment.POSTGRES_PASSWORD:
+required variable POSTGRES_PROD_PASSWORD is missing a value: set in deploy/.env
+```
+
+The password appears twice per env and both copies must agree:
+
+| Where | Variable | Consumed by |
+| --- | --- | --- |
+| `deploy/.env` | `POSTGRES_PROD_PASSWORD` | `postgres-prod` at `initdb` |
+| `deploy/env/prod` | inside `DATABASE_URL` | the Go backend at connect time |
+| `deploy/.env` | `POSTGRES_DEV_PASSWORD` | `postgres-dev` at `initdb` |
+| `deploy/env/dev` | inside `DATABASE_URL` | the Go backend at connect time |
+
+Prod and dev get **different** values: `backend-dev` runs with the app
+middlewares skipped, so anything that reaches it must not hold credentials that
+also work against the prod database.
+
+> **Rotation is not automatic.** `POSTGRES_*_PASSWORD` is read by the official
+> image only when it initialises an empty `PGDATA`. Editing it later changes
+> nothing inside an existing volume — the container comes back up with the old
+> password and the backend starts failing auth. To actually rotate, change it
+> in-place first, then update both files:
+>
+> ```bash
+> docker exec -it jpcorrect-postgres-prod \
+>   psql -U jpcorrect -c "ALTER USER jpcorrect PASSWORD 'new-secret';"
+> # then edit deploy/.env + deploy/env/prod, and recreate the backend:
+> docker compose up -d --force-recreate backend-prod
+> ```
+
+## Upgrading from the pre-split stack (volume rename)
+
+The single-env `compose.deploy.yml` this stack replaces kept its data in
+`jpcorrect-backend_postgres_data`. The split stack uses
+`jpcorrect-backend_postgres_prod_data` and `jpcorrect-backend_postgres_dev_data`,
+so a host that still has the old volume would get a freshly initialised (empty)
+prod database and leave the old one orphaned.
+
+The current deploy host never carried that volume — prod was created fresh under
+the new name — so nothing had to be migrated here. On any host that *does* still
+have it, copy the data across **before** the first `make -C deploy up-prod`:
+
+```bash
+docker volume ls | grep jpcorrect-backend_postgres_data   # confirm it exists
+docker volume create jpcorrect-backend_postgres_prod_data
+docker run --rm \
+  -v jpcorrect-backend_postgres_data:/from \
+  -v jpcorrect-backend_postgres_prod_data:/to \
+  alpine sh -c 'cd /from && cp -a . /to'
+```
+
+Keep the old volume until the new prod stack has been verified; it is the only
+rollback.
+
 ## Day-to-day commands
 
 All deploy targets live in [`./Makefile`](./Makefile). Run from this directory

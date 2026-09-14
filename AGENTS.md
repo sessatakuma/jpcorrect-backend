@@ -72,6 +72,8 @@ All deploy-only files live under `deploy/` (kept separate from dev/build files a
 ```
 deploy/
 ├── compose.yml               # the stack definition (default compose name)
+├── .env.example              # interpolation template (tracked)
+├── .env                      # postgres passwords, host-only (gitignored)
 ├── env/
 │   ├── prod.example          # template (tracked)
 │   ├── dev.example           # template (tracked)
@@ -166,9 +168,13 @@ docker login ghcr.io -u <github-user>   # paste a PAT with read:packages
 
 #### Day-to-day
 ```bash
+cp deploy/.env.example          deploy/.env            # per-env postgres passwords (compose interpolation)
 cp deploy/env/prod.example      deploy/env/prod        # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
 cp deploy/env/dev.example       deploy/env/dev         # dev: leave CLIENT_API_KEY / JWKS_URL empty
 # api-tools needs no env file post local-unidic (YAHOO_API_KEY is gone)
+# deploy/.env is the ONLY place the postgres passwords work: env/prod and
+# env/dev are service env_files, which compose does not read during
+# interpolation. Mirror each value into that env's DATABASE_URL (URL-encoded).
 
 # Deploy targets live in deploy/Makefile — run with `make -C deploy <target>`
 # (or `cd deploy && make <target>`). docker compose auto-detects deploy/compose.yml.
@@ -253,7 +259,7 @@ Every authenticated handler must carry a `// @Security <Scheme>` line above `// 
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | — | Postgres connection. `127.0.0.1:5432` for local dev, `postgres-prod:5432` or `postgres-dev:5432` for the deploy stack |
-| `POSTGRES_PASSWORD` | Deploy: Yes | `jpcorrect_password` in `.env` only | Password used by the Compose Postgres service. Deployments must set a unique value per env and use it in `DATABASE_URL`. |
+| `POSTGRES_PASSWORD` | Local dev only | `jpcorrect_password` in `.env` | Password for the local-dev Postgres in the repo-root `compose.yml`. The deploy stack uses `POSTGRES_PROD_PASSWORD` / `POSTGRES_DEV_PASSWORD` instead (see below). |
 | `JWKS_URL` | Yes in release | — | App fatals if empty AND `GIN_MODE != debug`. In debug mode AuthMiddleware is skipped so JWKS isn't loaded. |
 | `PORT` | No | `8080` | |
 | `API_TOOLS_URL` | No | — | URL of the `API-tools` service. `http://127.0.0.1:8000` for local dev; in the deploy stack each backend points at its own env's instance — `http://jpcorrect-api-tools-prod:8000` for `backend-prod`, `http://jpcorrect-api-tools-dev:8000` for `backend-dev`. The Python service no longer requires an `X-API-KEY` header on local server-to-server calls |
@@ -270,6 +276,8 @@ Deploy-stack only (read by `deploy/compose.yml` for compose-level substitution, 
 
 | Variable | Notes |
 | --- | --- |
+| `POSTGRES_PROD_PASSWORD` | **Required.** Password `postgres-prod` is initialised with. Lives in `deploy/.env` (compose interpolation source); mirror it URL-encoded into `deploy/env/prod`'s `DATABASE_URL`. Read only at `initdb` — changing it later does not rotate an existing volume. |
+| `POSTGRES_DEV_PASSWORD` | **Required.** Same for `postgres-dev` / `deploy/env/dev`. Must differ from the prod value: `backend-dev` runs with the auth middlewares skipped. |
 | `BACKEND_PROD_IMAGE` | backend-prod image to run (default `ghcr.io/sessatakuma/jpcorrect-backend:stable`) |
 | `BACKEND_DEV_IMAGE` | backend-dev image to run (default `ghcr.io/sessatakuma/jpcorrect-backend:dev`) |
 | `API_TOOLS_PROD_IMAGE` | api-tools-prod image to run (default `ghcr.io/sessatakuma/api-tools:stable`) |

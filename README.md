@@ -165,10 +165,13 @@ runs **two backend instances** on one host behind a single Cloudflare Tunnel:
   (every main merge).
 
 ```bash
+cp deploy/.env.example     deploy/.env      # POSTGRES_PROD_PASSWORD + POSTGRES_DEV_PASSWORD
 cp deploy/env/prod.example deploy/env/prod   # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
 cp deploy/env/dev.example  deploy/env/dev    # dev: leave CLIENT_API_KEY / JWKS_URL empty
-# Each env needs its own POSTGRES_PASSWORD: set a unique random value and put
-# its URL-encoded form in that env's DATABASE_URL before continuing.
+# deploy/.env is the compose interpolation source (env/prod and env/dev are
+# service env_files, which compose never reads during interpolation). Give each
+# env a unique random password and mirror it, URL-encoded, into that env's
+# DATABASE_URL before continuing.
 
 make -C deploy up     # both envs + cloudflared + watchtower
 make -C deploy down   # everything
