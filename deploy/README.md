@@ -1,9 +1,39 @@
 # Deploy operations
 
-Operational notes for this host. For architecture, networks, and the deploy stack
-design see [`../AGENTS.md`](../AGENTS.md) → *Deployment stack (two environments
-on one host)*. This file only documents day-to-day ops gotchas that you can't
-read off the `compose.yml`.
+Operational notes for this host. For the architecture and env split see
+[`../AGENTS.md`](../AGENTS.md) → *Deployment*. This file documents the one-time
+host setup plus the day-to-day ops gotchas you can't read off the
+`compose.yml`.
+
+## One-time host setup
+
+```bash
+# The two backends and cloudflared meet on an external shared network.
+docker network create jpcorrect-shared 2>/dev/null || true
+
+# Register a DNS route per hostname for the `jb` tunnel (creds must already be
+# in ./cloudflared/creds/). Idempotent, and persists on Cloudflare's side.
+docker run --rm -v $PWD/cloudflared/creds:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel route dns jb api.sessatakuma.dev
+docker run --rm -v $PWD/cloudflared/creds:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel route dns jb api-dev.sessatakuma.dev
+```
+
+Then, in the Cloudflare Zero Trust dashboard (no IaC): **Access → Applications →
+Add → Self-hosted**, domain `api-dev.sessatakuma.dev`, with a policy such as
+*include emails ending in `@sessatakuma.dev`*. This is the **only** thing
+protecting the dev backend, which runs with its app middlewares skipped. Do
+**not** add an Access app for `api.sessatakuma.dev` — prod stays publicly
+reachable and enforces auth in the app.
+
+If a standalone `jpcorrect-api-tools` container from the old
+`../API-tools/docker-compose.yml`, or from the pre-split version of this stack,
+is still running, remove it first so it can't hoard the name or port:
+`docker rm -f jpcorrect-api-tools`.
+
+Finally, copy the env templates (`deploy/.env.example` → `deploy/.env`,
+`deploy/env/{prod,dev}.example` → `deploy/env/{prod,dev}`) and log in to GHCR —
+both covered below.
 
 ## Registry auth (do this first on a new host)
 
@@ -184,8 +214,8 @@ container is currently running. It does **not** switch tags. So:
 
 - `backend-prod` running `:stable` → new `:stable` digest auto-updates. ✓
 - `backend-dev`  running `:dev`    → new `:dev` digest auto-updates. ✓
-- `api-tools-prod` / `api-tools-dev` → **not** auto-updated right now; see
-  "api-tools is opted out" below.
+- `api-tools-prod` running `:stable` / `api-tools-dev` running `:dev` → both
+  auto-update too; see "api-tools auto-updates too" below.
 - `backend-dev` running `:test` (one-off manual dispatch) → only updates if
   `:test` itself is re-published. To go back to tracking `:dev`, you must
   manually recreate with the default tag (see above).
