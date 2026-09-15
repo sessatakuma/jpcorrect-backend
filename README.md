@@ -16,28 +16,32 @@ cd jpcorrect-backend
 go mod download
 ```
 
-See `AGENTS.md` → "API-tools compatibility" for the api-tools version this backend's proxy is aligned to.
+The backend talks to `api-tools` over HTTP only (`API_TOOLS_URL`) — in dev it runs on the host via `uv`, in deployment it is pulled as a container.
 
 ### Environment Variables
-A `.env` file is required in the project root for local development. Copy and configure it:
+
+A `.env` file is required in the project root for local development. It is
+auto-loaded via `github.com/joho/godotenv/autoload`. Copy and configure it:
 ```bash
 cp .env.example .env
 ```
 
-Variables:
 | Variable | Description |
 | --- | --- |
+| `DATABASE_URL` | **Required.** PostgreSQL connection string. `127.0.0.1:5432` locally; `postgres-prod:5432` / `postgres-dev:5432` in the deploy stack |
+| `JWKS_URL` | **Required in release** — the app fatals on an empty value unless `GIN_MODE=debug` |
+| `GIN_MODE` | `debug` **skips APIKeyMiddleware + AuthMiddleware on all `/v1` routes** and exposes Swagger UI. Only safe behind an edge gateway |
+| `API_TOOLS_URL` | API-tools service URL. `http://127.0.0.1:8000` locally; `http://jpcorrect-api-tools-{prod,dev}:8000` in the stack. The backend → api-tools call needs no key |
+| `CLIENT_API_KEY` | Inbound `X-API-Key` for the 7 api-tools proxy routes, release mode only (JWT not accepted). Empty ⇒ those routes always 401 |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `PORT` | Server port (default `8080`) |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `API_TOOLS_URL` | API tools service URL |
-| `CLIENT_API_KEY` | Inbound `X-API-Key` required by the 7 api-tools proxy endpoints (JWT not accepted; empty value returns 401) |
-| `JWKS_URL` | JWKS endpoint for JWT verification |
-| `ALLOWED_ORIGINS` | Comma-separated CORS origins (empty = allow all in debug mode) |
-| `GIN_MODE` | `debug` or `release` |
-| `API_CERT_PATH` | TLS certificate path (optional; enables HTTPS if both cert and key exist) |
-| `API_KEY_PATH` | TLS key path (optional) |
+| `API_CERT_PATH` / `API_KEY_PATH` | TLS certificate/key paths (default `./certs/{cert,key}.pem`); HTTPS only when both exist, otherwise HTTP with a warning |
+| `WEBRTC_CONN_SEC` / `WEBRTC_CONN_MAX` | WebRTC rate-limit window / max connections for `cmd/webrtc-demo` (`10` / `15`) |
+| `WEBRTC_DEMO_PORT` / `WEBRTC_DEMO_BASE_DIR` / `WEBRTC_DEMO_CERT_PATH` / `WEBRTC_DEMO_KEY_PATH` | `cmd/webrtc-demo` only |
 
 > **Local development note:** `.env.example` is for host-run development. When the backend runs on your machine, `DATABASE_URL` should use `127.0.0.1` and `API_TOOLS_URL` should point at your local `api-tools` process.
+
+Compose-level variables (never seen by the Go process): `POSTGRES_PORT` for the local stack; `POSTGRES_{PROD,DEV}_PASSWORD`, `{BACKEND,API_TOOLS}_{PROD,DEV}_IMAGE` and `HOME` for the deploy stack. The api-tools containers need no env vars at all.
 
 ### Run
 ```bash
@@ -161,7 +165,7 @@ runs **two backend instances** on one host behind a single Cloudflare Tunnel:
 - **prod** (`backend-prod` → `api.sessatakuma.dev`) — `GIN_MODE=release`, full
   auth, image `:stable` (pushed on `v*.*.*` git tags).
 - **dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`, app
-  middlewares skipped (gated at the edge by Cloudflare Access), image `:latest`
+  middlewares skipped (gated at the edge by Cloudflare Access), image `:dev`
   (every main merge).
 
 ```bash
@@ -194,8 +198,22 @@ Each env's Postgres is reachable only from its own bridge network (never
 published to the host), and `cloudflared` is the single ingress — no container
 ports are exposed.
 
-See **AGENTS.md → "Deployment stack (two environments on one host)"** for the
-full network table, one-time host setup, and the `deploy/` file layout.
+#### Image tags and multi-arch
+
+The deploy machine — the machine we currently deploy on, which may change —
+is **arm64**, so images must carry a `linux/arm64` manifest. Both repos' CD
+builds `linux/amd64,linux/arm64`; `:stable` is only republished on a
+`v*.*.*` tag and `:dev` on every main merge.
+
+Before letting `watchtower-prod` pull a manually pinned tag, verify the
+manifest carries arm64:
+
+```bash
+docker buildx imagetools inspect <ref> | grep Platform
+```
+
+See **`deploy/README.md`** for one-time host setup and day-to-day operations,
+and `AGENTS.md` for agent-oriented conventions and gotchas.
 
 ### Cloudflare Tunnel
 
@@ -213,7 +231,7 @@ hostnames onto the two backends:
 | `api-dev.sessatakuma.dev` | `http://backend-dev:8080` | Cloudflare Access Zero Trust policy |
 
 Register the routes once with `cloudflared tunnel route dns` — see
-**AGENTS.md → "One-time host setup"**.
+**`deploy/README.md` → "One-time host setup"**.
 
 > The upstream host is the Compose **service name**, and `cloudflared` runs
 > inside Docker: do **not** use `localhost:8080`, which inside the tunnel

@@ -1,9 +1,38 @@
 # Deploy operations
 
-Operational notes for this host. For architecture, networks, and the deploy stack
-design see [`../AGENTS.md`](../AGENTS.md) → *Deployment stack (two environments
-on one host)*. This file only documents day-to-day ops gotchas that you can't
-read off the `compose.yml`.
+Operational notes for this host. This file documents
+the one-time host setup plus the day-to-day ops gotchas you can't read off the
+`compose.yml`.
+
+## One-time host setup
+
+```bash
+# The two backends and cloudflared meet on an external shared network.
+docker network create jpcorrect-shared 2>/dev/null || true
+
+# Register a DNS route per hostname for the `jb` tunnel (creds must already be
+# in ./cloudflared/creds/). Idempotent, and persists on Cloudflare's side.
+docker run --rm -v $PWD/cloudflared/creds:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel route dns jb api.sessatakuma.dev
+docker run --rm -v $PWD/cloudflared/creds:/home/nonroot/.cloudflared \
+  cloudflare/cloudflared:latest tunnel route dns jb api-dev.sessatakuma.dev
+```
+
+Then, in the Cloudflare Zero Trust dashboard (no IaC): **Access → Applications →
+Add → Self-hosted**, domain `api-dev.sessatakuma.dev`, with a policy such as
+*include emails ending in `@sessatakuma.dev`*. This is the **only** thing
+protecting the dev backend, which runs with its app middlewares skipped. Do
+**not** add an Access app for `api.sessatakuma.dev` — prod stays publicly
+reachable and enforces auth in the app.
+
+If a standalone `jpcorrect-api-tools` container from the old
+`../API-tools/docker-compose.yml`, or from the pre-split version of this stack,
+is still running, remove it first so it can't hoard the name or port:
+`docker rm -f jpcorrect-api-tools`.
+
+Finally, copy the env templates (`deploy/.env.example` → `deploy/.env`,
+`deploy/env/{prod,dev}.example` → `deploy/env/{prod,dev}`) and log in to GHCR —
+both covered below.
 
 ## Registry auth (do this first on a new host)
 
@@ -184,8 +213,8 @@ container is currently running. It does **not** switch tags. So:
 
 - `backend-prod` running `:stable` → new `:stable` digest auto-updates. ✓
 - `backend-dev`  running `:dev`    → new `:dev` digest auto-updates. ✓
-- `api-tools-prod` / `api-tools-dev` → **not** auto-updated right now; see
-  "api-tools is opted out" below.
+- `api-tools-prod` running `:stable` / `api-tools-dev` running `:dev` → both
+  auto-update too; see "api-tools auto-updates too" below.
 - `backend-dev` running `:test` (one-off manual dispatch) → only updates if
   `:test` itself is re-published. To go back to tracking `:dev`, you must
   manually recreate with the default tag (see above).
@@ -209,11 +238,9 @@ vice versa.
 ### api-tools auto-updates too
 
 Both `api-tools-*` services carry
-`com.centurylinklabs.watchtower.enable=true`. This was gated off while API-tools
-published **amd64-only** tags, which the arm64 deploy host cannot execute;
-**[sessatakuma/API-tools#64](https://github.com/sessatakuma/API-tools/pull/64)**
-switched that repo's CD to `platforms: linux/amd64,linux/arm64`, so both tags
-now carry an arm64 manifest and a watchtower pull is safe.
+`com.centurylinklabs.watchtower.enable=true`; API-tools publishes multi-arch
+(`linux/amd64,linux/arm64`) images, so a watchtower pull is safe on this arm64
+machine.
 
 The two run on different cadences, because that is how API-tools tags its
 images:
@@ -228,9 +255,9 @@ repo cuts a release.
 
 ### Check a tag is multi-arch before prod pulls it
 
-`:stable` is only republished on a `v*.*.*` tag push, so a release cut before
-API-tools#64 is still amd64-only and letting `watchtower-prod` pull it would
-break prod. Verify the manifest first:
+Watchtower pulls whatever digest currently sits behind the tag, so before
+letting `watchtower-prod` pull a manually pinned or freshly cut tag, verify
+the manifest carries arm64:
 
 ```bash
 docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:stable \
@@ -238,9 +265,8 @@ docker buildx imagetools inspect ghcr.io/sessatakuma/api-tools:stable \
 # needs both linux/amd64 and linux/arm64
 ```
 
-If a tag is missing `linux/arm64`, push a fresh `v*.*.*` tag in API-tools and
-wait for its CD to finish before `watchtower-prod`'s next run. To hold a known
-good image in the meantime, pin it by digest via `API_TOOLS_PROD_IMAGE` /
+If a tag is missing `linux/arm64`, don't let `watchtower-prod` pull it. To
+hold a known-good image, pin it by digest via `API_TOOLS_PROD_IMAGE` /
 `API_TOOLS_DEV_IMAGE` — an image reference watchtower will not move off.
 
 ### Verifying watchtower without touching a running env
