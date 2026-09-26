@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [get]
 func (a *API) UserGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) UserGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users [post]
 func (a *API) UserCreateHandler(c *gin.Context) {
 	var user domain.User
@@ -81,6 +83,7 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [put]
 func (a *API) UserUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -135,6 +138,7 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [delete]
 func (a *API) UserDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -173,6 +177,7 @@ func (a *API) UserDeleteHandler(c *gin.Context) {
 // @Param name path string true "User name"
 // @Success 200 {array} domain.User
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/name/{name} [get]
 func (a *API) UserGetByNameHandler(c *gin.Context) {
 	name := c.Param("name")
@@ -194,6 +199,7 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 // @Success 200 {object} domain.User
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/email/{email} [get]
 func (a *API) UserGetByEmailHandler(c *gin.Context) {
 	email := c.Param("email")

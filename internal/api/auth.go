@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net/http"
@@ -77,6 +78,46 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// APIKeyMiddleware requires a static API key in the X-API-Key header that matches
+// CLIENT_API_KEY. Intended for non-user-specific service callers; user-scoped
+// callers should use the JWT-based AuthMiddleware on regular /v1 routes instead.
+func (a *API) APIKeyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if a.clientAPIKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"API key authentication is not configured",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		providedKey := c.GetHeader("X-API-Key")
+		if providedKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"missing X-API-Key header",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid API key",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // respondAuthError handles authentication errors and returns appropriate HTTP response
 func (a *API) respondAuthError(c *gin.Context, err error) {
 	authErr, ok := err.(*domain.AuthError)
@@ -92,30 +133,34 @@ func (a *API) respondAuthError(c *gin.Context, err error) {
 	}
 }
 
-// validateToken validates the JWT token and extracts user information
+// validateToken validates the JWT token and extracts user information.
+// Accepts "Bearer <token>" (any casing) as well as a bare "<token>" — the
+// latter compensates for Swagger UI's apiKey field, which doesn't auto-prefix
+// the scheme.
 func (a *API) validateToken(c *gin.Context) error {
-	// Get the Authorization header
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
+	fields := strings.Fields(authHeader)
+
+	var tokenString string
+	switch len(fields) {
+	case 0:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"missing authorization header",
 			"",
 		)
-	}
-
-	// Extract the token from "Bearer <token>"
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid authorization header format",
-			"",
-		)
-	}
-
-	tokenString := strings.TrimSpace(parts[1])
-	if tokenString == "" {
+	case 1:
+		tokenString = fields[0]
+	case 2:
+		if !strings.EqualFold(fields[0], "Bearer") {
+			return domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid authorization header format",
+				"",
+			)
+		}
+		tokenString = fields[1]
+	default:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"invalid authorization header format",
