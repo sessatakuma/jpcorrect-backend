@@ -17,7 +17,7 @@ const docTemplate = `{
     "paths": {
         "/v1/dict-query": {
             "post": {
-                "description": "Proxy to external API tools service for dictionary queries",
+                "description": "Look up words in JMdict (Japanese-Multilingual Dictionary). Returns kanji forms, furigana readings, parts of speech, and English definitions. Supports searching by kanji, kana, or romaji. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -30,12 +30,12 @@ const docTemplate = `{
                 "summary": "Dictionary query",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to look up in the dictionary",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.DictQueryRequest"
                         }
                     }
                 ],
@@ -43,19 +43,21 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.DictQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/event-attendees": {
@@ -115,7 +117,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/event-attendees/event/{event_id}": {
@@ -167,7 +174,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/event-attendees/user/{user_id}": {
@@ -219,7 +231,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/event-attendees/{id}": {
@@ -277,7 +294,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -351,7 +373,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -413,7 +440,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guild-attendees": {
@@ -473,7 +505,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guild-attendees/guild/{guild_id}": {
@@ -525,7 +562,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guild-attendees/user/{user_id}": {
@@ -577,7 +619,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guild-attendees/{id}": {
@@ -635,7 +682,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -709,7 +761,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -771,7 +828,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guilds": {
@@ -831,7 +893,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guilds/{id}": {
@@ -889,7 +956,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -951,7 +1023,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/guilds/{id}/invite-link": {
@@ -981,7 +1058,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Returns the active invite link, or null if expired or not found",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.GuildInviteResponse"
+                            "$ref": "#/definitions/api.GuildInviteResponse"
                         }
                     },
                     "400": {
@@ -1064,7 +1141,7 @@ const docTemplate = `{
         },
         "/v1/mark-accent": {
             "post": {
-                "description": "Proxy to external API tools service for marking accent",
+                "description": "Analyze Japanese text and return per-mora pitch (accent) patterns for each word. ` + "`" + `accent_marking_type` + "`" + ` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and ` + "`" + `script` + "`" + ` rewrites every furigana field to hiragana, katakana, or romaji. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1077,12 +1154,12 @@ const docTemplate = `{
                 "summary": "Mark Japanese accent",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Japanese text to analyze for accent patterns",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1090,62 +1167,66 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.MarkAccentResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
-        "/v1/mark-furigana": {
+        "/v1/mark-accent/stream": {
             "post": {
-                "description": "Proxy to external API tools service for marking furigana",
+                "description": "Same input and per-chunk output as /v1/mark-accent, but streamed as NDJSON: one JSON object per line, emitted as soon as each input chunk finishes. Each line carries ` + "`" + `{\"chunk\": \u003cline_idx\u003e, \"subchunk\": \u003csub_idx\u003e, ...AccentResponse}` + "`" + ` so clients can interleave UI rendering with later chunks still in flight. Body convention: each chunk's inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
                 "produces": [
-                    "application/json"
+                    "application/x-ndjson"
                 ],
                 "tags": [
                     "api-tools"
                 ],
-                "summary": "Mark furigana",
+                "summary": "Mark Japanese accent (streaming NDJSON)",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Japanese text to analyze for accent patterns",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.MarkAccentRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "One NDJSON line per chunk; full response is a stream of these objects separated by '\\\\n'",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.MarkAccentStreamChunk"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/mistakes": {
@@ -1205,7 +1286,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/mistakes/event/{event_id}": {
@@ -1257,7 +1343,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/mistakes/user/{user_id}": {
@@ -1309,7 +1400,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/mistakes/{id}": {
@@ -1367,7 +1463,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -1441,7 +1542,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -1503,7 +1609,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/practices": {
@@ -1563,7 +1674,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/practices/user/{user_id}": {
@@ -1615,7 +1731,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/practices/{id}": {
@@ -1673,7 +1794,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -1747,7 +1873,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -1809,12 +1940,17 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/sentence-query": {
             "post": {
-                "description": "Proxy to external API tools service for sentence queries",
+                "description": "Find example sentences containing a given word from JMdict. Requires both the word and its JMdict entry ID (obtained from the dict-query endpoint). Returns bilingual Japanese-English sentence pairs. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is an empty string on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1827,12 +1963,12 @@ const docTemplate = `{
                 "summary": "Sentence query",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word and its JMdict entry ID",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.SentenceQueryRequest"
                         }
                     }
                 ],
@@ -1840,19 +1976,21 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.SentenceQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/transcripts": {
@@ -1912,7 +2050,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/transcripts/event/{event_id}": {
@@ -1964,7 +2107,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/transcripts/user/{user_id}": {
@@ -2016,7 +2164,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/transcripts/{id}": {
@@ -2074,7 +2227,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -2148,7 +2306,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -2210,12 +2373,17 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/usage-query/headwords": {
             "post": {
-                "description": "Proxy to external API tools service for usage query headwords",
+                "description": "Search for headwords in Japanese language corpora. Supports lookup by kanji, kana, or romaji. Returns matching headword entries with readings and frequency data. Specify site as NLB (NINJAL LRP BCCWJ) or NLT (Tsukuba Web Corpus). Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2228,12 +2396,12 @@ const docTemplate = `{
                 "summary": "Query usage headwords",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to search (kanji, kana, or romaji) and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2241,24 +2409,26 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/usage-query/id-details": {
             "post": {
-                "description": "Proxy to external API tools service for usage query by ID details",
+                "description": "Retrieve detailed usage information for a specific headword by its ID. Returns base form, subcorpus distribution, conjugation patterns (shojikei/katuyokei), and collocation data. The headword_id must be obtained from the headwords endpoint first. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2271,12 +2441,12 @@ const docTemplate = `{
                 "summary": "Query usage by ID details",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Headword ID and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryIDDetailsRequest"
                         }
                     }
                 ],
@@ -2284,24 +2454,26 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryIDDetailsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/usage-query/url": {
             "post": {
-                "description": "Proxy to external API tools service for usage query by URL",
+                "description": "Given a word, return URLs to the corresponding headword detail pages in the selected corpus (NLB or NLT). Uses the same request format as the headwords endpoint. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2314,12 +2486,12 @@ const docTemplate = `{
                 "summary": "Query usage by URL",
                 "parameters": [
                     {
-                        "description": "Request body (forwarded to API tools)",
+                        "description": "Word to search and corpus site",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2327,19 +2499,21 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UsageQueryURLResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ]
             }
         },
         "/v1/users": {
@@ -2399,7 +2573,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/users/email/{email}": {
@@ -2448,7 +2627,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/users/name/{name}": {
@@ -2491,7 +2675,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/users/{id}": {
@@ -2549,7 +2738,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "put": {
                 "consumes": [
@@ -2623,7 +2817,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "delete": {
                 "consumes": [
@@ -2685,24 +2884,131 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         }
     },
     "definitions": {
-        "gorm.DeletedAt": {
+        "api.APIToolsError": {
             "type": "object",
             "properties": {
-                "time": {
-                    "type": "string"
+                "code": {
+                    "type": "integer",
+                    "example": 0
                 },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
+                "message": {
+                    "type": "string",
+                    "example": " "
                 }
             }
         },
-        "internal_api.GuildInviteResponse": {
+        "api.AccentInfo": {
+            "type": "object",
+            "properties": {
+                "accent_marking_type": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "furigana": {
+                    "type": "string",
+                    "example": "か"
+                },
+                "length": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "api.Definition": {
+            "type": "object",
+            "properties": {
+                "meanings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "teacher"
+                    ]
+                },
+                "pos": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "noun"
+                    ]
+                }
+            }
+        },
+        "api.DictQueryRequest": {
+            "type": "object",
+            "properties": {
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "api.DictQueryResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.DictQueryWordResult"
+                    },
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.DictQueryWordResult": {
+            "type": "object",
+            "properties": {
+                "definitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.Definition"
+                    }
+                },
+                "furigana": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "せんせい"
+                    ]
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "kanji": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "先生"
+                    ]
+                }
+            }
+        },
+        "api.GuildInviteResponse": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2713,6 +3019,404 @@ const docTemplate = `{
                 },
                 "expires_at": {
                     "type": "string"
+                }
+            }
+        },
+        "api.HeadWord": {
+            "type": "object",
+            "properties": {
+                "freq": {
+                    "type": "integer",
+                    "example": 1234
+                },
+                "headword": {
+                    "type": "string",
+                    "example": "走る"
+                },
+                "headword_id": {
+                    "type": "string",
+                    "example": "V.00093"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "romaji_display": {
+                    "type": "string",
+                    "example": "hashiru"
+                },
+                "yomi_display": {
+                    "type": "string",
+                    "example": "ハシ・ル"
+                }
+            }
+        },
+        "api.IdDetails": {
+            "type": "object",
+            "properties": {
+                "base": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "katuyokei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "patternfreqorder": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "setuzoku": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "shojikei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "subcorpus": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                },
+                "subcorpus_shojikei": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "api.MarkAccentRequest": {
+            "type": "object",
+            "properties": {
+                "render_english_furigana": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "render_katakana_furigana": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "script": {
+                    "type": "string",
+                    "enum": [
+                        "hiragana",
+                        "katakana",
+                        "romaji"
+                    ],
+                    "example": "hiragana"
+                },
+                "text": {
+                    "type": "string",
+                    "example": "お金を稼ぐ"
+                }
+            }
+        },
+        "api.MarkAccentResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.WordAccentResult"
+                    },
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.MarkAccentStreamChunk": {
+            "type": "object",
+            "properties": {
+                "chunk": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.WordAccentResult"
+                    },
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                },
+                "subchunk": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "api.ProxyErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Failed to contact external API"
+                }
+            }
+        },
+        "api.SentenceQueryRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "api.SentenceQueryResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "x-nullable": "true"
+                },
+                "result": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/api.SentenceQueryWordResult"
+                        }
+                    ],
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.SentenceQueryWordResult": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer",
+                    "example": 1387990
+                },
+                "sentence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.WordSentence"
+                    }
+                },
+                "word": {
+                    "type": "string",
+                    "example": "先生"
+                }
+            }
+        },
+        "api.UsageQueryHeadWordsRequest": {
+            "type": "object",
+            "properties": {
+                "site": {
+                    "type": "string",
+                    "example": "NLB"
+                },
+                "word": {
+                    "type": "string",
+                    "example": "走る"
+                }
+            }
+        },
+        "api.UsageQueryHeadWordsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.HeadWord"
+                    },
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.UsageQueryIDDetailsRequest": {
+            "type": "object",
+            "properties": {
+                "headword_id": {
+                    "type": "string",
+                    "example": "V.00093"
+                },
+                "site": {
+                    "type": "string",
+                    "example": "NLB"
+                }
+            }
+        },
+        "api.UsageQueryIDDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/api.IdDetails"
+                        }
+                    ],
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.UsageQueryURLResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/api.APIToolsError"
+                },
+                "result": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.UsageQueryWordURL"
+                    },
+                    "x-nullable": "true"
+                },
+                "status": {
+                    "type": "integer",
+                    "example": 200
+                }
+            }
+        },
+        "api.UsageQueryWordURL": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "example": "https://nlb.ninjal.ac.jp/headword/V.00093/"
+                },
+                "word": {
+                    "type": "string",
+                    "example": "走る"
+                }
+            }
+        },
+        "api.WordAccentResult": {
+            "type": "object",
+            "properties": {
+                "accent": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.AccentInfo"
+                    }
+                },
+                "furigana": {
+                    "type": "string",
+                    "example": "おかね"
+                },
+                "kernel_absorbed": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "lexical_kernel": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "lexical_kernel_alts": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "subword": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.WordAccentSubword"
+                    }
+                },
+                "surface": {
+                    "type": "string",
+                    "example": "お金"
+                }
+            }
+        },
+        "api.WordAccentSubword": {
+            "type": "object",
+            "properties": {
+                "furigana": {
+                    "type": "string",
+                    "example": "かね"
+                },
+                "lexical_kernel": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "lexical_kernel_alts": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "surface": {
+                    "type": "string",
+                    "example": "金"
+                }
+            }
+        },
+        "api.WordSentence": {
+            "type": "object",
+            "properties": {
+                "en": {
+                    "type": "string",
+                    "example": "I will ask the teacher."
+                },
+                "jp": {
+                    "type": "string",
+                    "example": "先生に聞いてみます。"
+                }
+            }
+        },
+        "gorm.DeletedAt": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
                 }
             }
         },
@@ -3061,7 +3765,14 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "ApiKeyAuth": {
+            "description": "Static API key (matches CLIENT_API_KEY) for non-user-specific service access to the /v1 api-tools endpoints. Use this when the caller has no per-user identity; otherwise use BearerAuth.",
+            "type": "apiKey",
+            "name": "X-API-Key",
+            "in": "header"
+        },
         "BearerAuth": {
+            "description": "JWT issued by the configured JWKS provider. Paste the raw token; the \"Bearer \" scheme prefix is optional (added automatically if missing).",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -3072,7 +3783,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
+	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "jpcorrect API",

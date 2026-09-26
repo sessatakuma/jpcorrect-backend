@@ -225,6 +225,19 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 		assert.Contains(t, rec.Body.String(), "Guild not found")
 	})
 
+	t.Run("new leader already leads another guild → 409", func(t *testing.T) {
+		api, gRepo, _ := newTestAPI()
+		guildID := uuid.New()
+		gRepo.transferLeaderErr = domain.ErrGuildLimitReached
+		body, err := json.Marshal(transferLeaderBody{NewLeaderUserID: newLeaderID})
+		assert.NoError(t, err)
+
+		rec := invokeHandler(t, api.GuildTransferLeaderHandler, transferPath(guildID), &callerID, body)
+
+		assert.Equal(t, http.StatusConflict, rec.Code)
+		assert.Contains(t, rec.Body.String(), "new leader already leads another guild")
+	})
+
 	t.Run("caller is master, success → 200", func(t *testing.T) {
 		api, gRepo, _ := newTestAPI()
 		guildID := uuid.New()

@@ -29,19 +29,6 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 	return &guild, nil
 }
 
-func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&domain.GuildAttendee{}).
-		Where("user_id = ? AND role = ? AND left_at IS NULL", userID, domain.GuildAttendeeRoleMaster).
-		Count(&count).Error
-
-	if err != nil {
-		return 0, MapGormError(err)
-	}
-	return count, nil
-}
-
 func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if guild.ID == uuid.Nil {
@@ -49,19 +36,6 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 		}
 		if attendee.ID == uuid.Nil {
 			attendee.ID = uuid.New()
-		}
-
-		// Enforce the one-master-per-user limit atomically within this
-		// transaction to close the check-then-act race.
-		var masterCount int64
-		err := tx.Model(&domain.GuildAttendee{}).
-			Where("user_id = ? AND role = ? AND left_at IS NULL", attendee.UserID, domain.GuildAttendeeRoleMaster).
-			Count(&masterCount).Error
-		if err != nil {
-			return err
-		}
-		if masterCount >= 1 {
-			return domain.ErrGuildLimitReached
 		}
 
 		if err := tx.Create(guild).Error; err != nil {

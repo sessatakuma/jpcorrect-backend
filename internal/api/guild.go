@@ -57,7 +57,6 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Security BearerAuth
 // @Router /v1/guilds [post]
 func (a *API) GuildCreateHandler(c *gin.Context) {
-	ctx := c.Request.Context()
 	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -71,17 +70,6 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
-		return
-	}
-
-	// Check the number of guilds established by the caller.
-	count, err := a.guildRepo.CountMasterGuildsByUserID(ctx, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if count >= 1 {
-		c.JSON(http.StatusConflict, gin.H{"error": "user has already created a guild"})
 		return
 	}
 
@@ -232,6 +220,7 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 // @Success 200 {object} map[string]string "leader transferred successfully"
 // @Failure 400 {object} map[string]string "Invalid UUID format or user is not a member"
 // @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 409 {object} map[string]string "New leader already leads another guild"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /v1/guilds/{id}/transfer-leader [post]
 type TransferLeaderRequest struct {
@@ -281,6 +270,10 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		}
 		if errors.Is(err, domain.ErrNotGuildMember) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "New leader must be a member of the guild"})
+			return
+		}
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "new leader already leads another guild"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -502,6 +495,10 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.guildAttendeeRepo.Create(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
@@ -552,6 +549,10 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 
 	attendee.ID = id
 	if err := a.guildAttendeeRepo.Update(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
