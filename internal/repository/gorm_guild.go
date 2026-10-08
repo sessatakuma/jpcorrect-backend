@@ -29,19 +29,6 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 	return &guild, nil
 }
 
-func (r *gormGuildRepository) CountMasterGuildsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).
-		Model(&domain.GuildAttendee{}).
-		Where("user_id = ? AND role = ? AND left_at IS NULL", userID, domain.GuildAttendeeRoleMaster).
-		Count(&count).Error
-
-	if err != nil {
-		return 0, MapGormError(err)
-	}
-	return count, nil
-}
-
 func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if guild.ID == uuid.Nil {
@@ -49,19 +36,6 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 		}
 		if attendee.ID == uuid.Nil {
 			attendee.ID = uuid.New()
-		}
-
-		// Enforce the one-master-per-user limit atomically within this
-		// transaction to close the check-then-act race.
-		var masterCount int64
-		err := tx.Model(&domain.GuildAttendee{}).
-			Where("user_id = ? AND role = ? AND left_at IS NULL", attendee.UserID, domain.GuildAttendeeRoleMaster).
-			Count(&masterCount).Error
-		if err != nil {
-			return err
-		}
-		if masterCount >= 1 {
-			return domain.ErrGuildLimitReached
 		}
 
 		if err := tx.Create(guild).Error; err != nil {
@@ -192,7 +166,14 @@ func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guil
 }
 
 func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Serialize rotations for this guild, including when it has no invites yet.
+		var guild domain.Guild
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", guildID).First(&guild).Error; err != nil {
+			return err
+		}
+
 		// Update the `expires_at` timestamp for all of the guild's currently valid (unexpired) old links to `now`.
 		err := tx.Model(&domain.GuildInvite{}).
 			Where("guild_id = ?", guildID).
@@ -207,7 +188,7 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 		}
 
 		return nil
-	})
+	}))
 }
 
 func (r *gormGuildRepository) Discover(ctx context.Context, page, pageSize int) (*domain.GuildDiscoverResult, error) {
@@ -277,7 +258,7 @@ func (r *gormGuildAttendeeRepository) GetByUserID(ctx context.Context, userID uu
 func (r *gormGuildAttendeeRepository) GetByGuildAndUser(ctx context.Context, guildID uuid.UUID, userID uuid.UUID) (*domain.GuildAttendee, error) {
 	var attendee domain.GuildAttendee
 	err := r.db.WithContext(ctx).
-		Where("guild_id = ? AND user_id = ?", guildID, userID).
+		Where("guild_id = ? AND user_id = ? AND left_at IS NULL", guildID, userID).
 		First(&attendee).Error
 	if err != nil {
 		return nil, MapGormError(err)

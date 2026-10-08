@@ -22,6 +22,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [get]
 func (a *API) GuildGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -53,9 +54,9 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds [post]
 func (a *API) GuildCreateHandler(c *gin.Context) {
-	ctx := c.Request.Context()
 	userIDVal, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -69,17 +70,6 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
-		return
-	}
-
-	// Check the number of guilds established by the caller.
-	count, err := a.guildRepo.CountMasterGuildsByUserID(ctx, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if count >= 1 {
-		c.JSON(http.StatusConflict, gin.H{"error": "user has already created a guild"})
 		return
 	}
 
@@ -122,6 +112,7 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [put]
 type UpdateGuildRequest struct {
 	Name        *string `json:"name" binding:"omitempty,max=100"`
@@ -187,6 +178,7 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [delete]
 func (a *API) GuildDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -228,6 +220,7 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 // @Success 200 {object} map[string]string "leader transferred successfully"
 // @Failure 400 {object} map[string]string "Invalid UUID format or user is not a member"
 // @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 409 {object} map[string]string "New leader already leads another guild"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Router /v1/guilds/{id}/transfer-leader [post]
 type TransferLeaderRequest struct {
@@ -277,6 +270,10 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		}
 		if errors.Is(err, domain.ErrNotGuildMember) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "New leader must be a member of the guild"})
+			return
+		}
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "new leader already leads another guild"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -335,7 +332,7 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
 		return
 	}
-	if attendee == nil {
+	if attendee == nil || attendee.LeftAt != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
 		return
 	}
@@ -405,7 +402,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
 		return
 	}
-	if attendee == nil || attendee.Role != domain.GuildAttendeeRoleMaster {
+	if attendee == nil || attendee.LeftAt != nil || attendee.Role != domain.GuildAttendeeRoleMaster {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can manage invite links"})
 		return
 	}
@@ -1075,6 +1072,7 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [get]
 func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -1106,6 +1104,7 @@ func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees [post]
 func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	var attendee domain.GuildAttendee
@@ -1115,6 +1114,10 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.guildAttendeeRepo.Create(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
@@ -1137,6 +1140,7 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [put]
 func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -1164,6 +1168,10 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 
 	attendee.ID = id
 	if err := a.guildAttendeeRepo.Update(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
@@ -1191,6 +1199,7 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [delete]
 func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -1230,6 +1239,7 @@ func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/guild/{guild_id} [get]
 func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 	guildIDStr := c.Param("guild_id")
@@ -1256,6 +1266,7 @@ func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/user/{user_id} [get]
 func (a *API) GuildAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
