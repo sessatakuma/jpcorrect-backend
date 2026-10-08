@@ -104,9 +104,9 @@ type GuildApplicationRepository interface {
 	GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*GuildApplication, error)
 	ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildApplication, error)
 	ApproveWithTx(ctx context.Context, app *GuildApplication, newAttendee *GuildAttendee) error
+	RejectPending(ctx context.Context, appID, guildID uuid.UUID) error
 
 	Create(ctx context.Context, app *GuildApplication) error
-	Update(ctx context.Context, app *GuildApplication) error
 }
 
 type GuildDefaultSlot struct {

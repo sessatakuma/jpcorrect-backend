@@ -690,6 +690,14 @@ func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 	}
 
 	if err := a.applicationRepo.ApproveWithTx(ctx, app, newAttendee); err != nil {
+		if errors.Is(err, domain.ErrApplicationNotPending) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+			return
+		}
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user is already a member of this guild"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve application"})
 		return
 	}
@@ -773,9 +781,11 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 		return
 	}
 
-	// Update status to "rejected"
-	app.Status = domain.GuildApplicationStatusRejected
-	if err := a.applicationRepo.Update(ctx, app); err != nil {
+	if err := a.applicationRepo.RejectPending(ctx, app.ID, guildID); err != nil {
+		if errors.Is(err, domain.ErrApplicationNotPending) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reject application"})
 		return
 	}

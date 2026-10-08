@@ -324,11 +324,9 @@ func (r *guildApplicationRepository) ListPendingByGuildID(ctx context.Context, g
 }
 
 func (r *guildApplicationRepository) ApproveWithTx(ctx context.Context, app *domain.GuildApplication, newAttendee *domain.GuildAttendee) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
-		app.Status = domain.GuildApplicationStatusApproved
-		app.UpdatedAt = now
-		if err := tx.Save(app).Error; err != nil {
+		if err := transitionPendingApplication(tx, app.ID, app.GuildID, domain.GuildApplicationStatusApproved, now); err != nil {
 			return err
 		}
 
@@ -353,6 +351,25 @@ func (r *guildApplicationRepository) ApproveWithTx(ctx context.Context, app *dom
 
 		return nil
 	})
+	return MapGormError(err)
+}
+
+func (r *guildApplicationRepository) RejectPending(ctx context.Context, appID, guildID uuid.UUID) error {
+	return transitionPendingApplication(r.db.WithContext(ctx), appID, guildID, domain.GuildApplicationStatusRejected, time.Now())
+}
+
+// The conditional UPDATE locks the row and lets only one review leave pending.
+func transitionPendingApplication(db *gorm.DB, appID, guildID uuid.UUID, status domain.GuildApplicationStatus, now time.Time) error {
+	result := db.Model(&domain.GuildApplication{}).
+		Where("id = ? AND guild_id = ? AND status = ?", appID, guildID, domain.GuildApplicationStatusPending).
+		Updates(map[string]any{"status": status, "updated_at": now})
+	if result.Error != nil {
+		return MapGormError(result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return domain.ErrApplicationNotPending
+	}
+	return nil
 }
 
 func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.GuildApplication) error {
@@ -360,11 +377,6 @@ func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.Gui
 		app.ID = uuid.New()
 	}
 	return MapGormError(r.db.WithContext(ctx).Create(app).Error)
-}
-
-func (r *guildApplicationRepository) Update(ctx context.Context, app *domain.GuildApplication) error {
-	app.UpdatedAt = time.Now()
-	return MapGormError(r.db.WithContext(ctx).Save(app).Error)
 }
 
 type guildDefaultSlotRepository struct {
