@@ -62,14 +62,9 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	userIDStr, ok := userIDVal.(string)
+	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -246,14 +241,9 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -312,14 +302,9 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -382,14 +367,9 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 

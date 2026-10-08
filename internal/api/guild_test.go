@@ -12,7 +12,9 @@ import (
 
 	"jpcorrect-backend/internal/domain"
 
+	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,6 +25,8 @@ import (
 // embedded interface — acceptable for these focused handler tests.
 type mockGuildRepo struct {
 	domain.GuildRepository
+	getByIDResult *domain.Guild
+	getByIDErr    error
 
 	transferLeaderCalls []transferLeaderCall
 	transferLeaderErr   error
@@ -33,6 +37,10 @@ type mockGuildRepo struct {
 
 	createInviteLinkCalls []createInviteLinkCall
 	createInviteLinkErr   error
+}
+
+func (m *mockGuildRepo) GetByID(_ context.Context, _ uuid.UUID) (*domain.Guild, error) {
+	return m.getByIDResult, m.getByIDErr
 }
 
 type transferLeaderCall struct {
@@ -88,8 +96,8 @@ func newTestAPI() (*API, *mockGuildRepo, *mockAttendeeRepo) {
 
 // invokeHandler mounts handler on a fresh gin engine. The UUID segment of path
 // is converted to the :id route param (the handlers read c.Param("id")). When
-// userID is non-nil it is injected into the gin context as a string, exactly
-// like AuthMiddleware does (c.Set("userID", claims.Subject)); when nil, no
+// userID is non-nil it is injected into the gin context as a UUID, exactly
+// like AuthMiddleware does; when nil, no
 // value is set so c.Get("userID") returns (nil, false) → 401.
 //
 // The HTTP method is inferred: POST when a body is provided (even an empty
@@ -114,7 +122,7 @@ func invokeHandler(t *testing.T, handler gin.HandlerFunc, path string, userID *u
 	r := gin.New()
 	r.Handle(method, pattern, func(c *gin.Context) {
 		if userID != nil {
-			c.Set("userID", userID.String())
+			c.Set("userID", *userID)
 		}
 		handler(c)
 	})
@@ -130,6 +138,81 @@ func invokeHandler(t *testing.T, handler gin.HandlerFunc, path string, userID *u
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 	return rec
+}
+
+type testKeyfunc struct {
+	testKeyfuncBase
+	secret []byte
+}
+
+type testKeyfuncBase interface {
+	keyfunc.Keyfunc
+}
+
+func (k testKeyfunc) Keyfunc(_ *jwt.Token) (any, error) {
+	return k.secret, nil
+}
+
+func TestAuthMiddlewareGuildHandlers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	callerID := uuid.New()
+	guildID := uuid.New()
+	secret := []byte("test-signing-secret")
+	api, guildRepo, attendeeRepo := newTestAPI()
+	api.jwksCache = testKeyfunc{secret: secret}
+	guildRepo.getByIDResult = &domain.Guild{ID: guildID}
+	attendeeRepo.getByGuildAndUserErr = domain.ErrNotFound
+
+	router := gin.New()
+	authenticated := router.Group("/v1", api.AuthMiddleware())
+	authenticated.GET("/guilds/:id/applications", api.GuildApplicationsHandler)
+	authenticated.POST("/guilds/:id/transfer-leader", api.GuildTransferLeaderHandler)
+
+	signedToken := func(subject string) string {
+		t.Helper()
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{Subject: subject})
+		signed, err := token.SignedString(secret)
+		assert.NoError(t, err)
+		return signed
+	}
+
+	t.Run("new guild handler receives UUID from middleware", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/v1/guilds/"+guildID.String()+"/applications", nil)
+		request.Header.Set("Authorization", "Bearer "+signedToken(callerID.String()))
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusForbidden, recorder.Code)
+		if assert.Len(t, attendeeRepo.getByGuildAndUserCalls, 1) {
+			assert.Equal(t, callerID, attendeeRepo.getByGuildAndUserCalls[0].userID)
+		}
+	})
+
+	t.Run("existing guild handler receives UUID from middleware", func(t *testing.T) {
+		newLeaderID := uuid.New()
+		body, err := json.Marshal(transferLeaderBody{NewLeaderUserID: newLeaderID})
+		assert.NoError(t, err)
+		request := httptest.NewRequest(http.MethodPost, "/v1/guilds/"+guildID.String()+"/transfer-leader", bytes.NewReader(body))
+		request.Header.Set("Authorization", "Bearer "+signedToken(callerID.String()))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		if assert.Len(t, guildRepo.transferLeaderCalls, 1) {
+			assert.Equal(t, callerID, guildRepo.transferLeaderCalls[0].callerID)
+		}
+	})
+
+	t.Run("non-UUID subject is rejected by middleware", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodGet, "/v1/guilds/"+guildID.String()+"/applications", nil)
+		request.Header.Set("Authorization", "Bearer "+signedToken("not-a-uuid"))
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+		assert.Len(t, attendeeRepo.getByGuildAndUserCalls, 1)
+	})
 }
 
 type transferLeaderBody struct {
