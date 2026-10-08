@@ -166,7 +166,14 @@ func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guil
 }
 
 func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, now time.Time) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Serialize rotations for this guild, including when it has no invites yet.
+		var guild domain.Guild
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", guildID).First(&guild).Error; err != nil {
+			return err
+		}
+
 		// Update the `expires_at` timestamp for all of the guild's currently valid (unexpired) old links to `now`.
 		err := tx.Model(&domain.GuildInvite{}).
 			Where("guild_id = ?", guildID).
@@ -181,7 +188,7 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 		}
 
 		return nil
-	})
+	}))
 }
 
 type gormGuildAttendeeRepository struct {

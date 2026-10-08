@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -149,4 +150,59 @@ func TestGetByGuildAndUserExcludesLeftMember(t *testing.T) {
 	former, err := repo.GetByGuildAndUser(context.Background(), guild.ID, user.ID)
 	require.Nil(t, former)
 	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
+	}
+
+	db, err := database.NewGormDB(databaseURL)
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(4)
+	t.Cleanup(func() { assert.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&domain.Guild{}, &domain.GuildInvite{}))
+
+	guild := domain.Guild{ID: uuid.New(), Name: "concurrent invite rotation test"}
+	require.NoError(t, db.Create(&guild).Error)
+	t.Cleanup(func() {
+		assert.NoError(t, db.Where("guild_id = ?", guild.ID).Delete(&domain.GuildInvite{}).Error)
+		assert.NoError(t, db.Unscoped().Delete(&guild).Error)
+	})
+
+	repo := NewGormGuildRepository(db)
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+
+	for range 2 {
+		go func() {
+			invite := &domain.GuildInvite{
+				ID:      uuid.New(),
+				GuildID: guild.ID,
+				Code:    strings.ReplaceAll(uuid.NewString(), "-", ""),
+			}
+			ready.Done()
+			<-start
+			results <- repo.CreateInviteLinkWithTx(context.Background(), guild.ID, invite, time.Now())
+		}()
+	}
+
+	ready.Wait()
+	close(start)
+	for range 2 {
+		require.NoError(t, <-results)
+	}
+
+	var total, active int64
+	require.NoError(t, db.Model(&domain.GuildInvite{}).Where("guild_id = ?", guild.ID).Count(&total).Error)
+	require.NoError(t, db.Model(&domain.GuildInvite{}).
+		Where("guild_id = ? AND (expires_at IS NULL OR expires_at > ?)", guild.ID, time.Now()).
+		Count(&active).Error)
+	assert.EqualValues(t, 2, total)
+	assert.EqualValues(t, 1, active)
 }
