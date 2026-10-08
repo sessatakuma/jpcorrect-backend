@@ -92,8 +92,8 @@ const (
 
 type GuildApplication struct {
 	ID        uuid.UUID              `gorm:"type:uuid;primaryKey" json:"id"`
-	GuildID   uuid.UUID              `gorm:"type:uuid;not null;index" json:"guild_id"`
-	UserID    uuid.UUID              `gorm:"type:uuid;not null;index" json:"user_id"`
+	GuildID   uuid.UUID              `gorm:"type:uuid;not null;index;uniqueIndex:idx_guild_application_pending,priority:1,where:status = 'pending'" json:"guild_id"`
+	UserID    uuid.UUID              `gorm:"type:uuid;not null;index;uniqueIndex:idx_guild_application_pending,priority:2,where:status = 'pending'" json:"user_id"`
 	Status    GuildApplicationStatus `gorm:"type:varchar(20);default:'pending';not null" json:"status"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`

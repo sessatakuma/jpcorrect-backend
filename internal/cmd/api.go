@@ -11,11 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
 	"jpcorrect-backend/internal/api"
 	"jpcorrect-backend/internal/database"
 	"jpcorrect-backend/internal/domain"
-
-	"github.com/gin-gonic/gin"
 )
 
 func Execute() {
@@ -24,16 +25,7 @@ func Execute() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := db.AutoMigrate(
-		&domain.User{},
-		&domain.Guild{},
-		&domain.GuildAttendee{},
-		&domain.Event{},
-		&domain.EventAttendee{},
-		&domain.Transcript{},
-		&domain.Mistake{},
-		&domain.GuildInvite{},
-	); err != nil {
+	if err := migrateSchema(context.Background(), db); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
 
@@ -139,4 +131,19 @@ func Execute() {
 	}
 
 	log.Println("Server exiting")
+}
+
+func migrateSchema(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).AutoMigrate(
+		&domain.User{},
+		&domain.Guild{},
+		&domain.GuildAttendee{},
+		&domain.Event{},
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{},
+		&domain.GuildInvite{},
+		&domain.GuildApplication{},
+		&domain.GuildDefaultSlot{},
+	)
 }
