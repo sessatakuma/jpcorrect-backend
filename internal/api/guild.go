@@ -489,7 +489,7 @@ func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 
 	// Check if already application with a "Pending" status exists.
 	pendingApp, err := a.applicationRepo.GetPendingByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing applications"})
 		return
 	}
