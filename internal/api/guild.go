@@ -332,7 +332,7 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
 		return
 	}
-	if attendee == nil {
+	if attendee == nil || attendee.LeftAt != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
 		return
 	}
@@ -402,7 +402,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
 		return
 	}
-	if attendee == nil || attendee.Role != domain.GuildAttendeeRoleMaster {
+	if attendee == nil || attendee.LeftAt != nil || attendee.Role != domain.GuildAttendeeRoleMaster {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can manage invite links"})
 		return
 	}

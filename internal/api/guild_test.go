@@ -289,6 +289,19 @@ func TestGuildInviteLinkGetHandler(t *testing.T) {
 		assert.Zero(t, gRepo.activeInviteCalls)
 	})
 
+	for _, role := range []domain.GuildAttendeeRole{domain.GuildAttendeeRoleMember, domain.GuildAttendeeRoleMaster} {
+		t.Run("left member with role "+string(role)+" → 403", func(t *testing.T) {
+			api, gRepo, aRepo := newTestAPI()
+			leftAt := time.Now()
+			aRepo.getByGuildAndUserResult = &domain.GuildAttendee{Role: role, LeftAt: &leftAt}
+
+			rec := invokeHandler(t, api.GuildInviteLinkGetHandler, getPath(uuid.New()), &callerID, nil)
+
+			assert.Equal(t, http.StatusForbidden, rec.Code)
+			assert.Zero(t, gRepo.activeInviteCalls)
+		})
+	}
+
 	t.Run("member success → 200 with body", func(t *testing.T) {
 		api, gRepo, aRepo := newTestAPI()
 		guildID := uuid.New()
@@ -349,6 +362,17 @@ func TestGuildInviteLinkCreateHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 		assert.Contains(t, rec.Body.String(), "only the guild master can manage invite links")
+		assert.Empty(t, gRepo.createInviteLinkCalls)
+	})
+
+	t.Run("left master → 403", func(t *testing.T) {
+		api, gRepo, aRepo := newTestAPI()
+		leftAt := time.Now()
+		aRepo.getByGuildAndUserResult = &domain.GuildAttendee{Role: domain.GuildAttendeeRoleMaster, LeftAt: &leftAt}
+
+		rec := invokeHandler(t, api.GuildInviteLinkCreateHandler, createPath(uuid.New()), &callerID, []byte(`{"ttl_seconds":3600}`))
+
+		assert.Equal(t, http.StatusForbidden, rec.Code)
 		assert.Empty(t, gRepo.createInviteLinkCalls)
 	})
 

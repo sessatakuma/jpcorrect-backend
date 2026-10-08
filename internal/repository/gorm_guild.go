@@ -222,7 +222,7 @@ func (r *gormGuildAttendeeRepository) GetByUserID(ctx context.Context, userID uu
 func (r *gormGuildAttendeeRepository) GetByGuildAndUser(ctx context.Context, guildID uuid.UUID, userID uuid.UUID) (*domain.GuildAttendee, error) {
 	var attendee domain.GuildAttendee
 	err := r.db.WithContext(ctx).
-		Where("guild_id = ? AND user_id = ?", guildID, userID).
+		Where("guild_id = ? AND user_id = ? AND left_at IS NULL", guildID, userID).
 		First(&attendee).Error
 	if err != nil {
 		return nil, MapGormError(err)

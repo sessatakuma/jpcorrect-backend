@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -112,4 +113,40 @@ func TestCreateWithMasterConcurrentLimit(t *testing.T) {
 		Where("id IN ?", []uuid.UUID{guilds[0].ID, guilds[1].ID}).
 		Count(&guildCount).Error)
 	assert.EqualValues(t, 1, guildCount)
+}
+
+func TestGetByGuildAndUserExcludesLeftMember(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
+	}
+
+	db, err := database.NewGormDB(databaseURL)
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&domain.User{}, &domain.Guild{}, &domain.GuildAttendee{}))
+
+	tx := db.Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() { assert.NoError(t, tx.Rollback().Error) })
+
+	user := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "former guild member"}
+	guild := domain.Guild{ID: uuid.New(), Name: "membership authorization test"}
+	attendee := domain.GuildAttendee{ID: uuid.New(), GuildID: guild.ID, UserID: user.ID, Role: domain.GuildAttendeeRoleMaster}
+	require.NoError(t, tx.Create(&user).Error)
+	require.NoError(t, tx.Create(&guild).Error)
+	require.NoError(t, tx.Create(&attendee).Error)
+
+	repo := NewGormGuildAttendeeRepository(tx)
+	active, err := repo.GetByGuildAndUser(context.Background(), guild.ID, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, attendee.ID, active.ID)
+
+	leftAt := time.Now()
+	require.NoError(t, tx.Model(&attendee).Update("left_at", leftAt).Error)
+	former, err := repo.GetByGuildAndUser(context.Background(), guild.ID, user.ID)
+	require.Nil(t, former)
+	require.ErrorIs(t, err, domain.ErrNotFound)
 }
