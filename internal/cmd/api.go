@@ -134,7 +134,7 @@ func Execute() {
 }
 
 func migrateSchema(ctx context.Context, db *gorm.DB) error {
-	return db.WithContext(ctx).AutoMigrate(
+	if err := db.WithContext(ctx).AutoMigrate(
 		&domain.User{},
 		&domain.Guild{},
 		&domain.GuildAttendee{},
@@ -145,5 +145,15 @@ func migrateSchema(ctx context.Context, db *gorm.DB) error {
 		&domain.GuildInvite{},
 		&domain.GuildApplication{},
 		&domain.GuildDefaultSlot{},
-	)
+	); err != nil {
+		return err
+	}
+
+	// Older builds soft-deleted default slots. Remove those rows so their
+	// unique guild_id values cannot hide or block replacement slots.
+	if db.WithContext(ctx).Migrator().HasColumn(&domain.GuildDefaultSlot{}, "deleted_at") {
+		return db.WithContext(ctx).Unscoped().
+			Where("deleted_at IS NOT NULL").Delete(&domain.GuildDefaultSlot{}).Error
+	}
+	return nil
 }

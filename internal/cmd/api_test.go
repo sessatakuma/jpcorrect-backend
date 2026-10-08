@@ -5,9 +5,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/database"
@@ -52,4 +54,52 @@ func TestMigrateSchemaCreatesGuildApplicationConstraints(t *testing.T) {
 
 	approved := domain.GuildApplication{ID: uuid.New(), GuildID: guildID, UserID: userID, Status: domain.GuildApplicationStatusApproved}
 	require.NoError(t, tx.Create(&approved).Error)
+}
+
+type legacyGuildDefaultSlot struct {
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey"`
+	GuildID   uuid.UUID      `gorm:"type:uuid;uniqueIndex"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
+
+func (legacyGuildDefaultSlot) TableName() string { return "guild_default_slot" }
+
+func TestMigrateSchemaClearsSoftDeletedDefaultSlots(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
+	}
+
+	db, err := database.NewGormDB(databaseURL)
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	ctx := context.Background()
+	require.NoError(t, migrateSchema(ctx, db))
+
+	tx := db.WithContext(ctx).Begin()
+	require.NoError(t, tx.Error)
+	t.Cleanup(func() { require.NoError(t, tx.Rollback().Error) })
+	require.NoError(t, tx.WithContext(ctx).AutoMigrate(&legacyGuildDefaultSlot{}))
+	deletedAt := time.Now()
+	legacy := legacyGuildDefaultSlot{
+		ID: uuid.New(), GuildID: uuid.New(), DeletedAt: gorm.DeletedAt{Time: deletedAt, Valid: true},
+	}
+	require.NoError(t, tx.WithContext(ctx).Create(&legacy).Error)
+	active := legacyGuildDefaultSlot{ID: uuid.New(), GuildID: uuid.New()}
+	require.NoError(t, tx.WithContext(ctx).Create(&active).Error)
+
+	require.NoError(t, migrateSchema(ctx, tx))
+	var remaining int64
+	require.NoError(t, tx.WithContext(ctx).Unscoped().Model(&domain.GuildDefaultSlot{}).
+		Where("id = ?", legacy.ID).Count(&remaining).Error)
+	require.Zero(t, remaining)
+	var activeCount int64
+	require.NoError(t, tx.WithContext(ctx).Model(&domain.GuildDefaultSlot{}).
+		Where("id = ?", active.ID).Count(&activeCount).Error)
+	require.EqualValues(t, 1, activeCount)
+
+	replacement := domain.GuildDefaultSlot{ID: uuid.New(), GuildID: legacy.GuildID}
+	require.NoError(t, tx.WithContext(ctx).Create(&replacement).Error)
 }

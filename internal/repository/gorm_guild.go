@@ -400,7 +400,7 @@ func (r *guildDefaultSlotRepository) GetByGuildID(ctx context.Context, guildID u
 }
 
 func (r *guildDefaultSlotRepository) DeleteByGuildID(ctx context.Context, guildID uuid.UUID) error {
-	res := r.db.WithContext(ctx).Where("guild_id = ?", guildID).Delete(&domain.GuildDefaultSlot{})
+	res := r.db.WithContext(ctx).Unscoped().Where("guild_id = ?", guildID).Delete(&domain.GuildDefaultSlot{})
 	if res.Error != nil {
 		return MapGormError(res.Error)
 	}
