@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.DictQueryRequest"
+                            "$ref": "#/definitions/api.DictQueryRequest"
                         }
                     }
                 ],
@@ -43,13 +43,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.DictQueryResponse"
+                            "$ref": "#/definitions/api.DictQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -963,85 +963,6 @@ const docTemplate = `{
                     }
                 ]
             },
-            "put": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "guilds"
-                ],
-                "summary": "Update a guild",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Guild ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Guild data",
-                        "name": "guild",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.Guild"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.Guild"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ]
-            },
             "delete": {
                 "consumes": [
                     "application/json"
@@ -1110,6 +1031,114 @@ const docTemplate = `{
                 ]
             }
         },
+        "/v1/guilds/{id}/invite-link": {
+            "get": {
+                "description": "Get the currently active invite link for a guild. Returns 200 with null if expired or not found.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Get active guild invite link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns the active invite link, or null if expired or not found",
+                        "schema": {
+                            "$ref": "#/definitions/api.GuildInviteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Guild ID format",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a new active invite link for a guild and expires any existing active links within a single transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Create a new guild invite link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Invite Link Options (e.g. {",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Guild ID or Request Body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/v1/mark-accent": {
             "post": {
                 "description": "Analyze Japanese text and return per-mora pitch (accent) patterns for each word. ` + "`" + `accent_marking_type` + "`" + ` values: 0=low/unknown, 1=heiban (high plateau), 2=fall kernel. Optional flags control whether English-letter and katakana tokens carry furigana, and ` + "`" + `script` + "`" + ` rewrites every furigana field to hiragana, katakana, or romaji. Body convention: the inner ` + "`" + `status` + "`" + ` carries the real result code; ` + "`" + `error` + "`" + ` is ` + "`" + `null` + "`" + ` on success and populated only when ` + "`" + `status != 200` + "`" + `.",
@@ -1130,7 +1159,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
+                            "$ref": "#/definitions/api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1138,13 +1167,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkAccentResponse"
+                            "$ref": "#/definitions/api.MarkAccentResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1175,7 +1204,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
+                            "$ref": "#/definitions/api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1183,13 +1212,13 @@ const docTemplate = `{
                     "200": {
                         "description": "One NDJSON line per chunk; full response is a stream of these objects separated by '\\\\n'",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.MarkAccentStreamChunk"
+                            "$ref": "#/definitions/api.MarkAccentStreamChunk"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1939,7 +1968,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.SentenceQueryRequest"
+                            "$ref": "#/definitions/api.SentenceQueryRequest"
                         }
                     }
                 ],
@@ -1947,13 +1976,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.SentenceQueryResponse"
+                            "$ref": "#/definitions/api.SentenceQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2372,7 +2401,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2380,13 +2409,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsResponse"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2417,7 +2446,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsRequest"
+                            "$ref": "#/definitions/api.UsageQueryIDDetailsRequest"
                         }
                     }
                 ],
@@ -2425,13 +2454,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsResponse"
+                            "$ref": "#/definitions/api.UsageQueryIDDetailsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2462,7 +2491,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
+                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2470,13 +2499,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.UsageQueryURLResponse"
+                            "$ref": "#/definitions/api.UsageQueryURLResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
+                            "$ref": "#/definitions/api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2865,19 +2894,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "gorm.DeletedAt": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
-                }
-            }
-        },
-        "internal_api.APIToolsError": {
+        "api.APIToolsError": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2890,7 +2907,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.AccentInfo": {
+        "api.AccentInfo": {
             "type": "object",
             "properties": {
                 "accent_marking_type": {
@@ -2907,7 +2924,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.Definition": {
+        "api.Definition": {
             "type": "object",
             "properties": {
                 "meanings": {
@@ -2930,7 +2947,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.DictQueryRequest": {
+        "api.DictQueryRequest": {
             "type": "object",
             "properties": {
                 "word": {
@@ -2939,16 +2956,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.DictQueryResponse": {
+        "api.DictQueryResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.DictQueryWordResult"
+                        "$ref": "#/definitions/api.DictQueryWordResult"
                     },
                     "x-nullable": "true"
                 },
@@ -2958,13 +2975,13 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.DictQueryWordResult": {
+        "api.DictQueryWordResult": {
             "type": "object",
             "properties": {
                 "definitions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.Definition"
+                        "$ref": "#/definitions/api.Definition"
                     }
                 },
                 "furigana": {
@@ -2991,7 +3008,21 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.HeadWord": {
+        "api.GuildInviteResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.HeadWord": {
             "type": "object",
             "properties": {
                 "freq": {
@@ -3020,7 +3051,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.IdDetails": {
+        "api.IdDetails": {
             "type": "object",
             "properties": {
                 "base": {
@@ -3071,7 +3102,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.MarkAccentRequest": {
+        "api.MarkAccentRequest": {
             "type": "object",
             "properties": {
                 "render_english_furigana": {
@@ -3097,16 +3128,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.MarkAccentResponse": {
+        "api.MarkAccentResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.WordAccentResult"
+                        "$ref": "#/definitions/api.WordAccentResult"
                     },
                     "x-nullable": "true"
                 },
@@ -3116,7 +3147,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.MarkAccentStreamChunk": {
+        "api.MarkAccentStreamChunk": {
             "type": "object",
             "properties": {
                 "chunk": {
@@ -3124,12 +3155,12 @@ const docTemplate = `{
                     "example": 0
                 },
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.WordAccentResult"
+                        "$ref": "#/definitions/api.WordAccentResult"
                     },
                     "x-nullable": "true"
                 },
@@ -3143,7 +3174,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.ProxyErrorResponse": {
+        "api.ProxyErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -3152,7 +3183,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.SentenceQueryRequest": {
+        "api.SentenceQueryRequest": {
             "type": "object",
             "properties": {
                 "id": {
@@ -3165,7 +3196,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.SentenceQueryResponse": {
+        "api.SentenceQueryResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -3175,7 +3206,7 @@ const docTemplate = `{
                 "result": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/internal_api.SentenceQueryWordResult"
+                            "$ref": "#/definitions/api.SentenceQueryWordResult"
                         }
                     ],
                     "x-nullable": "true"
@@ -3186,7 +3217,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.SentenceQueryWordResult": {
+        "api.SentenceQueryWordResult": {
             "type": "object",
             "properties": {
                 "id": {
@@ -3196,7 +3227,7 @@ const docTemplate = `{
                 "sentence": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.WordSentence"
+                        "$ref": "#/definitions/api.WordSentence"
                     }
                 },
                 "word": {
@@ -3205,7 +3236,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryHeadWordsRequest": {
+        "api.UsageQueryHeadWordsRequest": {
             "type": "object",
             "properties": {
                 "site": {
@@ -3218,16 +3249,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryHeadWordsResponse": {
+        "api.UsageQueryHeadWordsResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.HeadWord"
+                        "$ref": "#/definitions/api.HeadWord"
                     },
                     "x-nullable": "true"
                 },
@@ -3237,7 +3268,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryIDDetailsRequest": {
+        "api.UsageQueryIDDetailsRequest": {
             "type": "object",
             "properties": {
                 "headword_id": {
@@ -3250,16 +3281,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryIDDetailsResponse": {
+        "api.UsageQueryIDDetailsResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/internal_api.IdDetails"
+                            "$ref": "#/definitions/api.IdDetails"
                         }
                     ],
                     "x-nullable": "true"
@@ -3270,16 +3301,16 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryURLResponse": {
+        "api.UsageQueryURLResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/internal_api.APIToolsError"
+                    "$ref": "#/definitions/api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.UsageQueryWordURL"
+                        "$ref": "#/definitions/api.UsageQueryWordURL"
                     },
                     "x-nullable": "true"
                 },
@@ -3289,7 +3320,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.UsageQueryWordURL": {
+        "api.UsageQueryWordURL": {
             "type": "object",
             "properties": {
                 "url": {
@@ -3302,13 +3333,13 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.WordAccentResult": {
+        "api.WordAccentResult": {
             "type": "object",
             "properties": {
                 "accent": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.AccentInfo"
+                        "$ref": "#/definitions/api.AccentInfo"
                     }
                 },
                 "furigana": {
@@ -3332,7 +3363,7 @@ const docTemplate = `{
                 "subword": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/internal_api.WordAccentSubword"
+                        "$ref": "#/definitions/api.WordAccentSubword"
                     }
                 },
                 "surface": {
@@ -3341,7 +3372,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.WordAccentSubword": {
+        "api.WordAccentSubword": {
             "type": "object",
             "properties": {
                 "furigana": {
@@ -3364,7 +3395,7 @@ const docTemplate = `{
                 }
             }
         },
-        "internal_api.WordSentence": {
+        "api.WordSentence": {
             "type": "object",
             "properties": {
                 "en": {
@@ -3374,6 +3405,18 @@ const docTemplate = `{
                 "jp": {
                     "type": "string",
                     "example": "先生に聞いてみます。"
+                }
+            }
+        },
+        "gorm.DeletedAt": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
                 }
             }
         },
@@ -3529,6 +3572,29 @@ const docTemplate = `{
                 "GuildAttendeeRoleMember",
                 "GuildAttendeeRoleMaster"
             ]
+        },
+        "jpcorrect-backend_internal_domain.GuildInvite": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "guild_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ttl_seconds": {
+                    "type": "integer"
+                }
+            }
         },
         "jpcorrect-backend_internal_domain.Mistake": {
             "type": "object",

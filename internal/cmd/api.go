@@ -11,11 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
 	"jpcorrect-backend/internal/api"
 	"jpcorrect-backend/internal/database"
 	"jpcorrect-backend/internal/domain"
-
-	"github.com/gin-gonic/gin"
 )
 
 func Execute() {
@@ -24,15 +25,7 @@ func Execute() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := db.AutoMigrate(
-		&domain.User{},
-		&domain.Guild{},
-		&domain.GuildAttendee{},
-		&domain.Event{},
-		&domain.EventAttendee{},
-		&domain.Transcript{},
-		&domain.Mistake{},
-	); err != nil {
+	if err := migrateSchema(context.Background(), db); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
 
@@ -138,4 +131,29 @@ func Execute() {
 	}
 
 	log.Println("Server exiting")
+}
+
+func migrateSchema(ctx context.Context, db *gorm.DB) error {
+	if err := db.WithContext(ctx).AutoMigrate(
+		&domain.User{},
+		&domain.Guild{},
+		&domain.GuildAttendee{},
+		&domain.Event{},
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{},
+		&domain.GuildInvite{},
+		&domain.GuildApplication{},
+		&domain.GuildDefaultSlot{},
+	); err != nil {
+		return err
+	}
+
+	// Older builds soft-deleted default slots. Remove those rows so their
+	// unique guild_id values cannot hide or block replacement slots.
+	if db.WithContext(ctx).Migrator().HasColumn(&domain.GuildDefaultSlot{}, "deleted_at") {
+		return db.WithContext(ctx).Unscoped().
+			Where("deleted_at IS NOT NULL").Delete(&domain.GuildDefaultSlot{}).Error
+	}
+	return nil
 }

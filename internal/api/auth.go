@@ -13,6 +13,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
@@ -210,8 +211,13 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return domain.NewAuthError(http.StatusUnauthorized, "invalid token subject", "")
+	}
+
+	// Store the parsed user ID for downstream handlers.
+	c.Set("userID", userID)
 
 	return nil
 }

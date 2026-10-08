@@ -35,6 +35,8 @@ type API struct {
 	userRepo          domain.UserRepository
 	guildRepo         domain.GuildRepository
 	guildAttendeeRepo domain.GuildAttendeeRepository
+	applicationRepo   domain.GuildApplicationRepository
+	defaultSlotRepo   domain.GuildDefaultSlotRepository
 	eventRepo         domain.EventRepository
 	eventAttendeeRepo domain.EventAttendeeRepository
 	transcriptRepo    domain.TranscriptRepository
@@ -48,6 +50,8 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
+	applicationRepo := repository.NewGuildApplicationRepository(db)
+	defaultSlotRepo := repository.NewGuildDefaultSlotRepository(db)
 	eventRepo := repository.NewGormEventRepository(db)
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
@@ -85,6 +89,8 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 		userRepo:          userRepo,
 		guildRepo:         guildRepo,
 		guildAttendeeRepo: guildAttendeeRepo,
+		applicationRepo:   applicationRepo,
+		defaultSlotRepo:   defaultSlotRepo,
 		eventRepo:         eventRepo,
 		eventAttendeeRepo: eventAttendeeRepo,
 		transcriptRepo:    transcriptRepo,
@@ -170,6 +176,17 @@ func Register(r *gin.Engine, api *API) {
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
 			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
+			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
+			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
+			guilds.POST("/:id/applications", api.GuildApplicationCreateHandler)
+			guilds.GET("/:id/applications", api.GuildApplicationsHandler)
+			guilds.POST("/:id/applications/:app_id/approve", api.GuildApplicationApproveHandler)
+			guilds.POST("/:id/applications/:app_id/reject", api.GuildApplicationRejectHandler)
+			guilds.GET("/:id/default-slot", api.GuildDefaultSlotGetHandler)
+			guilds.PUT("/:id/default-slot", api.GuildDefaultSlotUpsertHandler)
+			guilds.DELETE("/:id/default-slot", api.GuildDefaultSlotDeleteHandler)
+			guilds.GET("/discover", api.GuildDiscoverHandler)
 		}
 
 		// Guild Attendees
