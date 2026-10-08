@@ -1,14 +1,6 @@
 basePath: /
 definitions:
-  gorm.DeletedAt:
-    properties:
-      time:
-        type: string
-      valid:
-        description: Valid is true if Time is not NULL
-        type: boolean
-    type: object
-  internal_api.APIToolsError:
+  api.APIToolsError:
     properties:
       code:
         example: 0
@@ -17,7 +9,7 @@ definitions:
         example: ' '
         type: string
     type: object
-  internal_api.AccentInfo:
+  api.AccentInfo:
     properties:
       accent_marking_type:
         example: 1
@@ -29,7 +21,7 @@ definitions:
         example: 1
         type: integer
     type: object
-  internal_api.Definition:
+  api.Definition:
     properties:
       meanings:
         example:
@@ -44,30 +36,30 @@ definitions:
           type: string
         type: array
     type: object
-  internal_api.DictQueryRequest:
+  api.DictQueryRequest:
     properties:
       word:
         example: 先生
         type: string
     type: object
-  internal_api.DictQueryResponse:
+  api.DictQueryResponse:
     properties:
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         items:
-          $ref: '#/definitions/internal_api.DictQueryWordResult'
+          $ref: '#/definitions/api.DictQueryWordResult'
         type: array
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.DictQueryWordResult:
+  api.DictQueryWordResult:
     properties:
       definitions:
         items:
-          $ref: '#/definitions/internal_api.Definition'
+          $ref: '#/definitions/api.Definition'
         type: array
       furigana:
         example:
@@ -85,7 +77,16 @@ definitions:
           type: string
         type: array
     type: object
-  internal_api.HeadWord:
+  api.GuildInviteResponse:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+    type: object
+  api.HeadWord:
     properties:
       freq:
         example: 1234
@@ -106,7 +107,7 @@ definitions:
         example: ハシ・ル
         type: string
     type: object
-  internal_api.IdDetails:
+  api.IdDetails:
     properties:
       base:
         additionalProperties: {}
@@ -142,7 +143,7 @@ definitions:
           type: object
         type: array
     type: object
-  internal_api.MarkAccentRequest:
+  api.MarkAccentRequest:
     properties:
       render_english_furigana:
         example: false
@@ -161,29 +162,29 @@ definitions:
         example: お金を稼ぐ
         type: string
     type: object
-  internal_api.MarkAccentResponse:
+  api.MarkAccentResponse:
     properties:
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         items:
-          $ref: '#/definitions/internal_api.WordAccentResult'
+          $ref: '#/definitions/api.WordAccentResult'
         type: array
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.MarkAccentStreamChunk:
+  api.MarkAccentStreamChunk:
     properties:
       chunk:
         example: 0
         type: integer
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         items:
-          $ref: '#/definitions/internal_api.WordAccentResult'
+          $ref: '#/definitions/api.WordAccentResult'
         type: array
         x-nullable: "true"
       status:
@@ -193,13 +194,13 @@ definitions:
         example: 0
         type: integer
     type: object
-  internal_api.ProxyErrorResponse:
+  api.ProxyErrorResponse:
     properties:
       error:
         example: Failed to contact external API
         type: string
     type: object
-  internal_api.SentenceQueryRequest:
+  api.SentenceQueryRequest:
     properties:
       id:
         example: 1387990
@@ -208,33 +209,33 @@ definitions:
         example: 先生
         type: string
     type: object
-  internal_api.SentenceQueryResponse:
+  api.SentenceQueryResponse:
     properties:
       error:
         type: string
         x-nullable: "true"
       result:
         allOf:
-        - $ref: '#/definitions/internal_api.SentenceQueryWordResult'
+        - $ref: '#/definitions/api.SentenceQueryWordResult'
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.SentenceQueryWordResult:
+  api.SentenceQueryWordResult:
     properties:
       id:
         example: 1387990
         type: integer
       sentence:
         items:
-          $ref: '#/definitions/internal_api.WordSentence'
+          $ref: '#/definitions/api.WordSentence'
         type: array
       word:
         example: 先生
         type: string
     type: object
-  internal_api.UsageQueryHeadWordsRequest:
+  api.UsageQueryHeadWordsRequest:
     properties:
       site:
         example: NLB
@@ -243,20 +244,20 @@ definitions:
         example: 走る
         type: string
     type: object
-  internal_api.UsageQueryHeadWordsResponse:
+  api.UsageQueryHeadWordsResponse:
     properties:
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         items:
-          $ref: '#/definitions/internal_api.HeadWord'
+          $ref: '#/definitions/api.HeadWord'
         type: array
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.UsageQueryIDDetailsRequest:
+  api.UsageQueryIDDetailsRequest:
     properties:
       headword_id:
         example: V.00093
@@ -265,32 +266,32 @@ definitions:
         example: NLB
         type: string
     type: object
-  internal_api.UsageQueryIDDetailsResponse:
+  api.UsageQueryIDDetailsResponse:
     properties:
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         allOf:
-        - $ref: '#/definitions/internal_api.IdDetails'
+        - $ref: '#/definitions/api.IdDetails'
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.UsageQueryURLResponse:
+  api.UsageQueryURLResponse:
     properties:
       error:
-        $ref: '#/definitions/internal_api.APIToolsError'
+        $ref: '#/definitions/api.APIToolsError'
       result:
         items:
-          $ref: '#/definitions/internal_api.UsageQueryWordURL'
+          $ref: '#/definitions/api.UsageQueryWordURL'
         type: array
         x-nullable: "true"
       status:
         example: 200
         type: integer
     type: object
-  internal_api.UsageQueryWordURL:
+  api.UsageQueryWordURL:
     properties:
       url:
         example: https://nlb.ninjal.ac.jp/headword/V.00093/
@@ -299,11 +300,11 @@ definitions:
         example: 走る
         type: string
     type: object
-  internal_api.WordAccentResult:
+  api.WordAccentResult:
     properties:
       accent:
         items:
-          $ref: '#/definitions/internal_api.AccentInfo'
+          $ref: '#/definitions/api.AccentInfo'
         type: array
       furigana:
         example: おかね
@@ -320,13 +321,13 @@ definitions:
         type: array
       subword:
         items:
-          $ref: '#/definitions/internal_api.WordAccentSubword'
+          $ref: '#/definitions/api.WordAccentSubword'
         type: array
       surface:
         example: お金
         type: string
     type: object
-  internal_api.WordAccentSubword:
+  api.WordAccentSubword:
     properties:
       furigana:
         example: かね
@@ -342,7 +343,7 @@ definitions:
         example: 金
         type: string
     type: object
-  internal_api.WordSentence:
+  api.WordSentence:
     properties:
       en:
         example: I will ask the teacher.
@@ -350,6 +351,14 @@ definitions:
       jp:
         example: 先生に聞いてみます。
         type: string
+    type: object
+  gorm.DeletedAt:
+    properties:
+      time:
+        type: string
+      valid:
+        description: Valid is true if Time is not NULL
+        type: boolean
     type: object
   jpcorrect-backend_internal_domain.Event:
     properties:
@@ -455,6 +464,21 @@ definitions:
     x-enum-varnames:
     - GuildAttendeeRoleMember
     - GuildAttendeeRoleMaster
+  jpcorrect-backend_internal_domain.GuildInvite:
+    properties:
+      code:
+        type: string
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      guild_id:
+        type: string
+      id:
+        type: string
+      ttl_seconds:
+        type: integer
+    type: object
   jpcorrect-backend_internal_domain.Mistake:
     properties:
       comment:
@@ -591,18 +615,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.DictQueryRequest'
+          $ref: '#/definitions/api.DictQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.DictQueryResponse'
+            $ref: '#/definitions/api.DictQueryResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Dictionary query
@@ -1226,42 +1250,67 @@ paths:
       summary: Get a guild by ID
       tags:
       - guilds
-    put:
+  /v1/guilds/{id}/invite-link:
+    get:
       consumes:
       - application/json
+      description: Get the currently active invite link for a guild. Returns 200 with
+        null if expired or not found.
       parameters:
       - description: Guild ID
+        format: uuid
         in: path
         name: id
         required: true
         type: string
-      - description: Guild data
-        in: body
-        name: guild
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns the active invite link, or null if expired or not found
+          schema:
+            $ref: '#/definitions/api.GuildInviteResponse'
+        "400":
+          description: Invalid Guild ID format
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get active guild invite link
+      tags:
+      - guilds
+    post:
+      consumes:
+      - application/json
+      description: Creates a new active invite link for a guild and expires any existing
+        active links within a single transaction.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
         required: true
+        type: string
+      - description: Invite Link Options (e.g. {
+        in: body
+        name: request
         schema:
-          $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
         "400":
-          description: Bad Request
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Not Found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Conflict
+          description: Invalid Guild ID or Request Body
           schema:
             additionalProperties:
               type: string
@@ -1272,9 +1321,7 @@ paths:
             additionalProperties:
               type: string
             type: object
-      security:
-      - BearerAuth: []
-      summary: Update a guild
+      summary: Create a new guild invite link
       tags:
       - guilds
   /v1/mark-accent:
@@ -1294,18 +1341,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.MarkAccentRequest'
+          $ref: '#/definitions/api.MarkAccentRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.MarkAccentResponse'
+            $ref: '#/definitions/api.MarkAccentResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent
@@ -1327,7 +1374,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.MarkAccentRequest'
+          $ref: '#/definitions/api.MarkAccentRequest'
       produces:
       - application/x-ndjson
       responses:
@@ -1335,11 +1382,11 @@ paths:
           description: One NDJSON line per chunk; full response is a stream of these
             objects separated by '\\n'
           schema:
-            $ref: '#/definitions/internal_api.MarkAccentStreamChunk'
+            $ref: '#/definitions/api.MarkAccentStreamChunk'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent (streaming NDJSON)
@@ -1818,18 +1865,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.SentenceQueryRequest'
+          $ref: '#/definitions/api.SentenceQueryRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.SentenceQueryResponse'
+            $ref: '#/definitions/api.SentenceQueryResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Sentence query
@@ -2097,18 +2144,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
+          $ref: '#/definitions/api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.UsageQueryHeadWordsResponse'
+            $ref: '#/definitions/api.UsageQueryHeadWordsResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage headwords
@@ -2129,18 +2176,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.UsageQueryIDDetailsRequest'
+          $ref: '#/definitions/api.UsageQueryIDDetailsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.UsageQueryIDDetailsResponse'
+            $ref: '#/definitions/api.UsageQueryIDDetailsResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by ID details
@@ -2161,18 +2208,18 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_api.UsageQueryHeadWordsRequest'
+          $ref: '#/definitions/api.UsageQueryHeadWordsRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/internal_api.UsageQueryURLResponse'
+            $ref: '#/definitions/api.UsageQueryURLResponse'
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/api.ProxyErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by URL
