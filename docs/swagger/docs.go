@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.DictQueryRequest"
+                            "$ref": "#/definitions/internal_api.DictQueryRequest"
                         }
                     }
                 ],
@@ -43,13 +43,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.DictQueryResponse"
+                            "$ref": "#/definitions/internal_api.DictQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -963,6 +963,85 @@ const docTemplate = `{
                     }
                 ]
             },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Update a guild",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Guild data",
+                        "name": "guild",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.UpdateGuildRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.Guild"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
             "delete": {
                 "consumes": [
                     "application/json"
@@ -1058,7 +1137,7 @@ const docTemplate = `{
                     "200": {
                         "description": "Returns the active invite link, or null if expired or not found",
                         "schema": {
-                            "$ref": "#/definitions/api.GuildInviteResponse"
+                            "$ref": "#/definitions/internal_api.GuildInviteResponse"
                         }
                     },
                     "400": {
@@ -1079,7 +1158,12 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             },
             "post": {
                 "description": "Creates a new active invite link for a guild and expires any existing active links within a single transaction.",
@@ -1136,7 +1220,97 @@ const docTemplate = `{
                             }
                         }
                     }
-                }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/guilds/{id}/transfer-leader": {
+            "post": {
+                "description": "Transfer the master/leader role of a guild to another member",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Transfer guild leadership",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New leader user ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.TransferLeaderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "leader transferred successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID format or user is not a member",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Guild not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "New leader already leads another guild",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
             }
         },
         "/v1/mark-accent": {
@@ -1159,7 +1333,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.MarkAccentRequest"
+                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1167,13 +1341,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.MarkAccentResponse"
+                            "$ref": "#/definitions/internal_api.MarkAccentResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1204,7 +1378,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.MarkAccentRequest"
+                            "$ref": "#/definitions/internal_api.MarkAccentRequest"
                         }
                     }
                 ],
@@ -1212,13 +1386,13 @@ const docTemplate = `{
                     "200": {
                         "description": "One NDJSON line per chunk; full response is a stream of these objects separated by '\\\\n'",
                         "schema": {
-                            "$ref": "#/definitions/api.MarkAccentStreamChunk"
+                            "$ref": "#/definitions/internal_api.MarkAccentStreamChunk"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -1968,7 +2142,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.SentenceQueryRequest"
+                            "$ref": "#/definitions/internal_api.SentenceQueryRequest"
                         }
                     }
                 ],
@@ -1976,13 +2150,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.SentenceQueryResponse"
+                            "$ref": "#/definitions/internal_api.SentenceQueryResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2401,7 +2575,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2409,13 +2583,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryHeadWordsResponse"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2446,7 +2620,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryIDDetailsRequest"
+                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsRequest"
                         }
                     }
                 ],
@@ -2454,13 +2628,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryIDDetailsResponse"
+                            "$ref": "#/definitions/internal_api.UsageQueryIDDetailsResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2491,7 +2665,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryHeadWordsRequest"
+                            "$ref": "#/definitions/internal_api.UsageQueryHeadWordsRequest"
                         }
                     }
                 ],
@@ -2499,13 +2673,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.UsageQueryURLResponse"
+                            "$ref": "#/definitions/internal_api.UsageQueryURLResponse"
                         }
                     },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
-                            "$ref": "#/definitions/api.ProxyErrorResponse"
+                            "$ref": "#/definitions/internal_api.ProxyErrorResponse"
                         }
                     }
                 },
@@ -2894,7 +3068,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "api.APIToolsError": {
+        "gorm.DeletedAt": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
+                }
+            }
+        },
+        "internal_api.APIToolsError": {
             "type": "object",
             "properties": {
                 "code": {
@@ -2907,7 +3093,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.AccentInfo": {
+        "internal_api.AccentInfo": {
             "type": "object",
             "properties": {
                 "accent_marking_type": {
@@ -2924,7 +3110,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.Definition": {
+        "internal_api.Definition": {
             "type": "object",
             "properties": {
                 "meanings": {
@@ -2947,7 +3133,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.DictQueryRequest": {
+        "internal_api.DictQueryRequest": {
             "type": "object",
             "properties": {
                 "word": {
@@ -2956,16 +3142,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.DictQueryResponse": {
+        "internal_api.DictQueryResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.DictQueryWordResult"
+                        "$ref": "#/definitions/internal_api.DictQueryWordResult"
                     },
                     "x-nullable": "true"
                 },
@@ -2975,13 +3161,13 @@ const docTemplate = `{
                 }
             }
         },
-        "api.DictQueryWordResult": {
+        "internal_api.DictQueryWordResult": {
             "type": "object",
             "properties": {
                 "definitions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.Definition"
+                        "$ref": "#/definitions/internal_api.Definition"
                     }
                 },
                 "furigana": {
@@ -3008,7 +3194,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.GuildInviteResponse": {
+        "internal_api.GuildInviteResponse": {
             "type": "object",
             "properties": {
                 "code": {
@@ -3022,7 +3208,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.HeadWord": {
+        "internal_api.HeadWord": {
             "type": "object",
             "properties": {
                 "freq": {
@@ -3051,7 +3237,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.IdDetails": {
+        "internal_api.IdDetails": {
             "type": "object",
             "properties": {
                 "base": {
@@ -3102,7 +3288,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.MarkAccentRequest": {
+        "internal_api.MarkAccentRequest": {
             "type": "object",
             "properties": {
                 "render_english_furigana": {
@@ -3128,16 +3314,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.MarkAccentResponse": {
+        "internal_api.MarkAccentResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.WordAccentResult"
+                        "$ref": "#/definitions/internal_api.WordAccentResult"
                     },
                     "x-nullable": "true"
                 },
@@ -3147,7 +3333,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.MarkAccentStreamChunk": {
+        "internal_api.MarkAccentStreamChunk": {
             "type": "object",
             "properties": {
                 "chunk": {
@@ -3155,12 +3341,12 @@ const docTemplate = `{
                     "example": 0
                 },
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.WordAccentResult"
+                        "$ref": "#/definitions/internal_api.WordAccentResult"
                     },
                     "x-nullable": "true"
                 },
@@ -3174,7 +3360,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.ProxyErrorResponse": {
+        "internal_api.ProxyErrorResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -3183,7 +3369,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.SentenceQueryRequest": {
+        "internal_api.SentenceQueryRequest": {
             "type": "object",
             "properties": {
                 "id": {
@@ -3196,7 +3382,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.SentenceQueryResponse": {
+        "internal_api.SentenceQueryResponse": {
             "type": "object",
             "properties": {
                 "error": {
@@ -3206,7 +3392,7 @@ const docTemplate = `{
                 "result": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/api.SentenceQueryWordResult"
+                            "$ref": "#/definitions/internal_api.SentenceQueryWordResult"
                         }
                     ],
                     "x-nullable": "true"
@@ -3217,7 +3403,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.SentenceQueryWordResult": {
+        "internal_api.SentenceQueryWordResult": {
             "type": "object",
             "properties": {
                 "id": {
@@ -3227,7 +3413,7 @@ const docTemplate = `{
                 "sentence": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.WordSentence"
+                        "$ref": "#/definitions/internal_api.WordSentence"
                     }
                 },
                 "word": {
@@ -3236,7 +3422,31 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryHeadWordsRequest": {
+        "internal_api.TransferLeaderRequest": {
+            "type": "object",
+            "required": [
+                "new_leader_user_id"
+            ],
+            "properties": {
+                "new_leader_user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.UpdateGuildRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "internal_api.UsageQueryHeadWordsRequest": {
             "type": "object",
             "properties": {
                 "site": {
@@ -3249,16 +3459,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryHeadWordsResponse": {
+        "internal_api.UsageQueryHeadWordsResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.HeadWord"
+                        "$ref": "#/definitions/internal_api.HeadWord"
                     },
                     "x-nullable": "true"
                 },
@@ -3268,7 +3478,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryIDDetailsRequest": {
+        "internal_api.UsageQueryIDDetailsRequest": {
             "type": "object",
             "properties": {
                 "headword_id": {
@@ -3281,16 +3491,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryIDDetailsResponse": {
+        "internal_api.UsageQueryIDDetailsResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "allOf": [
                         {
-                            "$ref": "#/definitions/api.IdDetails"
+                            "$ref": "#/definitions/internal_api.IdDetails"
                         }
                     ],
                     "x-nullable": "true"
@@ -3301,16 +3511,16 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryURLResponse": {
+        "internal_api.UsageQueryURLResponse": {
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/api.APIToolsError"
+                    "$ref": "#/definitions/internal_api.APIToolsError"
                 },
                 "result": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.UsageQueryWordURL"
+                        "$ref": "#/definitions/internal_api.UsageQueryWordURL"
                     },
                     "x-nullable": "true"
                 },
@@ -3320,7 +3530,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.UsageQueryWordURL": {
+        "internal_api.UsageQueryWordURL": {
             "type": "object",
             "properties": {
                 "url": {
@@ -3333,13 +3543,13 @@ const docTemplate = `{
                 }
             }
         },
-        "api.WordAccentResult": {
+        "internal_api.WordAccentResult": {
             "type": "object",
             "properties": {
                 "accent": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.AccentInfo"
+                        "$ref": "#/definitions/internal_api.AccentInfo"
                     }
                 },
                 "furigana": {
@@ -3363,7 +3573,7 @@ const docTemplate = `{
                 "subword": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/api.WordAccentSubword"
+                        "$ref": "#/definitions/internal_api.WordAccentSubword"
                     }
                 },
                 "surface": {
@@ -3372,7 +3582,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.WordAccentSubword": {
+        "internal_api.WordAccentSubword": {
             "type": "object",
             "properties": {
                 "furigana": {
@@ -3395,7 +3605,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.WordSentence": {
+        "internal_api.WordSentence": {
             "type": "object",
             "properties": {
                 "en": {
@@ -3405,18 +3615,6 @@ const docTemplate = `{
                 "jp": {
                     "type": "string",
                     "example": "先生に聞いてみます。"
-                }
-            }
-        },
-        "gorm.DeletedAt": {
-            "type": "object",
-            "properties": {
-                "time": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if Time is not NULL",
-                    "type": "boolean"
                 }
             }
         },
