@@ -49,6 +49,7 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param guild body domain.Guild true "Guild data"
 // @Success 201 {object} domain.Guild
 // @Failure 400 {object} map[string]string
@@ -219,6 +220,7 @@ type TransferLeaderRequest struct {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID"
 // @Param request body TransferLeaderRequest true "New leader user ID"
 // @Success 200 {object} map[string]string "leader transferred successfully"
@@ -295,6 +297,7 @@ type GuildInviteResponse struct {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
 // @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
 // @Failure 400 {object} map[string]string "Invalid Guild ID format"
@@ -365,6 +368,7 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
 // @Param request body domain.GuildInvite false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
 // @Success 200 {object} domain.GuildInvite

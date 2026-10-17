@@ -850,6 +850,13 @@ const docTemplate = `{
                 "summary": "Create a guild",
                 "parameters": [
                     {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
                         "description": "Guild data",
                         "name": "guild",
                         "in": "body",
@@ -1127,6 +1134,13 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
                         "description": "Guild ID",
                         "name": "id",
                         "in": "path",
@@ -1178,6 +1192,13 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new guild invite link",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "format": "uuid",
@@ -1242,6 +1263,13 @@ const docTemplate = `{
                 ],
                 "summary": "Transfer guild leadership",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
                     {
                         "type": "string",
                         "description": "Guild ID",

@@ -1147,6 +1147,11 @@ paths:
       consumes:
       - application/json
       parameters:
+      - description: 'Debug only: caller user UUID; ignored in release'
+        format: uuid
+        in: header
+        name: X-Debug-User-ID
+        type: string
       - description: Guild data
         in: body
         name: guild
@@ -1324,6 +1329,11 @@ paths:
       description: Get the currently active invite link for a guild. Returns 200 with
         null if expired or not found.
       parameters:
+      - description: 'Debug only: caller user UUID; ignored in release'
+        format: uuid
+        in: header
+        name: X-Debug-User-ID
+        type: string
       - description: Guild ID
         format: uuid
         in: path
@@ -1360,6 +1370,11 @@ paths:
       description: Creates a new active invite link for a guild and expires any existing
         active links within a single transaction.
       parameters:
+      - description: 'Debug only: caller user UUID; ignored in release'
+        format: uuid
+        in: header
+        name: X-Debug-User-ID
+        type: string
       - description: Guild ID
         format: uuid
         in: path
@@ -1401,6 +1416,11 @@ paths:
       - application/json
       description: Transfer the master/leader role of a guild to another member
       parameters:
+      - description: 'Debug only: caller user UUID; ignored in release'
+        format: uuid
+        in: header
+        name: X-Debug-User-ID
+        type: string
       - description: Guild ID
         in: path
         name: id
