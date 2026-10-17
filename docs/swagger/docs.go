@@ -850,6 +850,13 @@ const docTemplate = `{
                 "summary": "Create a guild",
                 "parameters": [
                     {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
                         "description": "Guild data",
                         "name": "guild",
                         "in": "body",
@@ -988,7 +995,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.Guild"
+                            "$ref": "#/definitions/internal_api.UpdateGuildRequest"
                         }
                     }
                 ],
@@ -1095,6 +1102,230 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/guilds/{id}/invite-link": {
+            "get": {
+                "description": "Get the currently active invite link for a guild. Returns 200 with null if expired or not found.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Get active guild invite link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns the active invite link, or null if expired or not found",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.GuildInviteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Guild ID format",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "description": "Creates a new active invite link for a guild and expires any existing active links within a single transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Create a new guild invite link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Invite Link Options (e.g. {",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Guild ID or Request Body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/guilds/{id}/transfer-leader": {
+            "post": {
+                "description": "Transfer the master/leader role of a guild to another member",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "guilds"
+                ],
+                "summary": "Transfer guild leadership",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Debug only: caller user UUID; ignored in release",
+                        "name": "X-Debug-User-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Guild ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New leader user ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.TransferLeaderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "leader transferred successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID format or user is not a member",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Guild not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "New leader already leads another guild",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2991,6 +3222,20 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.GuildInviteResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_api.HeadWord": {
             "type": "object",
             "properties": {
@@ -3202,6 +3447,30 @@ const docTemplate = `{
                 "word": {
                     "type": "string",
                     "example": "先生"
+                }
+            }
+        },
+        "internal_api.TransferLeaderRequest": {
+            "type": "object",
+            "required": [
+                "new_leader_user_id"
+            ],
+            "properties": {
+                "new_leader_user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_api.UpdateGuildRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "maxLength": 500
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
                 }
             }
         },
@@ -3529,6 +3798,29 @@ const docTemplate = `{
                 "GuildAttendeeRoleMember",
                 "GuildAttendeeRoleMaster"
             ]
+        },
+        "jpcorrect-backend_internal_domain.GuildInvite": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "guild_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ttl_seconds": {
+                    "type": "integer"
+                }
+            }
         },
         "jpcorrect-backend_internal_domain.Mistake": {
             "type": "object",

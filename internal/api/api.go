@@ -120,6 +120,7 @@ func Register(r *gin.Engine, api *API) {
 	debug := gin.IsDebugging()
 	if debug {
 		log.Println("⚠️  GIN_MODE=debug — APIKeyMiddleware and AuthMiddleware are DISABLED on /v1 routes. An edge gateway (e.g. Cloudflare Access) must protect any non-localhost exposure of this build.")
+		log.Println("GIN_MODE=debug — use X-Debug-User-ID to select a caller for user-specific operations.")
 	}
 
 	// API Tools — non-user-specific service access, X-API-Key only (release only)
@@ -138,7 +139,9 @@ func Register(r *gin.Engine, api *API) {
 	}
 
 	v1 := r.Group("/v1")
-	if !debug {
+	if debug {
+		v1.Use(debugCallerMiddleware())
+	} else {
 		v1.Use(api.AuthMiddleware())
 	}
 	{
@@ -170,6 +173,9 @@ func Register(r *gin.Engine, api *API) {
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
 			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
+			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
+			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
 		}
 
 		// Guild Attendees
