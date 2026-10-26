@@ -32,6 +32,7 @@ func Execute() {
 		&domain.EventAttendee{},
 		&domain.Transcript{},
 		&domain.Mistake{},
+		&domain.GuildInvite{},
 	); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
@@ -68,6 +69,7 @@ func Execute() {
 	// Skip JWKS fetch in debug mode: AuthMiddleware is not registered so it
 	// would only waste a startup HTTP call. Also tolerates an empty
 	// JWKS_URL in dev deploys where there's no real auth provider configured.
+	// Debug callers are selected via X-Debug-User-ID instead.
 	if !gin.IsDebugging() {
 		initCtx, initCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer initCancel()

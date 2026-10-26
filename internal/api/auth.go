@@ -13,6 +13,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
@@ -74,6 +75,23 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// debugCallerMiddleware supplies an explicitly selected caller without JWT
+// validation. Register installs it only in debug mode.
+func debugCallerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		caller := c.GetHeader("X-Debug-User-ID")
+		if caller != "" {
+			userID, err := uuid.Parse(caller)
+			if err != nil || userID == uuid.Nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
+				return
+			}
+			c.Set("userID", userID.String())
+		}
 		c.Next()
 	}
 }
