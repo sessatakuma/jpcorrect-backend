@@ -150,6 +150,23 @@ In this workflow:
 - `api-tools` runs on your host machine through `uv run`
 - PostgreSQL runs in Docker via `compose.yml`
 
+With `GIN_MODE=debug`, select the caller for guild creation, leadership
+transfer, and invite-link GET/POST using the `X-Debug-User-ID` request header.
+Use an existing user's UUID; the usual membership and master-role checks
+still apply. For example:
+
+```bash
+curl -X POST http://127.0.0.1:8080/v1/guilds \
+  -H 'Content-Type: application/json' \
+  -H 'X-Debug-User-ID: <existing-user-uuid>' \
+  -d '{"name":"Local guild"}'
+```
+
+The header is also available in Swagger UI for these operations. Missing
+caller identity returns 401; a malformed or nil UUID returns 400. Debug mode
+does not validate JWTs or derive a caller from `Authorization`. Release mode
+ignores `X-Debug-User-ID` and requires a JWT through `Authorization`.
+
 The local `.env.example` is configured for this workflow with host-reachable values such as:
 
 ```text

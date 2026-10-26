@@ -28,6 +28,8 @@ type mockGuildRepo struct {
 	getByIDResult *domain.Guild
 	getByIDErr    error
 
+	createdMasters []domain.GuildAttendee
+
 	transferLeaderCalls []transferLeaderCall
 	transferLeaderErr   error
 
@@ -52,6 +54,10 @@ type createInviteLinkCall struct {
 	invite  *domain.GuildInvite
 }
 
+func (m *mockGuildRepo) CreateWithMaster(_ context.Context, _ *domain.Guild, attendee *domain.GuildAttendee) error {
+	m.createdMasters = append(m.createdMasters, *attendee)
+	return nil
+}
 func (m *mockGuildRepo) TransferLeader(_ context.Context, guildID, callerID, newLeaderID uuid.UUID) error {
 	m.transferLeaderCalls = append(m.transferLeaderCalls, transferLeaderCall{guildID, callerID, newLeaderID})
 	return m.transferLeaderErr

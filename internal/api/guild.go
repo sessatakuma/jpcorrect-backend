@@ -49,6 +49,7 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param guild body domain.Guild true "Guild data"
 // @Success 201 {object} domain.Guild
 // @Failure 400 {object} map[string]string
@@ -96,12 +97,17 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, guild)
 }
 
+type UpdateGuildRequest struct {
+	Name        *string `json:"name" binding:"omitempty,max=100"`
+	Description *string `json:"description" binding:"omitempty,max=500"`
+}
+
 // @Summary Update a guild
 // @Tags guilds
 // @Accept json
 // @Produce json
 // @Param id path string true "Guild ID"
-// @Param guild body domain.Guild true "Guild data"
+// @Param guild body UpdateGuildRequest true "Guild data"
 // @Success 200 {object} domain.Guild
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
@@ -109,11 +115,6 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 // @Failure 500 {object} map[string]string
 // @Security BearerAuth
 // @Router /v1/guilds/{id} [put]
-type UpdateGuildRequest struct {
-	Name        *string `json:"name" binding:"omitempty,max=100"`
-	Description *string `json:"description" binding:"omitempty,max=500"`
-}
-
 func (a *API) GuildUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := uuid.Parse(idStr)
@@ -205,11 +206,16 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+type TransferLeaderRequest struct {
+	NewLeaderUserID uuid.UUID `json:"new_leader_user_id" binding:"required"`
+}
+
 // @Summary Transfer guild leadership
 // @Description Transfer the master/leader role of a guild to another member
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID"
 // @Param request body TransferLeaderRequest true "New leader user ID"
 // @Success 200 {object} map[string]string "leader transferred successfully"
@@ -217,11 +223,8 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string "Guild not found"
 // @Failure 409 {object} map[string]string "New leader already leads another guild"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/transfer-leader [post]
-type TransferLeaderRequest struct {
-	NewLeaderUserID uuid.UUID `json:"new_leader_user_id" binding:"required"`
-}
-
 func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 	idStr := c.Param("id")
 	guildID, err := uuid.Parse(idStr)
@@ -273,22 +276,24 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
 }
 
-// @Summary Get active guild invite link
-// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
-// @Tags guilds
-// @Accept json
-// @Produce json
-// @Param id path string true "Guild ID" format(uuid)
-// @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
-// @Failure 400 {object} map[string]string "Invalid Guild ID format"
-// @Failure 500 {object} map[string]string "Internal server error"
-// @Router /v1/guilds/{id}/invite-link [get]
 type GuildInviteResponse struct {
 	Code      string     `json:"code"`
 	ExpiresAt *time.Time `json:"expires_at"`
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// @Summary Get active guild invite link
+// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
+// @Failure 400 {object} map[string]string "Invalid Guild ID format"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /v1/guilds/{id}/invite-link [get]
 func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 	guildIDParam := c.Param("id")
 	guildID, err := uuid.Parse(guildIDParam)
@@ -348,11 +353,13 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
 // @Param request body domain.GuildInvite false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
 // @Success 200 {object} domain.GuildInvite
 // @Failure 400 {object} map[string]string "Invalid Guild ID or Request Body"
 // @Failure 500 {object} map[string]string "Internal Server Error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/invite-link [post]
 func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 	guildIDParam := c.Param("id")

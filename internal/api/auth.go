@@ -79,6 +79,23 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// debugCallerMiddleware supplies an explicitly selected caller without JWT
+// validation. Register installs it only in debug mode.
+func debugCallerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		caller := c.GetHeader("X-Debug-User-ID")
+		if caller != "" {
+			userID, err := uuid.Parse(caller)
+			if err != nil || userID == uuid.Nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
+				return
+			}
+			c.Set("userID", userID)
+		}
+		c.Next()
+	}
+}
+
 // APIKeyMiddleware requires a static API key in the X-API-Key header that matches
 // CLIENT_API_KEY. Intended for non-user-specific service callers; user-scoped
 // callers should use the JWT-based AuthMiddleware on regular /v1 routes instead.

@@ -5,6 +5,7 @@
 # the gate at the edge (Cloudflare Access) is the only auth in the chain.
 PORT=8080
 GIN_MODE=debug
+# Select a caller with X-Debug-User-ID: <existing-user-uuid> for guild operations.
 # Password must match POSTGRES_DEV_PASSWORD in deploy/.env (URL-encoded here).
 # Keep it different from the prod one — dev runs with auth middlewares off.
 DATABASE_URL=postgres://jpcorrect:<POSTGRES_DEV_PASSWORD>@postgres-dev:5432/jpcorrect?sslmode=disable
