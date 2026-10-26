@@ -191,6 +191,35 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 	}))
 }
 
+func (r *gormGuildRepository) Discover(ctx context.Context, page, pageSize int) (*domain.GuildDiscoverResult, error) {
+	var guilds []*domain.Guild
+	var totalCount int64
+
+	db := r.db.WithContext(ctx).Model(&domain.Guild{})
+
+	// Calculate the total count of public guilds
+	if err := db.Count(&totalCount).Error; err != nil {
+		return nil, MapGormError(err)
+	}
+
+	// Calculate the pagination offset
+	offset := (page - 1) * pageSize
+	err := db.Order("updated_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&guilds).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+
+	return &domain.GuildDiscoverResult{
+		Items:      guilds,
+		TotalCount: totalCount,
+		Page:       page,
+		PageSize:   pageSize,
+	}, nil
+}
+
 type gormGuildAttendeeRepository struct {
 	db *gorm.DB
 }
@@ -250,4 +279,146 @@ func (r *gormGuildAttendeeRepository) Update(ctx context.Context, attendee *doma
 
 func (r *gormGuildAttendeeRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.GuildAttendee{}, "id = ?", id).Error)
+}
+
+type guildApplicationRepository struct {
+	db *gorm.DB
+}
+
+func NewGuildApplicationRepository(db *gorm.DB) domain.GuildApplicationRepository {
+	return &guildApplicationRepository{db: db}
+}
+
+func (r *guildApplicationRepository) GetByID(ctx context.Context, appID uuid.UUID) (*domain.GuildApplication, error) {
+	var app domain.GuildApplication
+	err := r.db.WithContext(ctx).First(&app, "id = ?", appID).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &app, nil
+}
+
+func (r *guildApplicationRepository) GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*domain.GuildApplication, error) {
+	var app domain.GuildApplication
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ? AND user_id = ? AND status = ?", guildID, userID, domain.GuildApplicationStatusPending).
+		First(&app).Error
+
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &app, nil
+}
+
+func (r *guildApplicationRepository) ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*domain.GuildApplication, error) {
+	var apps []*domain.GuildApplication
+	err := r.db.WithContext(ctx).
+		Where("guild_id = ? AND status = ?", guildID, domain.GuildApplicationStatusPending).
+		Order("created_at ASC").
+		Find(&apps).Error
+
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return apps, nil
+}
+
+func (r *guildApplicationRepository) ApproveWithTx(ctx context.Context, app *domain.GuildApplication, newAttendee *domain.GuildAttendee) error {
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		if err := transitionPendingApplication(tx, app.ID, app.GuildID, domain.GuildApplicationStatusApproved, now); err != nil {
+			return err
+		}
+
+		if newAttendee.ID == uuid.Nil {
+			newAttendee.ID = uuid.New()
+		}
+		newAttendee.JoinedAt = &now
+		if err := tx.Create(newAttendee).Error; err != nil {
+			return err
+		}
+
+		// Reject all pending from this applicant under other guilds
+		err := tx.Model(&domain.GuildApplication{}).
+			Where("user_id = ? AND status = ? AND id != ?", app.UserID, domain.GuildApplicationStatusPending, app.ID).
+			Updates(map[string]interface{}{
+				"status":     domain.GuildApplicationStatusRejected,
+				"updated_at": now,
+			}).Error
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	return MapGormError(err)
+}
+
+func (r *guildApplicationRepository) RejectPending(ctx context.Context, appID, guildID uuid.UUID) error {
+	return transitionPendingApplication(r.db.WithContext(ctx), appID, guildID, domain.GuildApplicationStatusRejected, time.Now())
+}
+
+// The conditional UPDATE locks the row and lets only one review leave pending.
+func transitionPendingApplication(db *gorm.DB, appID, guildID uuid.UUID, status domain.GuildApplicationStatus, now time.Time) error {
+	result := db.Model(&domain.GuildApplication{}).
+		Where("id = ? AND guild_id = ? AND status = ?", appID, guildID, domain.GuildApplicationStatusPending).
+		Updates(map[string]any{"status": status, "updated_at": now})
+	if result.Error != nil {
+		return MapGormError(result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return domain.ErrApplicationNotPending
+	}
+	return nil
+}
+
+func (r *guildApplicationRepository) Create(ctx context.Context, app *domain.GuildApplication) error {
+	if app.ID == uuid.Nil {
+		app.ID = uuid.New()
+	}
+	return MapGormError(r.db.WithContext(ctx).Create(app).Error)
+}
+
+type guildDefaultSlotRepository struct {
+	db *gorm.DB
+}
+
+func NewGuildDefaultSlotRepository(db *gorm.DB) domain.GuildDefaultSlotRepository {
+	return &guildDefaultSlotRepository{db: db}
+}
+
+func (r *guildDefaultSlotRepository) GetByGuildID(ctx context.Context, guildID uuid.UUID) (*domain.GuildDefaultSlot, error) {
+	var slot domain.GuildDefaultSlot
+	err := r.db.WithContext(ctx).Where("guild_id = ?", guildID).First(&slot).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &slot, nil
+}
+
+func (r *guildDefaultSlotRepository) DeleteByGuildID(ctx context.Context, guildID uuid.UUID) error {
+	res := r.db.WithContext(ctx).Unscoped().Where("guild_id = ?", guildID).Delete(&domain.GuildDefaultSlot{})
+	if res.Error != nil {
+		return MapGormError(res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *guildDefaultSlotRepository) Upsert(ctx context.Context, slot *domain.GuildDefaultSlot) error {
+	if slot.ID == uuid.Nil {
+		slot.ID = uuid.New()
+	}
+
+	err := r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "guild_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"day_of_week", "start_time", "end_time", "updated_at"}),
+	}).Create(slot).Error
+
+	return MapGormError(err)
 }

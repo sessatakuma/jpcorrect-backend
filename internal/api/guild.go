@@ -63,14 +63,9 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	userIDStr, ok := userIDVal.(string)
+	userID, ok := userIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -249,14 +244,9 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -317,14 +307,9 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -389,14 +374,9 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
+	callerID, ok := callerIDVal.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
 		return
 	}
 
@@ -449,6 +429,635 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, newInvite)
+}
+
+type GuildApplicationResponse struct {
+	ID        uuid.UUID                     `json:"id"`
+	GuildID   uuid.UUID                     `json:"guild_id"`
+	UserID    uuid.UUID                     `json:"user_id"`
+	Status    domain.GuildApplicationStatus `json:"status"`
+	CreatedAt time.Time                     `json:"created_at"`
+	UpdatedAt time.Time                     `json:"updated_at"`
+}
+
+// @Summary Submit guild application
+// @Description Submit an application to join a guild. Fails if caller is already a member or has a pending application.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 201 {object} GuildApplicationResponse "Application created successfully"
+// @Failure 400 {object} map[string]string "Invalid Guild ID, already a member, or pending application exists"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/applications [post]
+func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Check if the caller already belongs to the guild.
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check attendee status"})
+		return
+	}
+	if attendee != nil && attendee.LeftAt == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "you are already a member of this guild"})
+		return
+	}
+
+	// Check if already application with a "Pending" status exists.
+	pendingApp, err := a.applicationRepo.GetPendingByGuildAndUser(ctx, guildID, callerID)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check existing applications"})
+		return
+	}
+	if pendingApp != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "you already have a pending application for this guild"})
+		return
+	}
+
+	now := time.Now()
+	newApp := &domain.GuildApplication{
+		ID:        uuid.New(),
+		GuildID:   guildID,
+		UserID:    callerID,
+		Status:    domain.GuildApplicationStatusPending,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := a.applicationRepo.Create(ctx, newApp); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "you already have a pending application for this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create application"})
+		return
+	}
+
+	resp := GuildApplicationResponse{
+		ID:        newApp.ID,
+		GuildID:   newApp.GuildID,
+		UserID:    newApp.UserID,
+		Status:    newApp.Status,
+		CreatedAt: newApp.CreatedAt,
+		UpdatedAt: newApp.UpdatedAt,
+	}
+
+	c.JSON(http.StatusCreated, resp)
+}
+
+// @Summary List pending guild applications
+// @Description Get all pending join applications for a specific guild. Caller must be the guild master or a member.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 200 {object} ListGuildApplicationsResponse "List of pending applications"
+// @Failure 400 {object} map[string]string "Invalid Guild ID format"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden - Caller is not a member or master of the guild"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/applications [get]
+type ListGuildApplicationsResponse struct {
+	Applications []*domain.GuildApplication `json:"applications"`
+}
+
+func (a *API) GuildApplicationsHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Check if the caller is a member of the guild
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check member permission"})
+		return
+	}
+	if attendee.LeftAt != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you have left this guild"})
+		return
+	}
+
+	// Query all pending applications.
+	apps, err := a.applicationRepo.ListPendingByGuildID(ctx, guildID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch applications"})
+		return
+	}
+	if apps == nil {
+		apps = []*domain.GuildApplication{}
+	}
+
+	c.JSON(http.StatusOK, ListGuildApplicationsResponse{
+		Applications: apps,
+	})
+}
+
+// @Summary Approve guild application
+// @Description Approve a pending application to join the guild. Adds the user as a member and cancels their pending applications for other guilds in a single transaction. Only guild master can perform this.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Param app_id path string true "Application ID" format(uuid)
+// @Success 200 {object} map[string]string "Application approved successfully"
+// @Failure 400 {object} map[string]string "Invalid ID format or application not in pending status"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden - Only guild master can approve"
+// @Failure 404 {object} map[string]string "Guild or Application not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/applications/{app_id}/approve [post]
+func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	appID, err := uuid.Parse(c.Param("app_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid application_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the caller is the master of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can approve applications"})
+		return
+	}
+
+	// Query the application and verify its status
+	app, err := a.applicationRepo.GetByID(ctx, appID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query application"})
+		return
+	}
+
+	if app.GuildID != guildID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "application does not belong to this guild"})
+		return
+	}
+	if app.Status != domain.GuildApplicationStatusPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+		return
+	}
+
+	newAttendee := &domain.GuildAttendee{
+		GuildID: guildID,
+		UserID:  app.UserID,
+		Role:    domain.GuildAttendeeRoleMember,
+	}
+
+	if err := a.applicationRepo.ApproveWithTx(ctx, app, newAttendee); err != nil {
+		if errors.Is(err, domain.ErrApplicationNotPending) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+			return
+		}
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user is already a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve application"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "application approved successfully",
+	})
+}
+
+// @Summary Reject guild application
+// @Description Reject a pending application to join the guild. Only guild master can perform this.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID" format(uuid)
+// @Param app_id path string true "Application ID" format(uuid)
+// @Success 200 {object} map[string]string "Application rejected successfully"
+// @Failure 400 {object} map[string]string "Invalid ID format or application not in pending status"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden - Only guild master can reject"
+// @Failure 404 {object} map[string]string "Guild or Application not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/applications/{app_id}/reject [post]
+func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+	appID, err := uuid.Parse(c.Param("app_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid application_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the caller is the master of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can reject applications"})
+		return
+	}
+
+	// Query the application and verify its status
+	app, err := a.applicationRepo.GetByID(ctx, appID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query application"})
+		return
+	}
+
+	if app.GuildID != guildID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "application does not belong to this guild"})
+		return
+	}
+	if app.Status != domain.GuildApplicationStatusPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+		return
+	}
+
+	if err := a.applicationRepo.RejectPending(ctx, app.ID, guildID); err != nil {
+		if errors.Is(err, domain.ErrApplicationNotPending) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "application is not in pending status"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reject application"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "application rejected successfully",
+	})
+}
+
+// @Summary Get guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Success 200 {object} map[string]interface{} "Success (data field contains GuildDefaultSlot or null)"
+// @Failure 400 {object} map[string]string "Invalid guild_id format"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [get]
+func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Query the Guild's preset time slots.
+	slot, err := a.defaultSlotRepo.GetByGuildID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusOK, gin.H{
+				"data": nil,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": slot,
+	})
+}
+
+// @Summary Upsert guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Param request body domain.GuildDefaultSlotUpsertReq true "Upsert Request Body"
+// @Success 200 {object} map[string]interface{} "Success"
+// @Failure 400 {object} map[string]string "Invalid request body or guild_id"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden: only master can manage default slot"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [put]
+type GuildDefaultSlotUpsertReq struct {
+	DayOfWeek int    `json:"day_of_week" binding:"gte=0,lte=6"`
+	StartTime string `json:"start_time" binding:"required"`
+	EndTime   string `json:"end_time" binding:"required"`
+}
+
+func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	var req GuildDefaultSlotUpsertReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body: " + err.Error()})
+		return
+	}
+
+	// Check the caller's identity
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+
+	// Check if the caller is the member of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+	// Check if the caller is the master of the guild
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can manage default slot"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	slot := &domain.GuildDefaultSlot{
+		ID:        uuid.New(),
+		GuildID:   guildID,
+		DayOfWeek: req.DayOfWeek,
+		StartTime: req.StartTime,
+		EndTime:   req.EndTime,
+	}
+
+	if err := a.defaultSlotRepo.Upsert(ctx, slot); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upsert default slot"})
+		return
+	}
+
+	// Requery the latest slot records and return
+	latestSlot, err := a.defaultSlotRepo.GetByGuildID(ctx, guildID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch updated default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": latestSlot,
+	})
+}
+
+// @Summary Delete guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Success 200 {object} map[string]string "Success"
+// @Failure 400 {object} map[string]string "Invalid guild_id"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden: only master can delete default slot"
+// @Failure 404 {object} map[string]string "Guild or default slot not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/{id}/default-slot [delete]
+func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+	guildID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerIDVal, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	callerID, ok := callerIDVal.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
+		return
+	}
+	// Check if the caller is the member of the guild
+	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
+		return
+	}
+	// Check if the caller is the master of the guild
+	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can delete default slot"})
+		return
+	}
+
+	// Check if the guild exists
+	_, err = a.guildRepo.GetByID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+		return
+	}
+
+	// Perform deletion
+	err = a.defaultSlotRepo.DeleteByGuildID(ctx, guildID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "default slot not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete default slot"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "default slot deleted successfully",
+	})
+}
+
+// @Summary Discover public guilds
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default 1)" default(1)
+// @Param page_size query int false "Page size (default 10, max 100)" default(10)
+// @Success 200 {object} map[string]interface{} "Success"
+// @Failure 400 {object} map[string]string "Invalid query parameters"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Router /v1/guilds/discover [get]
+type GuildDiscoverReq struct {
+	Page     int `form:"page,default=1" binding:"omitempty,gte=1"`
+	PageSize int `form:"page_size,default=10" binding:"omitempty,gte=1,lte=100"`
+}
+
+func (a *API) GuildDiscoverHandler(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	var req GuildDiscoverReq
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid query parameters: " + err.Error()})
+		return
+	}
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 10
+	}
+
+	// Discover public guilds with pagination
+	result, err := a.guildRepo.Discover(ctx, req.Page, req.PageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to discover guilds"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": result,
+	})
 }
 
 // @Summary Get a guild attendee by ID
