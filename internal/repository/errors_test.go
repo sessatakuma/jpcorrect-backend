@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"jpcorrect-backend/internal/domain"
@@ -65,6 +66,17 @@ func TestMapGormError(t *testing.T) {
 			},
 			expected: domain.ErrHasRelatedRecords,
 		},
+		{
+			name: "wrapped pgconn foreign key violation returns domain.ErrHasRelatedRecords",
+			// GORM wraps driver errors, so the mapping must look through the
+			// fmt.Errorf chain instead of type-asserting the top-level error.
+			input: fmt.Errorf("insert guild_attendee: %w", &pgconn.PgError{
+				Code:           "23503",
+				ConstraintName: "fk_guild_attendee_guild",
+				Message:        "insert or update on table violates foreign key constraint",
+			}),
+			expected: domain.ErrHasRelatedRecords,
+		},
 	}
 
 	for _, tt := range tests {
@@ -82,5 +94,34 @@ func TestMapGormError(t *testing.T) {
 		unknownErr := errors.New("some random error")
 		actual := MapGormError(unknownErr)
 		assert.Same(t, unknownErr, actual, "expected original error to be returned")
+	})
+
+	// SQLSTATE codes other than 23505 and 23503 are outside the mapping's
+	// contract. They must reach the caller untouched: wrapping them in a new
+	// error would hide the driver detail that diagnostics rely on.
+	t.Run("unknown pgconn SQLSTATE returns the original error", func(t *testing.T) {
+		pgErr := &pgconn.PgError{
+			Code:           "23514",
+			ConstraintName: "some_check_constraint",
+			Message:        "new row violates check constraint",
+		}
+		assert.Same(t, pgErr, MapGormError(pgErr),
+			"an unhandled SQLSTATE must be passed through unchanged")
+	})
+
+	t.Run("wrapped unknown pgconn SQLSTATE returns the original wrapped error", func(t *testing.T) {
+		pgErr := &pgconn.PgError{
+			Code:    "40001",
+			Message: "could not serialize access due to concurrent update",
+		}
+		wrapped := fmt.Errorf("commit transaction: %w", pgErr)
+
+		actual := MapGormError(wrapped)
+		assert.Same(t, wrapped, actual,
+			"a wrapped unhandled SQLSTATE must be returned as-is, not re-wrapped")
+
+		var mapped *pgconn.PgError
+		require.True(t, errors.As(actual, &mapped), "expected *pgconn.PgError in the chain, got %T", actual)
+		assert.Same(t, pgErr, mapped, "the driver error itself must not be replaced")
 	})
 }
