@@ -29,10 +29,11 @@ func NewAuthError(statusCode int, message, details string) *AuthError {
 }
 
 var (
-	ErrNotFound          = errors.New("record not found")
-	ErrDuplicateEntry    = errors.New("duplicate entry")
-	ErrHasRelatedRecords = errors.New("record has related records")
-	ErrNotGuildMember    = errors.New("user is not a member of this guild")
-	ErrNotGuildMaster    = errors.New("user is not the master of this guild")
-	ErrGuildLimitReached = errors.New("user has already created a guild")
+	ErrNotFound              = errors.New("record not found")
+	ErrDuplicateEntry        = errors.New("duplicate entry")
+	ErrHasRelatedRecords     = errors.New("record has related records")
+	ErrNotGuildMember        = errors.New("user is not a member of this guild")
+	ErrNotGuildMaster        = errors.New("user is not the master of this guild")
+	ErrGuildLimitReached     = errors.New("user has already created a guild")
+	ErrApplicationNotPending = errors.New("guild application is not pending")
 )

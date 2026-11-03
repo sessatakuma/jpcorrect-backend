@@ -39,6 +39,13 @@ type GuildInvite struct {
 	TTLSeconds *int64     `gorm:"-" json:"ttl_seconds,omitempty"`
 }
 
+type GuildDiscoverResult struct {
+	Items      []*Guild `json:"items"`
+	TotalCount int64    `json:"total_count"`
+	Page       int      `json:"page"`
+	PageSize   int      `json:"page_size"`
+}
+
 type GuildRepository interface {
 	GetByID(ctx context.Context, guildID uuid.UUID) (*Guild, error)
 	CreateWithMaster(ctx context.Context, guild *Guild, attendee *GuildAttendee) error
@@ -50,6 +57,7 @@ type GuildRepository interface {
 
 	GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*GuildInvite, error)
 	CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *GuildInvite, now time.Time) error
+	Discover(ctx context.Context, page, pageSize int) (*GuildDiscoverResult, error)
 }
 
 // GuildAttendee represents a member of a guild.
@@ -72,4 +80,48 @@ type GuildAttendeeRepository interface {
 	Create(ctx context.Context, attendee *GuildAttendee) error
 	Update(ctx context.Context, attendee *GuildAttendee) error
 	Delete(ctx context.Context, id uuid.UUID) error
+}
+
+type GuildApplicationStatus string
+
+const (
+	GuildApplicationStatusPending  GuildApplicationStatus = "pending"
+	GuildApplicationStatusApproved GuildApplicationStatus = "approved"
+	GuildApplicationStatusRejected GuildApplicationStatus = "rejected"
+)
+
+type GuildApplication struct {
+	ID        uuid.UUID              `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID   uuid.UUID              `gorm:"type:uuid;not null;index;uniqueIndex:idx_guild_application_pending,priority:1,where:status = 'pending'" json:"guild_id"`
+	UserID    uuid.UUID              `gorm:"type:uuid;not null;index;uniqueIndex:idx_guild_application_pending,priority:2,where:status = 'pending'" json:"user_id"`
+	Status    GuildApplicationStatus `gorm:"type:varchar(20);default:'pending';not null" json:"status"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+type GuildApplicationRepository interface {
+	GetByID(ctx context.Context, appID uuid.UUID) (*GuildApplication, error)
+	GetPendingByGuildAndUser(ctx context.Context, guildID, userID uuid.UUID) (*GuildApplication, error)
+	ListPendingByGuildID(ctx context.Context, guildID uuid.UUID) ([]*GuildApplication, error)
+	ApproveWithTx(ctx context.Context, app *GuildApplication, newAttendee *GuildAttendee) error
+	RejectPending(ctx context.Context, appID, guildID uuid.UUID) error
+
+	Create(ctx context.Context, app *GuildApplication) error
+}
+
+type GuildDefaultSlot struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
+	GuildID   uuid.UUID `gorm:"type:uuid;not null;uniqueIndex" json:"guild_id"`
+	DayOfWeek int       `json:"day_of_week"`
+	StartTime string    `gorm:"type:varchar(5)" json:"start_time"`
+	EndTime   string    `gorm:"type:varchar(5)" json:"end_time"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type GuildDefaultSlotRepository interface {
+	GetByGuildID(ctx context.Context, guildID uuid.UUID) (*GuildDefaultSlot, error)
+	DeleteByGuildID(ctx context.Context, guildID uuid.UUID) error
+
+	Upsert(ctx context.Context, slot *GuildDefaultSlot) error
 }
