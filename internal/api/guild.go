@@ -451,6 +451,7 @@ type GuildApplicationResponse struct {
 // @Failure 401 {object} map[string]string "Unauthorized"
 // @Failure 404 {object} map[string]string "Guild not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/applications [post]
 func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -536,6 +537,10 @@ func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+type ListGuildApplicationsResponse struct {
+	Applications []*domain.GuildApplication `json:"applications"`
+}
+
 // @Summary List pending guild applications
 // @Description Get all pending join applications for a specific guild. Caller must be the guild master or a member.
 // @Tags guilds
@@ -548,11 +553,8 @@ func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 // @Failure 403 {object} map[string]string "Forbidden - Caller is not a member or master of the guild"
 // @Failure 404 {object} map[string]string "Guild not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/applications [get]
-type ListGuildApplicationsResponse struct {
-	Applications []*domain.GuildApplication `json:"applications"`
-}
-
 func (a *API) GuildApplicationsHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -628,6 +630,7 @@ func (a *API) GuildApplicationsHandler(c *gin.Context) {
 // @Failure 403 {object} map[string]string "Forbidden - Only guild master can approve"
 // @Failure 404 {object} map[string]string "Guild or Application not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/applications/{app_id}/approve [post]
 func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -727,6 +730,7 @@ func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 // @Failure 403 {object} map[string]string "Forbidden - Only guild master can reject"
 // @Failure 404 {object} map[string]string "Guild or Application not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/applications/{app_id}/reject [post]
 func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -811,6 +815,7 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string "Invalid guild_id format"
 // @Failure 404 {object} map[string]string "Guild not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/default-slot [get]
 func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -848,25 +853,26 @@ func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
 	})
 }
 
-// @Summary Upsert guild default slot
-// @Tags guilds
-// @Accept json
-// @Produce json
-// @Param id path string true "Guild ID (UUID)" format(uuid)
-// @Param request body domain.GuildDefaultSlotUpsertReq true "Upsert Request Body"
-// @Success 200 {object} map[string]interface{} "Success"
-// @Failure 400 {object} map[string]string "Invalid request body or guild_id"
-// @Failure 401 {object} map[string]string "Unauthorized"
-// @Failure 403 {object} map[string]string "Forbidden: only master can manage default slot"
-// @Failure 404 {object} map[string]string "Guild not found"
-// @Failure 500 {object} map[string]string "Internal server error"
-// @Router /v1/guilds/{id}/default-slot [put]
 type GuildDefaultSlotUpsertReq struct {
 	DayOfWeek int    `json:"day_of_week" binding:"gte=0,lte=6"`
 	StartTime string `json:"start_time" binding:"required"`
 	EndTime   string `json:"end_time" binding:"required"`
 }
 
+// @Summary Upsert guild default slot
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param id path string true "Guild ID (UUID)" format(uuid)
+// @Param request body GuildDefaultSlotUpsertReq true "Upsert Request Body"
+// @Success 200 {object} map[string]interface{} "Success"
+// @Failure 400 {object} map[string]string "Invalid request body or guild_id"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden: only master can manage default slot"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /v1/guilds/{id}/default-slot [put]
 func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	guildID, err := uuid.Parse(c.Param("id"))
@@ -956,6 +962,7 @@ func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
 // @Failure 403 {object} map[string]string "Forbidden: only master can delete default slot"
 // @Failure 404 {object} map[string]string "Guild or default slot not found"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/{id}/default-slot [delete]
 func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -1018,7 +1025,13 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 	})
 }
 
-// @Summary Discover public guilds
+type GuildDiscoverReq struct {
+	Page     int `form:"page,default=1" binding:"omitempty,gte=1"`
+	PageSize int `form:"page_size,default=10" binding:"omitempty,gte=1,lte=100"`
+}
+
+// @Summary Discover guilds
+// @Description List all non-deleted guilds. All guilds are discoverable; joining requires approval independently of discoverability.
 // @Tags guilds
 // @Accept json
 // @Produce json
@@ -1027,12 +1040,8 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 // @Success 200 {object} map[string]interface{} "Success"
 // @Failure 400 {object} map[string]string "Invalid query parameters"
 // @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
 // @Router /v1/guilds/discover [get]
-type GuildDiscoverReq struct {
-	Page     int `form:"page,default=1" binding:"omitempty,gte=1"`
-	PageSize int `form:"page_size,default=10" binding:"omitempty,gte=1,lte=100"`
-}
-
 func (a *API) GuildDiscoverHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -1048,7 +1057,7 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 		req.PageSize = 10
 	}
 
-	// Discover public guilds with pagination
+	// Discover all non-deleted guilds with pagination.
 	result, err := a.guildRepo.Discover(ctx, req.Page, req.PageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to discover guilds"})

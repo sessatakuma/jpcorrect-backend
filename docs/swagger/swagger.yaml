@@ -85,6 +85,35 @@ definitions:
           type: string
         type: array
     type: object
+  internal_api.GuildApplicationResponse:
+    properties:
+      created_at:
+        type: string
+      guild_id:
+        type: string
+      id:
+        type: string
+      status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildApplicationStatus'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  internal_api.GuildDefaultSlotUpsertReq:
+    properties:
+      day_of_week:
+        maximum: 6
+        minimum: 0
+        type: integer
+      end_time:
+        type: string
+      start_time:
+        type: string
+    required:
+    - end_time
+    - start_time
+    type: object
   internal_api.GuildInviteResponse:
     properties:
       code:
@@ -149,6 +178,13 @@ definitions:
         items:
           additionalProperties: {}
           type: object
+        type: array
+    type: object
+  internal_api.ListGuildApplicationsResponse:
+    properties:
+      applications:
+        items:
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildApplication'
         type: array
     type: object
   internal_api.MarkAccentRequest:
@@ -457,6 +493,31 @@ definitions:
       updated_at:
         type: string
     type: object
+  jpcorrect-backend_internal_domain.GuildApplication:
+    properties:
+      created_at:
+        type: string
+      guild_id:
+        type: string
+      id:
+        type: string
+      status:
+        $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildApplicationStatus'
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  jpcorrect-backend_internal_domain.GuildApplicationStatus:
+    enum:
+    - pending
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - GuildApplicationStatusPending
+    - GuildApplicationStatusApproved
+    - GuildApplicationStatusRejected
   jpcorrect-backend_internal_domain.GuildAttendee:
     properties:
       guild_attendee_id:
@@ -1322,6 +1383,392 @@ paths:
       summary: Update a guild
       tags:
       - guilds
+  /v1/guilds/{id}/applications:
+    get:
+      consumes:
+      - application/json
+      description: Get all pending join applications for a specific guild. Caller
+        must be the guild master or a member.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of pending applications
+          schema:
+            $ref: '#/definitions/internal_api.ListGuildApplicationsResponse'
+        "400":
+          description: Invalid Guild ID format
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Caller is not a member or master of the guild
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List pending guild applications
+      tags:
+      - guilds
+    post:
+      consumes:
+      - application/json
+      description: Submit an application to join a guild. Fails if caller is already
+        a member or has a pending application.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Application created successfully
+          schema:
+            $ref: '#/definitions/internal_api.GuildApplicationResponse'
+        "400":
+          description: Invalid Guild ID, already a member, or pending application
+            exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Submit guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/applications/{app_id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a pending application to join the guild. Adds the user
+        as a member and cancels their pending applications for other guilds in a single
+        transaction. Only guild master can perform this.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application approved successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid ID format or application not in pending status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Only guild master can approve
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild or Application not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/applications/{app_id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Reject a pending application to join the guild. Only guild master
+        can perform this.
+      parameters:
+      - description: Guild ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: app_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Application rejected successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid ID format or application not in pending status
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden - Only guild master can reject
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild or Application not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject guild application
+      tags:
+      - guilds
+  /v1/guilds/{id}/default-slot:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid guild_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'Forbidden: only master can delete default slot'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild or default slot not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete guild default slot
+      tags:
+      - guilds
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success (data field contains GuildDefaultSlot or null)
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid guild_id format
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get guild default slot
+      tags:
+      - guilds
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Guild ID (UUID)
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Upsert Request Body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.GuildDefaultSlotUpsertReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body or guild_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: 'Forbidden: only master can manage default slot'
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Guild not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upsert guild default slot
+      tags:
+      - guilds
   /v1/guilds/{id}/invite-link:
     get:
       consumes:
@@ -1468,6 +1915,48 @@ paths:
       security:
       - BearerAuth: []
       summary: Transfer guild leadership
+      tags:
+      - guilds
+  /v1/guilds/discover:
+    get:
+      consumes:
+      - application/json
+      description: List all non-deleted guilds. All guilds are discoverable; joining
+        requires approval independently of discoverability.
+      parameters:
+      - default: 1
+        description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Page size (default 10, max 100)
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Success
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid query parameters
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Discover guilds
       tags:
       - guilds
   /v1/mark-accent:

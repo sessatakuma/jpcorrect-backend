@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -83,6 +84,53 @@ func TestGuildApplicationConcurrentReview(t *testing.T) {
 				require.True(t, test.mixedReview)
 				require.Equal(t, domain.GuildApplicationStatusRejected, storedApp.Status)
 				require.Zero(t, attendeeCount)
+			}
+		})
+	}
+}
+
+func TestGuildApplicationRestoreMembership(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		name := "departed master rejoins as member"
+		if active {
+			name = "active master is not overwritten"
+		}
+		t.Run(name, func(t *testing.T) {
+			db, app := setupGuildApplicationReview(t)
+			ctx := context.Background()
+			repo := NewGuildApplicationRepository(db)
+			past := time.Now().Add(-24 * time.Hour).Truncate(time.Microsecond)
+			old := domain.GuildAttendee{
+				ID: uuid.New(), GuildID: app.GuildID, UserID: app.UserID,
+				Role: domain.GuildAttendeeRoleMaster, JoinedAt: &past, LeftAt: &past,
+			}
+			if active {
+				old.LeftAt = nil
+			}
+			require.NoError(t, db.Create(&old).Error)
+			err := repo.ApproveWithTx(ctx, app, &domain.GuildAttendee{
+				GuildID: app.GuildID, UserID: app.UserID, Role: domain.GuildAttendeeRoleMember,
+			})
+			if active {
+				require.ErrorIs(t, err, domain.ErrDuplicateEntry)
+			} else {
+				require.NoError(t, err)
+			}
+			var members []domain.GuildAttendee
+			require.NoError(t, db.Where("guild_id = ? AND user_id = ?", app.GuildID, app.UserID).Find(&members).Error)
+			require.Len(t, members, 1)
+			require.Equal(t, old.ID, members[0].ID)
+			require.Nil(t, members[0].LeftAt)
+			stored, err := repo.GetByID(ctx, app.ID)
+			require.NoError(t, err)
+			if active {
+				require.Equal(t, domain.GuildAttendeeRoleMaster, members[0].Role)
+				require.True(t, members[0].JoinedAt.Equal(past))
+				require.Equal(t, domain.GuildApplicationStatusPending, stored.Status)
+			} else {
+				require.Equal(t, domain.GuildAttendeeRoleMember, members[0].Role)
+				require.True(t, members[0].JoinedAt.After(past))
+				require.Equal(t, domain.GuildApplicationStatusApproved, stored.Status)
 			}
 		})
 	}

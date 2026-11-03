@@ -197,7 +197,7 @@ func (r *gormGuildRepository) Discover(ctx context.Context, page, pageSize int) 
 
 	db := r.db.WithContext(ctx).Model(&domain.Guild{})
 
-	// Calculate the total count of public guilds
+	// All non-deleted guilds are discoverable; joining still requires approval.
 	if err := db.Count(&totalCount).Error; err != nil {
 		return nil, MapGormError(err)
 	}
@@ -334,8 +334,23 @@ func (r *guildApplicationRepository) ApproveWithTx(ctx context.Context, app *dom
 			newAttendee.ID = uuid.New()
 		}
 		newAttendee.JoinedAt = &now
-		if err := tx.Create(newAttendee).Error; err != nil {
-			return err
+		// Restore a departed membership atomically without overwriting active members.
+		result := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "guild_id"}, {Name: "user_id"}},
+			DoUpdates: clause.Assignments(map[string]interface{}{
+				"left_at":   nil,
+				"joined_at": now,
+				"role":      domain.GuildAttendeeRoleMember,
+			}),
+			Where: clause.Where{Exprs: []clause.Expression{
+				clause.Neq{Column: clause.Column{Table: clause.CurrentTable, Name: "left_at"}, Value: nil},
+			}},
+		}).Create(newAttendee)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return domain.ErrDuplicateEntry
 		}
 
 		// Reject all pending from this applicant under other guilds

@@ -1,6 +1,14 @@
 # jpcorrect-backend
 This repository contains the backend for the jpcorrect system, a Japanese language correction platform.
 
+## Guild discovery
+
+`GET /v1/guilds/discover` lists all non-deleted guilds with pagination;
+`total_count` counts the same set. All guilds are discoverable, with no
+public/private visibility setting. Discoverability does not grant membership:
+join applications still require approval by the guild master. In release mode,
+the discovery endpoint requires JWT authentication like the other guild routes.
+
 ## Getting Started
 
 ### Prerequisites
