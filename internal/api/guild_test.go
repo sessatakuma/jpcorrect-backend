@@ -439,7 +439,7 @@ func TestGuildInviteLinkCreateHandler(t *testing.T) {
 		rec := invokeHandler(t, api.GuildInviteLinkCreateHandler, createPath(uuid.New()), &callerID, []byte(`{"ttl_seconds":3600}`))
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
-		assert.Contains(t, rec.Body.String(), "user is not a member of this guild")
+		assert.Contains(t, rec.Body.String(), "only an active guild master")
 		assert.Empty(t, gRepo.createInviteLinkCalls)
 	})
 
@@ -450,7 +450,7 @@ func TestGuildInviteLinkCreateHandler(t *testing.T) {
 		rec := invokeHandler(t, api.GuildInviteLinkCreateHandler, createPath(uuid.New()), &callerID, []byte(`{"ttl_seconds":3600}`))
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
-		assert.Contains(t, rec.Body.String(), "only the guild master can manage invite links")
+		assert.Contains(t, rec.Body.String(), "only an active guild master")
 		assert.Empty(t, gRepo.createInviteLinkCalls)
 	})
 

@@ -369,28 +369,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
-		return
-	}
-
-	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
-		return
-	}
-	if attendee == nil || attendee.LeftAt != nil || attendee.Role != domain.GuildAttendeeRoleMaster {
-		c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can manage invite links"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -542,7 +521,7 @@ type ListGuildApplicationsResponse struct {
 }
 
 // @Summary List pending guild applications
-// @Description Get all pending join applications for a specific guild. Caller must be the guild master or a member.
+// @Description Get all pending join applications for a specific guild. Only the active guild master can access applicant data.
 // @Tags guilds
 // @Accept json
 // @Produce json
@@ -550,7 +529,7 @@ type ListGuildApplicationsResponse struct {
 // @Success 200 {object} ListGuildApplicationsResponse "List of pending applications"
 // @Failure 400 {object} map[string]string "Invalid Guild ID format"
 // @Failure 401 {object} map[string]string "Unauthorized"
-// @Failure 403 {object} map[string]string "Forbidden - Caller is not a member or master of the guild"
+// @Failure 403 {object} map[string]string "Forbidden - Only the active guild master can list applications"
 // @Failure 404 {object} map[string]string "Guild not found"
 // @Failure 500 {object} map[string]string "Internal server error"
 // @Security BearerAuth
@@ -565,40 +544,7 @@ func (a *API) GuildApplicationsHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
-		return
-	}
-
-	// Check if the guild exists
-	_, err = a.guildRepo.GetByID(ctx, guildID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
-		return
-	}
-
-	// Check if the caller is a member of the guild
-	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check member permission"})
-		return
-	}
-	if attendee.LeftAt != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you have left this guild"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -646,30 +592,7 @@ func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
-		return
-	}
-
-	// Check if the caller is the master of the guild
-	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
-		return
-	}
-
-	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can approve applications"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -745,30 +668,7 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
-		return
-	}
-
-	// Check if the caller is the master of the guild
-	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
-		return
-	}
-
-	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can reject applications"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -855,11 +755,12 @@ func (a *API) GuildDefaultSlotGetHandler(c *gin.Context) {
 
 type GuildDefaultSlotUpsertReq struct {
 	DayOfWeek int    `json:"day_of_week" binding:"gte=0,lte=6"`
-	StartTime string `json:"start_time" binding:"required"`
-	EndTime   string `json:"end_time" binding:"required"`
+	StartTime string `json:"start_time" binding:"required,len=5,datetime=15:04" example:"09:00"`
+	EndTime   string `json:"end_time" binding:"required,len=5,datetime=15:04" example:"10:00"`
 }
 
 // @Summary Upsert guild default slot
+// @Description Times must use HH:MM (00:00–23:59), with start_time before end_time on the same day. Overnight slots are not supported.
 // @Tags guilds
 // @Accept json
 // @Produce json
@@ -887,42 +788,12 @@ func (a *API) GuildDefaultSlotUpsertHandler(c *gin.Context) {
 		return
 	}
 
-	// Check the caller's identity
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	// Binding ensures canonical HH:MM values, so lexical order is time order.
+	if req.StartTime >= req.EndTime {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "start_time must be before end_time on the same day"})
 		return
 	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
-		return
-	}
-
-	// Check if the caller is the member of the guild
-	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
-		return
-	}
-	// Check if the caller is the master of the guild
-	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can manage default slot"})
-		return
-	}
-
-	// Check if the guild exists
-	_, err = a.guildRepo.GetByID(ctx, guildID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -972,40 +843,7 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-	callerID, ok := callerIDVal.(uuid.UUID)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user ID type in context"})
-		return
-	}
-	// Check if the caller is the member of the guild
-	callerAttendee, err := a.guildAttendeeRepo.GetByGuildAndUser(ctx, guildID, callerID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: you are not a member of this guild"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify caller permission"})
-		return
-	}
-	// Check if the caller is the master of the guild
-	if callerAttendee.LeftAt != nil || callerAttendee.Role != domain.GuildAttendeeRoleMaster {
-		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden: only guild master can delete default slot"})
-		return
-	}
-
-	// Check if the guild exists
-	_, err = a.guildRepo.GetByID(ctx, guildID)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query guild"})
+	if !a.requireActiveMaster(c, guildID) {
 		return
 	}
 
@@ -1026,8 +864,8 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 }
 
 type GuildDiscoverReq struct {
-	Page     int `form:"page,default=1" binding:"omitempty,gte=1"`
-	PageSize int `form:"page_size,default=10" binding:"omitempty,gte=1,lte=100"`
+	Page     int `form:"page,default=1" binding:"gte=1"`
+	PageSize int `form:"page_size,default=10" binding:"gte=1,lte=100"`
 }
 
 // @Summary Discover guilds
@@ -1049,12 +887,6 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 	if err := c.ShouldBindQuery(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid query parameters: " + err.Error()})
 		return
-	}
-	if req.Page <= 0 {
-		req.Page = 1
-	}
-	if req.PageSize <= 0 {
-		req.PageSize = 10
 	}
 
 	// Discover all non-deleted guilds with pagination.

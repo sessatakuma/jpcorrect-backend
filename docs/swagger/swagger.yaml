@@ -107,8 +107,10 @@ definitions:
         minimum: 0
         type: integer
       end_time:
+        example: "10:00"
         type: string
       start_time:
+        example: "09:00"
         type: string
     required:
     - end_time
@@ -1387,8 +1389,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get all pending join applications for a specific guild. Caller
-        must be the guild master or a member.
+      description: Get all pending join applications for a specific guild. Only the
+        active guild master can access applicant data.
       parameters:
       - description: Guild ID
         format: uuid
@@ -1416,7 +1418,7 @@ paths:
               type: string
             type: object
         "403":
-          description: Forbidden - Caller is not a member or master of the guild
+          description: Forbidden - Only the active guild master can list applications
           schema:
             additionalProperties:
               type: string
@@ -1713,6 +1715,8 @@ paths:
     put:
       consumes:
       - application/json
+      description: Times must use HH:MM (00:00–23:59), with start_time before end_time
+        on the same day. Overnight slots are not supported.
       parameters:
       - description: Guild ID (UUID)
         format: uuid

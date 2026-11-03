@@ -198,13 +198,13 @@ func (r *gormGuildRepository) Discover(ctx context.Context, page, pageSize int) 
 	db := r.db.WithContext(ctx).Model(&domain.Guild{})
 
 	// All non-deleted guilds are discoverable; joining still requires approval.
-	if err := db.Count(&totalCount).Error; err != nil {
+	if err := db.Session(&gorm.Session{}).Count(&totalCount).Error; err != nil {
 		return nil, MapGormError(err)
 	}
 
 	// Calculate the pagination offset
 	offset := (page - 1) * pageSize
-	err := db.Order("updated_at DESC").
+	err := db.Session(&gorm.Session{}).Order("updated_at DESC").
 		Offset(offset).
 		Limit(pageSize).
 		Find(&guilds).Error
@@ -406,10 +406,7 @@ func (r *guildDefaultSlotRepository) GetByGuildID(ctx context.Context, guildID u
 	var slot domain.GuildDefaultSlot
 	err := r.db.WithContext(ctx).Where("guild_id = ?", guildID).First(&slot).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, err
+		return nil, MapGormError(err)
 	}
 	return &slot, nil
 }

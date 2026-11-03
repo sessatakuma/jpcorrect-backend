@@ -1182,7 +1182,7 @@ const docTemplate = `{
         },
         "/v1/guilds/{id}/applications": {
             "get": {
-                "description": "Get all pending join applications for a specific guild. Caller must be the guild master or a member.",
+                "description": "Get all pending join applications for a specific guild. Only the active guild master can access applicant data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1229,7 +1229,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden - Caller is not a member or master of the guild",
+                        "description": "Forbidden - Only the active guild master can list applications",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -1588,6 +1588,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Times must use HH:MM (00:00–23:59), with start_time before end_time on the same day. Overnight slots are not supported.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3902,10 +3903,12 @@ const docTemplate = `{
                     "minimum": 0
                 },
                 "end_time": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "10:00"
                 },
                 "start_time": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "09:00"
                 }
             }
         },
