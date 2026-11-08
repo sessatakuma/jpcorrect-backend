@@ -36,16 +36,19 @@ const (
 
 // recurringNotificationKinds lists the §5.4 kinds whose dedup key must carry an
 // occurrence (spec §6.5, "recurring / reschedulable events"). They are the
-// reminders that a reschedule or a later scan must be able to deliver again:
-// the cron-triggered ones plus the manual feedback reminders. Every other
-// §5.4 kind describes a single state transition of its aggregate and uses the
-// one-off key.
+// notifications that a reschedule, a later update or a later scan must be able
+// to deliver again: the cron-triggered reminders, the manual feedback reminders
+// and activity.updated, which is sent again for every change of an activity.
+// Every other §5.4 kind describes a single state transition of its aggregate
+// and uses the one-off key.
 //
-// The occurrence is the scheduled instant the reminder is about — practice_at
-// for activity.starting_soon, the feedback deadline for the feedback reminders,
-// the reminder bucket for the inactivity scans — so moving that instant yields
-// a new key instead of being suppressed by the old one.
+// The occurrence is the instant the notification is about — practice_at for
+// activity.starting_soon, the feedback deadline for the feedback reminders, the
+// reminder bucket for the inactivity scans, the update time (or the new
+// schedule) for activity.updated — so a changed instant yields a new key
+// instead of being suppressed by the old one.
 var recurringNotificationKinds = map[string]struct{}{
+	NotificationKindActivityUpdated:              {},
 	NotificationKindActivityStuckWarning:         {},
 	NotificationKindActivityStartingSoon:         {},
 	NotificationKindFeedbackDeadlineApproaching:  {},

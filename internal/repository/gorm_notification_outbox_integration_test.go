@@ -304,3 +304,50 @@ func TestNotificationOutboxRecurringOccurrenceInsertsOneRowPerOccurrence(t *test
 		Count(&occurrences).Error)
 	assert.EqualValues(t, 2, occurrences)
 }
+
+func TestNotificationOutboxCreateIntentsEmptyBatchIsNoOp(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+	store := NewStore(db)
+
+	// A business operation with no recipient (for example a solo member whose
+	// action notifies nobody else) must not fail and roll its transaction back.
+	for name, intents := range map[string][]*domain.NotificationOutbox{
+		"nil slice":   nil,
+		"empty slice": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+				return r.NotificationOutboxRepo.CreateIntents(ctx, intents)
+			}))
+		})
+	}
+
+	var total int64
+	require.NoError(t, db.Model(&domain.NotificationOutbox{}).Count(&total).Error)
+	assert.Zero(t, total)
+}
+
+func TestNotificationOutboxCreateIntentsRejectsUnknownRecipient(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+	store := NewStore(db)
+
+	recipient := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "known recipient"}
+	require.NoError(t, db.Create(&recipient).Error)
+	aggregateID := uuid.New()
+	goodKey := domain.NotificationDedupKey(domain.NotificationKindMemberJoined, aggregateID, recipient.ID)
+	ghost := uuid.New()
+	badKey := domain.NotificationDedupKey(domain.NotificationKindMemberJoined, aggregateID, ghost)
+
+	err := store.Tx(ctx, func(r RepoSet) error {
+		return r.NotificationOutboxRepo.CreateIntents(ctx, []*domain.NotificationOutbox{
+			testOutboxIntent(domain.NotificationKindMemberJoined, "guild", aggregateID, recipient.ID, goodKey),
+			testOutboxIntent(domain.NotificationKindMemberJoined, "guild", aggregateID, ghost, badKey),
+		})
+	})
+
+	assert.ErrorIs(t, err, domain.ErrHasRelatedRecords, "a missing recipient maps to the existing FK sentinel")
+	assert.Zero(t, countOutboxRows(t, db, goodKey), "the failed batch is atomic: no recipient gets an intent")
+	assert.Zero(t, countOutboxRows(t, db, badKey))
+}

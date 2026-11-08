@@ -92,9 +92,10 @@ func TestNotificationDedupKeyWithOccurrenceUsesDatabasePrecision(t *testing.T) {
 
 func TestNotificationKindIsRecurring(t *testing.T) {
 	// Spec §6.5 names starting_soon and deadline_approaching; the remaining
-	// cron-triggered reminders and the manual deadline reminder repeat the same
-	// way.
+	// cron-triggered reminders, the manual deadline reminder and
+	// activity.updated (sent again for every change) repeat the same way.
 	for _, kind := range []string{
+		NotificationKindActivityUpdated,
 		NotificationKindActivityStuckWarning,
 		NotificationKindActivityStartingSoon,
 		NotificationKindFeedbackDeadlineApproaching,
@@ -109,7 +110,6 @@ func TestNotificationKindIsRecurring(t *testing.T) {
 
 	for _, kind := range []string{
 		NotificationKindActivityScheduled,
-		NotificationKindActivityUpdated,
 		NotificationKindActivityAborted,
 		NotificationKindAnalysisStarted,
 		NotificationKindAnalysisCompleted,
