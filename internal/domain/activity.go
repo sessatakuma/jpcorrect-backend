@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,7 +61,8 @@ const (
 // scalar column is silently ignored by GORM. announce_topic_id and
 // aborted_by_user_id are nullable as #72 specifies, the rest are NOT NULL.
 //
-// StatusEnteredAt is an internal field, not part of v1.2; see BeforeUpdate.
+// StatusEnteredAt is an internal field, not part of v1.2; see its field comment
+// and ActivityStatusRepository.
 type Activity struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"activity_id"`
 	GuildID         uuid.UUID      `gorm:"type:uuid;not null;index;uniqueIndex:idx_activity_guild_sequence,priority:1" json:"guild_id"`
@@ -79,8 +81,11 @@ type Activity struct {
 	// StatusEnteredAt records when the current Status was entered, so the stuck
 	// activity cron (§5.3) can measure how long an Activity has been in
 	// in_practice / analyzing / in_review. updated_at cannot do that: it moves
-	// on every write. It is maintained by the BeforeCreate / BeforeUpdate hooks
-	// below, so every writer gets it without remembering to set it.
+	// on every write. BeforeCreate stamps it on insert and
+	// ActivityStatusRepository.TransitionStatus re-stamps it in the same UPDATE
+	// that changes Status. Nothing else moves it, so every status change must go
+	// through TransitionStatus: a raw write to the status column would leave a
+	// stale timestamp.
 	StatusEnteredAt time.Time `gorm:"not null" json:"status_entered_at"`
 
 	CreatedAt time.Time      `json:"created_at"`
@@ -103,38 +108,17 @@ func (a *Activity) BeforeCreate(_ *gorm.DB) error {
 	return nil
 }
 
-// BeforeUpdate re-stamps StatusEnteredAt whenever the write changes the status,
-// and leaves it alone on every other update. SetColumn adds the assignment to
-// the statement, so the stamp lands for map updates, struct updates and Save
-// alike.
-func (a *Activity) BeforeUpdate(tx *gorm.DB) error {
-	if tx.Statement.Changed("Status") {
-		tx.Statement.SetColumn("StatusEnteredAt", time.Now().UTC())
-		return nil
-	}
-	if _, isMap := tx.Statement.Dest.(map[string]any); isMap {
-		// An Update/Updates map statement: Changed above already answered it.
-		return nil
-	}
-	if tx.Statement.Model != tx.Statement.Dest {
-		// An Update/Updates struct statement that does not touch the status
-		// column: Changed above already answered it.
-		return nil
-	}
-
-	// Save writes every column, and gorm cannot tell whether the status really
-	// changed in that case, so ask the stored row instead of guessing.
-	var stored []ActivityStatus
-	if err := tx.Session(&gorm.Session{NewDB: true}).Model(&Activity{}).
-		Where("id = ?", a.ID).Limit(1).Pluck("status", &stored).Error; err != nil {
-		return err
-	}
-	if len(stored) > 0 && stored[0] == a.Status {
-		return nil
-	}
-
-	tx.Statement.SetColumn("StatusEnteredAt", time.Now().UTC())
-	return nil
+// ActivityStatusRepository changes the status of an Activity. It is the only
+// supported way to do so, because it keeps StatusEnteredAt in step with Status
+// and gives the state machine (§5.1) its compare-and-swap primitive.
+type ActivityStatusRepository interface {
+	// TransitionStatus moves the Activity from any status in from to to in one
+	// guarded UPDATE that also records when the new status was entered. It
+	// reports whether a row changed. false means the Activity does not exist,
+	// is soft-deleted, is not in one of the from statuses (the loser of a race,
+	// or a wrong state) or is already in to; the caller turns that into
+	// ErrActivityNotInState or ErrNotFound as its endpoint requires.
+	TransitionStatus(ctx context.Context, activityID uuid.UUID, from []ActivityStatus, to ActivityStatus) (bool, error)
 }
 
 // ActivityReporter is a reporter (speaker) of an Activity (spec §2.2). The
