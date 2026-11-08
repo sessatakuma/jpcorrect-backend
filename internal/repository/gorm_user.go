@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -43,6 +44,33 @@ func (r *gormUserRepository) GetByName(ctx context.Context, name string) ([]*dom
 		return nil, MapGormError(err)
 	}
 	return users, nil
+}
+
+func (r *gormUserRepository) GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("supabase_user_id = ?", supabaseUserID).First(&user).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &user, nil
+}
+
+// CreateIfAbsentBySupabaseUserID is the §6.3 idempotent insert: one
+// `INSERT … ON CONFLICT (supabase_user_id) DO NOTHING`. Only a conflict on
+// supabase_user_id is ignored; a concurrent request for the same sub blocks on
+// the unique index and then writes nothing, so every caller reads the same row
+// afterwards. Any other unique violation (e.g. the email index) still fails and
+// reaches the caller as domain.ErrDuplicateEntry.
+func (r *gormUserRepository) CreateIfAbsentBySupabaseUserID(ctx context.Context, user *domain.User) error {
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
+	}
+	return MapGormError(r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "supabase_user_id"}},
+			DoNothing: true,
+		}).
+		Create(user).Error)
 }
 
 func (r *gormUserRepository) Create(ctx context.Context, user *domain.User) error {

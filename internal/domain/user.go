@@ -56,7 +56,16 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByName(ctx context.Context, name string) ([]*User, error)
 
+	// GetBySupabaseUserID resolves the internal row from the verified JWT `sub`
+	// (spec §1.2). It returns ErrNotFound while the caller is not initialized.
+	GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*User, error)
+
 	Create(ctx context.Context, user *User) error
+	// CreateIfAbsentBySupabaseUserID inserts user only when no row already
+	// carries the same supabase_user_id (spec §6.3). Concurrent first logins
+	// all end up on the single existing row; the caller reads it back with
+	// GetBySupabaseUserID.
+	CreateIfAbsentBySupabaseUserID(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
