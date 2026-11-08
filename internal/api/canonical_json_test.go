@@ -26,6 +26,14 @@ var canonicalVectors = []struct {
 		digest:    "d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772",
 	},
 	{
+		// U+E000 (UTF-8 EE 80 80) sorts before U+10000 (UTF-8 F0 90 80 80), the
+		// opposite of their UTF-16 order, so this vector pins byte-order sorting.
+		name:      "object keys sorted by UTF-8 bytes, not UTF-16 units",
+		input:     `{"\ud800\udc00":2,"\ue000":1}`,
+		canonical: "{\"\ue000\":1,\"\U00010000\":2}",
+		digest:    "8706b5798a29d65739b3d1bbb1d009f87d005c71c8130c5353c4990c15ddfec8",
+	},
+	{
 		name:      "whitespace and newlines are removed",
 		input:     "{\n  \"a\" : 2,\n  \"b\": 1\n}",
 		canonical: `{"a":2,"b":1}`,
@@ -179,4 +187,18 @@ func TestCanonicalJSONRejectsInvalidInput(t *testing.T) {
 			assert.Empty(t, digest)
 		})
 	}
+}
+
+// TestCanonicalJSONInvalidUTF8IsCoerced documents a limit of the Go
+// encoding/json semantics that §3.9.4 prescribes: invalid UTF-8 inside a string
+// is replaced by U+FFFD instead of being rejected, so two payloads that differ
+// only in such bytes share a digest.
+func TestCanonicalJSONInvalidUTF8IsCoerced(t *testing.T) {
+	invalid, invalidDigest, err := CanonicalJSON([]byte("{\"a\":\"\xff\"}"))
+	require.NoError(t, err)
+	replaced, replacedDigest, err := CanonicalJSON([]byte("{\"a\":\"\ufffd\"}"))
+	require.NoError(t, err)
+
+	assert.Equal(t, replaced, invalid)
+	assert.Equal(t, replacedDigest, invalidDigest)
 }

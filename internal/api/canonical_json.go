@@ -18,7 +18,9 @@ import (
 //   - HTML escaping is disabled and non-ASCII text stays raw UTF-8;
 //   - floats use the shortest round-trip form (1.0 -> 1, 1.50 -> 1.5,
 //     1e2 -> 100);
-//   - no trailing newline is part of the hashed bytes.
+//   - no trailing newline is part of the hashed bytes;
+//   - invalid UTF-8 inside a string is replaced by U+FFFD, as encoding/json does,
+//     so two payloads that differ only in such bytes share a digest.
 //
 // The digest is the lowercase hex SHA-256 of canonical. Both returned values
 // are nil/empty when the input is not a single valid JSON document, in which
