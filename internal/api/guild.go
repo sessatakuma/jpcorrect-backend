@@ -309,6 +309,8 @@ type GuildInviteResponse struct {
 // @Param id path string true "Guild ID" format(uuid)
 // @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
 // @Failure 400 {object} api.ErrorResponse "Invalid Guild ID format"
+// @Failure 401 {object} api.ErrorResponse "Missing or invalid credentials"
+// @Failure 403 {object} api.ErrorResponse "Caller is not a member of this guild"
 // @Failure 500 {object} api.ErrorResponse "Internal server error"
 // @Security BearerAuth
 // @Router /v1/guilds/{id}/invite-link [get]
@@ -381,6 +383,8 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 // @Param request body domain.InviteLink false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
 // @Success 200 {object} domain.InviteLink
 // @Failure 400 {object} api.ErrorResponse "Invalid Guild ID or Request Body"
+// @Failure 401 {object} api.ErrorResponse "Missing or invalid credentials"
+// @Failure 403 {object} api.ErrorResponse "Only the guild master can manage invite links"
 // @Failure 500 {object} api.ErrorResponse "Internal Server Error"
 // @Security BearerAuth
 // @Router /v1/guilds/{id}/invite-link [post]
