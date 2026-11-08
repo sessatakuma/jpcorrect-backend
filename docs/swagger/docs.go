@@ -742,13 +742,6 @@ const docTemplate = `{
                 "summary": "Create a guild",
                 "parameters": [
                     {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Debug only: caller user UUID; ignored in release",
-                        "name": "X-Debug-User-ID",
-                        "in": "header"
-                    },
-                    {
                         "description": "Guild data",
                         "name": "guild",
                         "in": "body",
@@ -767,6 +760,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -984,13 +983,6 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Debug only: caller user UUID; ignored in release",
-                        "name": "X-Debug-User-ID",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
                         "description": "Guild ID",
                         "name": "id",
                         "in": "path",
@@ -1048,13 +1040,6 @@ const docTemplate = `{
                 ],
                 "summary": "Create a new guild invite link",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Debug only: caller user UUID; ignored in release",
-                        "name": "X-Debug-User-ID",
-                        "in": "header"
-                    },
                     {
                         "type": "string",
                         "format": "uuid",
@@ -1126,20 +1111,6 @@ const docTemplate = `{
                 "summary": "Transfer guild leadership",
                 "parameters": [
                     {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Debug only: caller user UUID; ignored in release",
-                        "name": "X-Debug-User-ID",
-                        "in": "header"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Guild ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
                         "description": "New leader user ID",
                         "name": "request",
                         "in": "body",
@@ -1161,6 +1132,12 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid UUID format or request body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -2474,8 +2451,9 @@ const docTemplate = `{
                 ]
             }
         },
-        "/v1/users/email/{email}": {
-            "get": {
+        "/v1/users/init": {
+            "post": {
+                "description": "First-login endpoint (spec §3.1.1, §6.3). The caller authenticates\nwith a Supabase JWT; the middleware skips the user lookup for this\npath only and the handler creates the row from the token's sub and\nemail. Idempotent: a retried or concurrent call returns the same\nprofile. If another account already owns the email, the request\nanswers 409 and no row is created or linked.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2485,14 +2463,106 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Get a user by email",
+                "summary": "Initialize the caller's account",
+                "responses": {
+                    "200": {
+                        "description": "The caller's profile, created or already existing",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.User"
+                        }
+                    },
+                    "400": {
+                        "description": "The token carries no email address",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "The email belongs to another account",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/v1/users/me": {
+            "get": {
+                "description": "Returns the authenticated caller's full profile, resolved from the\nJWT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Get the caller's own profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.User"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ]
+            },
+            "put": {
+                "description": "Updates the allowlisted fields of the caller's own profile: name\nand avatar_url. Any other field in the body, including role,\nstatus and points, is ignored.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update the caller's own profile",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "User email",
-                        "name": "email",
-                        "in": "path",
-                        "required": true
+                        "description": "Fields to update",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.UpdateMeRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -2502,8 +2572,20 @@ const docTemplate = `{
                             "$ref": "#/definitions/jpcorrect-backend_internal_domain.User"
                         }
                     },
-                    "404": {
-                        "description": "Not Found",
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -2524,6 +2606,7 @@ const docTemplate = `{
         },
         "/v1/users/name/{name}": {
             "get": {
+                "description": "Public profiles of every user with this display name.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2549,8 +2632,14 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/jpcorrect-backend_internal_domain.User"
+                                "$ref": "#/definitions/internal_api.PublicUserProfile"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "500": {
@@ -2569,6 +2658,7 @@ const docTemplate = `{
         },
         "/v1/users/{id}": {
             "get": {
+                "description": "Public profile of another user. Only the allowlisted\nPublicUserProfile fields are returned: email, status, role,\nis_email_verified, supabase_user_id, password_hash, points and\ndeleted_at never leave the server.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2592,11 +2682,17 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.User"
+                            "$ref": "#/definitions/internal_api.PublicUserProfile"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -3062,6 +3158,26 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_api.PublicUserProfile": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "level": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "internal_api.SentenceQueryRequest": {
             "type": "object",
             "properties": {
@@ -3136,6 +3252,20 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "maxLength": 100
+                }
+            }
+        },
+        "internal_api.UpdateMeRequest": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
                 }
             }
         },

@@ -213,12 +213,14 @@ func Register(r *gin.Engine, api *API) {
 		// Users
 		users := v1.Group("/users")
 		{
+			users.POST("/init", api.UserInitHandler)
+			users.GET("/me", api.UserMeHandler)
+			users.PUT("/me", api.UserMeUpdateHandler)
 			users.POST("", api.UserCreateHandler)
 			users.GET("/:id", api.UserGetHandler)
 			users.PUT("/:id", api.UserUpdateHandler)
 			users.DELETE("/:id", api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
-			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}
 	}
 }

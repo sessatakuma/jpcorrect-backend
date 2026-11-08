@@ -219,6 +219,19 @@ definitions:
         example: 0
         type: integer
     type: object
+  internal_api.PublicUserProfile:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      level:
+        type: integer
+      name:
+        type: string
+      user_id:
+        type: string
+    type: object
   internal_api.SentenceQueryRequest:
     properties:
       id:
@@ -268,6 +281,16 @@ definitions:
         type: string
       name:
         maxLength: 100
+        type: string
+    type: object
+  internal_api.UpdateMeRequest:
+    properties:
+      avatar_url:
+        maxLength: 2048
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
         type: string
     type: object
   internal_api.UsageQueryHeadWordsRequest:
@@ -1149,11 +1172,6 @@ paths:
       consumes:
       - application/json
       parameters:
-      - description: 'Debug only: caller user UUID; ignored in release'
-        format: uuid
-        in: header
-        name: X-Debug-User-ID
-        type: string
       - description: Guild data
         in: body
         name: guild
@@ -1169,6 +1187,10 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.Guild'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
@@ -1303,11 +1325,6 @@ paths:
       description: Get the currently active invite link for a guild. Returns 200 with
         null if expired or not found.
       parameters:
-      - description: 'Debug only: caller user UUID; ignored in release'
-        format: uuid
-        in: header
-        name: X-Debug-User-ID
-        type: string
       - description: Guild ID
         format: uuid
         in: path
@@ -1349,11 +1366,6 @@ paths:
         active links within a single transaction. The link expires 7 days after creation
         unless `ttl_seconds` asks for another lifetime.
       parameters:
-      - description: 'Debug only: caller user UUID; ignored in release'
-        format: uuid
-        in: header
-        name: X-Debug-User-ID
-        type: string
       - description: Guild ID
         format: uuid
         in: path
@@ -1399,16 +1411,6 @@ paths:
       - application/json
       description: Transfer the master/leader role of a guild to another member
       parameters:
-      - description: 'Debug only: caller user UUID; ignored in release'
-        format: uuid
-        in: header
-        name: X-Debug-User-ID
-        type: string
-      - description: Guild ID
-        in: path
-        name: id
-        required: true
-        type: string
       - description: New leader user ID
         in: body
         name: request
@@ -1426,6 +1428,10 @@ paths:
             type: object
         "400":
           description: Invalid UUID format or request body
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "403":
@@ -2320,6 +2326,11 @@ paths:
     get:
       consumes:
       - application/json
+      description: |-
+        Public profile of another user. Only the allowlisted
+        PublicUserProfile fields are returned: email, status, role,
+        is_email_verified, supabase_user_id, password_hash, points and
+        deleted_at never leave the server.
       parameters:
       - description: User ID
         in: path
@@ -2332,9 +2343,13 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+            $ref: '#/definitions/internal_api.PublicUserProfile'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -2393,25 +2408,34 @@ paths:
       summary: Update a user
       tags:
       - users
-  /v1/users/email/{email}:
-    get:
+  /v1/users/init:
+    post:
       consumes:
       - application/json
-      parameters:
-      - description: User email
-        in: path
-        name: email
-        required: true
-        type: string
+      description: |-
+        First-login endpoint (spec §3.1.1, §6.3). The caller authenticates
+        with a Supabase JWT; the middleware skips the user lookup for this
+        path only and the handler creates the row from the token's sub and
+        email. Idempotent: a retried or concurrent call returns the same
+        profile. If another account already owns the email, the request
+        answers 409 and no row is created or linked.
       produces:
       - application/json
       responses:
         "200":
-          description: OK
+          description: The caller's profile, created or already existing
           schema:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
-        "404":
-          description: Not Found
+        "400":
+          description: The token carries no email address
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "409":
+          description: The email belongs to another account
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -2420,13 +2444,83 @@ paths:
             $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get a user by email
+      summary: Initialize the caller's account
+      tags:
+      - users
+  /v1/users/me:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Returns the authenticated caller's full profile, resolved from the
+        JWT.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get the caller's own profile
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: |-
+        Updates the allowlisted fields of the caller's own profile: name
+        and avatar_url. Any other field in the body, including role,
+        status and points, is ignored.
+      parameters:
+      - description: Fields to update
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api.UpdateMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update the caller's own profile
       tags:
       - users
   /v1/users/name/{name}:
     get:
       consumes:
       - application/json
+      description: Public profiles of every user with this display name.
       parameters:
       - description: User name
         in: path
@@ -2440,8 +2534,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
+              $ref: '#/definitions/internal_api.PublicUserProfile'
             type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:

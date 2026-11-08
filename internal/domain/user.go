@@ -53,7 +53,6 @@ type User struct {
 
 type UserRepository interface {
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
-	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByName(ctx context.Context, name string) ([]*User, error)
 
 	// GetBySupabaseUserID resolves the internal row from the verified JWT `sub`
