@@ -122,8 +122,12 @@ titles follow the same format (≤ 75 chars) and the body uses
 1. **`make air` needs `go` on the `/bin/sh` PATH.** The Makefile shell does
    not source your zshrc, so `which go` can work while `make air` reports
    `go: not found`. Use `PATH="/usr/local/go/bin:$PATH" make air`.
-2. **Debug mode is wide open.** It skips both `/v1` middlewares, so any
-   non-localhost debug build needs an edge gateway in front of it.
+2. **Authentication is the same in every mode.** `AuthMiddleware` runs on
+   every `/v1` user route in debug and in release and resolves the internal
+   `User` from the JWT `sub`; handlers read it through `currentUser(c)` and
+   never touch the retired `"userID"` key. `POST /v1/users/init` skips only the
+   DB lookup. Debug mode still skips `APIKeyMiddleware` on the api-tools proxy
+   routes, so it stays gated by an edge gateway on any non-localhost exposure.
 3. **`CLIENT_API_KEY` is inbound-only.** It guards the proxy routes in release
    mode; the internal backend → api-tools call is keyless either way.
 4. **Old api-tools images assert on `YAHOO_API_KEY` at import.** Pin a
@@ -133,3 +137,6 @@ titles follow the same format (≤ 75 chars) and the body uses
 6. `WEBRTC_CONN_SEC` / `WEBRTC_CONN_MAX` only apply to `cmd/webrtc-demo`; the
    main server's WebRTC rate limit is hardcoded:
    `NewRateLimiter(10*time.Second, 15)` in `internal/api/api.go:56`.
+7. **`JWKS_URL` is required in every mode**, debug included: `cmd.Execute()`
+   fatals without a reachable JWKS document because authentication no longer
+   has a debug bypass.

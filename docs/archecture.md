@@ -193,7 +193,8 @@ sequenceDiagram
     end
     
     M->>M: Validate JWT via JWKS
-    M->>M: Extract userID to Context
+    M->>M: Resolve User by JWT sub (401 USER_NOT_INITIALIZED if missing)
+    M->>M: Store *domain.User in Context ("user")
     M->>H: Forward Request
     
     H->>H: Parse UUID from params
