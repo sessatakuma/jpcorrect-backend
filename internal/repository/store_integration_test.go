@@ -235,6 +235,30 @@ func TestStoreTxRollsBackRepositoryInternalTransactions(t *testing.T) {
 		assert.Zero(t, countRows(t, db, &domain.InviteLink{}, "id = ?", invite.ID))
 	})
 
+	t.Run("EventDelete", func(t *testing.T) {
+		db := testutil.NewPostgresDB(t)
+		store := NewStore(db)
+		boom := errors.New("fail the outer transaction")
+
+		event := domain.Event{ID: uuid.New(), Title: "nested delete event", StartTime: time.Now()}
+		require.NoError(t, db.Create(&event).Error)
+
+		err := store.Tx(ctx, func(r RepoSet) error {
+			require.NoError(t, r.EventRepo.Delete(ctx, event.ID))
+
+			// Inside the transaction the event is already soft-deleted.
+			_, err := r.EventRepo.GetByID(ctx, event.ID)
+			require.ErrorIs(t, err, domain.ErrNotFound)
+
+			return boom
+		})
+		require.ErrorIs(t, err, boom)
+
+		survivor, err := NewGormEventRepository(db).GetByID(ctx, event.ID)
+		require.NoError(t, err)
+		assert.Equal(t, event.ID, survivor.ID)
+	})
+
 	t.Run("Delete", func(t *testing.T) {
 		db := testutil.NewPostgresDB(t)
 		store := NewStore(db)

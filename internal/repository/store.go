@@ -23,6 +23,11 @@ import (
 // transaction. A RepoSet is only ever handed out by Store.Tx; the zero value
 // and direct construction are not supported.
 //
+// A RepoSet, and every repository in it, is only valid inside the callback
+// that received it. Do not keep it, return it, or use it from a goroutine that
+// outlives Store.Tx: once Tx returns the transaction is committed or rolled
+// back, and a later call fails with sql.ErrTxDone.
+//
 // Repositories added by later issues extend this struct in their own issue.
 type RepoSet struct {
 	UserRepo          domain.UserRepository
