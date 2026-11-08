@@ -767,6 +767,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -797,6 +805,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -836,6 +852,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -873,6 +897,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.EventAttendee'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -915,6 +947,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -945,6 +985,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -978,6 +1026,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -1008,6 +1064,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1047,6 +1111,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1084,6 +1156,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildAttendee'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1126,6 +1206,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1156,6 +1244,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -1223,6 +1319,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1545,6 +1649,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -1575,6 +1687,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1614,6 +1734,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1651,6 +1779,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.Mistake'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1693,6 +1829,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1723,6 +1867,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -1756,6 +1908,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -1786,6 +1946,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1823,6 +1991,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.Event'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -1864,6 +2040,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -1902,6 +2086,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -1967,6 +2159,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -1997,6 +2197,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -2036,6 +2244,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -2073,6 +2289,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.Transcript'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -2115,6 +2339,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -2145,6 +2377,14 @@ paths:
             type: array
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
@@ -2274,6 +2514,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -2304,6 +2552,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -2389,6 +2645,14 @@ paths:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":

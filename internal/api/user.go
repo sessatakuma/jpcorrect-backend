@@ -81,6 +81,8 @@ func newPublicUserProfile(user *domain.User) PublicUserProfile {
 // @Param user body domain.User true "User data"
 // @Success 201 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -112,6 +114,8 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Param user body domain.User true "User data"
 // @Success 200 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -167,6 +171,8 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 // @Param id path string true "User ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse

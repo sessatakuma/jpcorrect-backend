@@ -17,6 +17,8 @@ import (
 // @Param id path string true "Practice ID"
 // @Success 200 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -49,6 +51,8 @@ func (a *API) PracticeGetHandler(c *gin.Context) {
 // @Param practice body domain.Event true "Practice data"
 // @Success 201 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -80,6 +84,8 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 // @Param practice body domain.Event true "Practice data"
 // @Success 200 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -137,6 +143,8 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 // @Param id path string true "Practice ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -180,6 +188,8 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 // @Param user_id path string true "User ID"
 // @Success 200 {array} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/practices/user/{user_id} [get]

@@ -17,6 +17,8 @@ import (
 // @Param id path string true "Transcript ID"
 // @Success 200 {object} domain.Transcript
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -49,6 +51,8 @@ func (a *API) TranscriptGetHandler(c *gin.Context) {
 // @Param transcript body domain.Transcript true "Transcript data"
 // @Success 201 {object} domain.Transcript
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -80,6 +84,8 @@ func (a *API) TranscriptCreateHandler(c *gin.Context) {
 // @Param transcript body domain.Transcript true "Transcript data"
 // @Success 200 {object} domain.Transcript
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -137,6 +143,8 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 // @Param id path string true "Transcript ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -180,6 +188,8 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 // @Param event_id path string true "Event ID"
 // @Success 200 {array} domain.Transcript
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/transcripts/event/{event_id} [get]
@@ -207,6 +217,8 @@ func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 // @Param user_id path string true "User ID"
 // @Success 200 {array} domain.Transcript
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/transcripts/user/{user_id} [get]
