@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -42,11 +43,14 @@ func (r *gormEventRepository) Create(ctx context.Context, event *domain.Event) e
 	if event.ID == uuid.Nil {
 		event.ID = uuid.New()
 	}
-	return MapGormError(r.db.WithContext(ctx).Create(event).Error)
+	// Omit associations: Event.Activity/RecordingStartedByUser exist only to emit
+	// the foreign keys and must never make a write touch the parent tables.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Create(event).Error)
 }
 
 func (r *gormEventRepository) Update(ctx context.Context, event *domain.Event) error {
-	return MapGormError(r.db.WithContext(ctx).Save(event).Error)
+	// Omit associations: see Create.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Save(event).Error)
 }
 
 func (r *gormEventRepository) Delete(ctx context.Context, eventID uuid.UUID) error {
