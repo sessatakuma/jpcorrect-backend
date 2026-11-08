@@ -226,10 +226,6 @@ func (h *fakeHostHub) setHost(channelID string, userID uuid.UUID) {
 	h.hosts[channelID] = userID
 }
 
-func (h *fakeHostHub) clearHost(channelID string) {
-	delete(h.hosts, channelID)
-}
-
 func (h *fakeHostHub) reset() {
 	h.hosts = map[string]uuid.UUID{}
 	h.asked = nil
