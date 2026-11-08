@@ -20,9 +20,11 @@ docker run --rm -v $PWD/cloudflared/creds:/home/nonroot/.cloudflared \
 
 Then, in the Cloudflare Zero Trust dashboard (no IaC): **Access → Applications →
 Add → Self-hosted**, domain `api-dev.sessatakuma.dev`, with a policy such as
-*include emails ending in `@sessatakuma.dev`*. This is the **only** thing
-protecting the dev backend, which runs with its app middlewares skipped. Do
-**not** add an Access app for `api.sessatakuma.dev` — prod stays publicly
+*include emails ending in `@sessatakuma.dev`*. Access is an extra layer in
+front of the dev backend, which runs with `GIN_MODE=debug`: that mode skips only
+the api-tools `X-API-Key` check, and every `/v1` user route still needs a real
+Supabase JWT (set `JWKS_URL` in `deploy/env/dev`, the process exits without it).
+Do **not** add an Access app for `api.sessatakuma.dev` — prod stays publicly
 reachable and enforces auth in the app.
 
 If a standalone `jpcorrect-api-tools` container from the old
@@ -85,8 +87,8 @@ The password appears twice per env and both copies must agree:
 | `deploy/.env` | `POSTGRES_DEV_PASSWORD` | `postgres-dev` at `initdb` |
 | `deploy/env/dev` | inside `DATABASE_URL` | the Go backend at connect time |
 
-Prod and dev get **different** values: `backend-dev` runs with the app
-middlewares skipped, so anything that reaches it must not hold credentials that
+Prod and dev get **different** values: `backend-dev` runs in debug mode behind
+a weaker edge policy, so anything that reaches it must not hold credentials that
 also work against the prod database.
 
 > **Rotation is not automatic.** `POSTGRES_*_PASSWORD` is read by the official
