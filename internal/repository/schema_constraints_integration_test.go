@@ -442,12 +442,67 @@ func TestNullableForeignKeysAcceptNull(t *testing.T) {
 	ctx := context.Background()
 	f := newSchemaFixture(t, db)
 
-	activity := f.newActivity(2)
-	activity.AnnounceTopicID = ptr(f.topic)
-	require.NoError(t, db.WithContext(ctx).Create(activity).Error)
-	require.NoError(t, db.WithContext(ctx).Create(f.newEvent(f.activity, domain.EventKindReview)).Error)
-	require.NoError(t, db.WithContext(ctx).Create(f.newChatbotUsage(f.user1, nil)).Error)
-	require.NoError(t, db.WithContext(ctx).Create(f.newRecordingAsset(f.session, nil)).Error)
+	create := func(t *testing.T, name string, row any) {
+		t.Helper()
+		require.NoError(t, db.WithContext(ctx).Create(row).Error, name)
+	}
+
+	// Each nullable foreign key is stored once as NULL and once with a valid id.
+	t.Run("activity.announce_topic_id", func(t *testing.T) {
+		create(t, "null", f.newActivity(2))
+		withTopic := f.newActivity(3)
+		withTopic.AnnounceTopicID = ptr(f.topic)
+		create(t, "valid", withTopic)
+	})
+
+	t.Run("activity.aborted_by_user_id", func(t *testing.T) {
+		create(t, "null", f.newActivity(4))
+		aborted := f.newActivity(5)
+		aborted.AbortedByUserID = ptr(f.user1)
+		create(t, "valid", aborted)
+	})
+
+	t.Run("event.recording_started_by", func(t *testing.T) {
+		// The fixture activity already has its practice Event; the review Event
+		// carries NULL and a second activity's practice Event a valid user.
+		create(t, "null", f.newEvent(f.activity, domain.EventKindReview))
+		other := f.newActivity(6)
+		create(t, "activity", other)
+		started := f.newEvent(other.ID, domain.EventKindPractice)
+		started.RecordingStartedBy = ptr(f.user1)
+		create(t, "valid", started)
+	})
+
+	t.Run("selected_sentence.revealed_by_user_id", func(t *testing.T) {
+		create(t, "null", f.newSelectedSentence(f.activity, f.mistake, f.user1))
+		revealed := f.newSelectedSentence(f.activity, f.mistake, f.user2)
+		revealed.RevealedByUserID = ptr(f.user1)
+		create(t, "valid", revealed)
+	})
+
+	t.Run("feed_post.author_user_id", func(t *testing.T) {
+		create(t, "null", f.newFeedPost())
+		authored := f.newFeedPost()
+		authored.AuthorUserID = ptr(f.user1)
+		create(t, "valid", authored)
+	})
+
+	t.Run("chatbot_usage.activity_id", func(t *testing.T) {
+		create(t, "null", f.newChatbotUsage(f.user1, nil))
+		create(t, "valid", f.newChatbotUsage(f.user1, ptr(f.activity)))
+	})
+
+	t.Run("recording_session.partial_approved_by_user_id", func(t *testing.T) {
+		create(t, "null", f.newRecordingSession())
+		approved := f.newRecordingSession()
+		approved.PartialApprovedByUserID = ptr(f.user1)
+		create(t, "valid", approved)
+	})
+
+	t.Run("recording_asset.participant_user_id", func(t *testing.T) {
+		create(t, "null", f.newRecordingAsset(f.session, nil))
+		create(t, "valid", f.newRecordingAsset(f.session, ptr(f.user1)))
+	})
 }
 
 // TestSchemaColumnDefaults verifies the defaults of spec §2 by inserting a row
