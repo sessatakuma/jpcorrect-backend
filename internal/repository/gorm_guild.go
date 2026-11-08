@@ -148,12 +148,12 @@ func (r *gormGuildRepository) Delete(ctx context.Context, guildID uuid.UUID) err
 	})
 }
 
-func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*domain.GuildInvite, error) {
-	var invite domain.GuildInvite
+func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*domain.InviteLink, error) {
+	var invite domain.InviteLink
 
 	err := r.db.WithContext(ctx).
 		Where("guild_id = ?", guildID).
-		Where("expires_at IS NULL OR expires_at > ?", now).
+		Where("expires_at > ?", now).
 		Order("created_at DESC").
 		First(&invite).Error
 
@@ -167,7 +167,7 @@ func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guil
 	return &invite, nil
 }
 
-func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, now time.Time) error {
+func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.InviteLink, now time.Time) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Serialize rotations for this guild, including when it has no invites yet.
 		var guild domain.Guild
@@ -177,15 +177,17 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 		}
 
 		// Update the `expires_at` timestamp for all of the guild's currently valid (unexpired) old links to `now`.
-		err := tx.Model(&domain.GuildInvite{}).
+		err := tx.Model(&domain.InviteLink{}).
 			Where("guild_id = ?", guildID).
-			Where("expires_at IS NULL OR expires_at > ?", now).
+			Where("expires_at > ?", now).
 			Update("expires_at", now).Error
 		if err != nil {
 			return err
 		}
 
-		if err := tx.Create(newInvite).Error; err != nil {
+		// Omit associations: InviteLink.Guild/CreatedByUser exist only to emit the
+		// foreign keys and must never make a write touch the parent tables.
+		if err := tx.Omit(clause.Associations).Create(newInvite).Error; err != nil {
 			return err
 		}
 
