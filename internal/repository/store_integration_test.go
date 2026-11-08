@@ -34,10 +34,18 @@ func TestStoreTxRollsBackWritesFromEveryRepository(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 
+	// An Event needs an Activity (spec §2.1), and there is no Activity
+	// repository yet, so the committed fixture activity is the parent. The
+	// fixture already stores its practice Event, so this one is the review Event.
+	fixture := newSchemaFixture(t, db)
+
 	user := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "tx rollback user"}
 	guild := domain.Guild{ID: uuid.New(), Name: "tx rollback guild"}
 	attendee := domain.GuildAttendee{ID: uuid.New(), UserID: user.ID}
-	event := domain.Event{ID: uuid.New(), Title: "tx rollback event", StartTime: time.Now()}
+	event := domain.Event{
+		ID: uuid.New(), ActivityID: fixture.activity, Kind: domain.EventKindReview,
+		Title: "tx rollback event", StartTime: time.Now(),
+	}
 	eventAttendee := domain.EventAttendee{ID: uuid.New(), EventID: event.ID, UserID: user.ID}
 	transcript := domain.Transcript{ID: uuid.New(), EventID: event.ID, UserID: user.ID, Content: "rollback me"}
 	mistake := domain.Mistake{ID: uuid.New(), EventID: event.ID, UserID: user.ID, OriginText: "その", FixedText: "それ"}
