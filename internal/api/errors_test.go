@@ -163,8 +163,8 @@ func (e *unmappedError) Error() string { return e.message }
 // TestWriteErrorUnmappedIsGenericInternal proves that an error outside the
 // catalog becomes 500 with the generic message and no internal detail.
 func TestWriteErrorUnmappedIsGenericInternal(t *testing.T) {
-	const internal = `pq: password authentication failed for user "jpcorrect" (host 10.1.2.3)`
-	leaks := []string{"password", "jpcorrect", "10.1.2.3", "load guild"}
+	const internal = `pq: password authentication failed for user "postgres" (host 203.0.113.9)`
+	leaks := []string{"password", "postgres", "203.0.113.9", "load guild"}
 
 	unmapped := []error{
 		errors.New(internal),

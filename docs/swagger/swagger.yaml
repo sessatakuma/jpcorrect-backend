@@ -85,6 +85,23 @@ definitions:
           type: string
         type: array
     type: object
+  internal_api.ErrorBody:
+    properties:
+      code:
+        example: NOT_FOUND
+        type: string
+      details:
+        additionalProperties: {}
+        type: object
+      message:
+        example: record not found
+        type: string
+    type: object
+  internal_api.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/internal_api.ErrorBody'
+    type: object
   internal_api.GuildInviteResponse:
     properties:
       created_at:
@@ -201,12 +218,6 @@ definitions:
       subchunk:
         example: 0
         type: integer
-    type: object
-  internal_api.ProxyErrorResponse:
-    properties:
-      error:
-        example: Failed to contact external API
-        type: string
     type: object
   internal_api.SentenceQueryRequest:
     properties:
@@ -648,7 +659,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Dictionary query
@@ -675,21 +686,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create an event attendee
@@ -713,27 +718,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete an event attendee
@@ -758,21 +755,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get an event attendee by ID
@@ -803,27 +794,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update an event attendee
@@ -851,15 +834,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get event attendees by event ID
@@ -887,15 +866,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get event attendees by user ID
@@ -922,21 +897,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a guild attendee
@@ -960,27 +929,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a guild attendee
@@ -1005,21 +966,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a guild attendee by ID
@@ -1050,27 +1005,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a guild attendee
@@ -1098,15 +1045,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get guild attendees by guild ID
@@ -1134,15 +1077,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get guild attendees by user ID
@@ -1174,21 +1113,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a guild
@@ -1212,27 +1145,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a guild
@@ -1257,21 +1182,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a guild by ID
@@ -1302,27 +1221,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a guild
@@ -1356,15 +1267,11 @@ paths:
         "400":
           description: Invalid Guild ID format
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get active guild invite link
@@ -1403,15 +1310,11 @@ paths:
         "400":
           description: Invalid Guild ID or Request Body
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a new guild invite link
@@ -1451,27 +1354,19 @@ paths:
         "400":
           description: Invalid UUID format or user is not a member
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Guild not found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: New leader already leads another guild
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal server error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Transfer guild leadership
@@ -1505,7 +1400,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent
@@ -1539,7 +1434,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Mark Japanese accent (streaming NDJSON)
@@ -1566,21 +1461,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a mistake
@@ -1604,27 +1493,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a mistake
@@ -1649,21 +1530,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a mistake by ID
@@ -1694,27 +1569,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a mistake
@@ -1742,15 +1609,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get mistakes by event ID
@@ -1778,15 +1641,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get mistakes by user ID
@@ -1813,21 +1672,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a practice
@@ -1851,27 +1704,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a practice
@@ -1896,21 +1741,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a practice by ID
@@ -1941,27 +1780,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a practice
@@ -1989,15 +1820,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get practices by user ID
@@ -2029,7 +1856,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Sentence query
@@ -2056,21 +1883,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a transcript
@@ -2094,27 +1915,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a transcript
@@ -2139,21 +1952,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a transcript by ID
@@ -2184,27 +1991,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a transcript
@@ -2232,15 +2031,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get transcripts by event ID
@@ -2268,15 +2063,11 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get transcripts by user ID
@@ -2308,7 +2099,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage headwords
@@ -2340,7 +2131,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by ID details
@@ -2372,7 +2163,7 @@ paths:
         "502":
           description: Bad Gateway
           schema:
-            $ref: '#/definitions/internal_api.ProxyErrorResponse'
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - ApiKeyAuth: []
       summary: Query usage by URL
@@ -2399,21 +2190,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Create a user
@@ -2437,27 +2222,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Delete a user
@@ -2482,21 +2259,15 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a user by ID
@@ -2527,27 +2298,19 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Update a user
@@ -2573,15 +2336,11 @@ paths:
         "404":
           description: Not Found
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get a user by email
@@ -2609,9 +2368,7 @@ paths:
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
       summary: Get users by name
