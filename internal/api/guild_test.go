@@ -89,19 +89,19 @@ func (m *mockAttendeeRepo) GetByGuildAndUser(_ context.Context, guildID, userID 
 func newTestAPI() (*API, *mockGuildRepo, *mockAttendeeRepo) {
 	gRepo := &mockGuildRepo{}
 	aRepo := &mockAttendeeRepo{}
-	api := &API{guildRepo: gRepo, guildAttendeeRepo: aRepo}
+	api := &API{guildRepo: gRepo, guildAttendeeRepo: aRepo, userRepo: &mockUserRepo{}}
 	return api, gRepo, aRepo
 }
 
 // invokeHandler mounts handler on a fresh gin engine. The UUID segment of path
 // is converted to the :id route param (the handlers read c.Param("id")). When
-// userID is non-nil it is injected into the gin context as a string, exactly
-// like AuthMiddleware does (c.Set("userID", claims.Subject)); when nil, no
-// value is set so c.Get("userID") returns (nil, false) → 401.
+// callerID is non-nil it is injected into the gin context as a *domain.User,
+// exactly like AuthMiddleware does (c.Set("user", user)); when nil, no value is
+// set so currentUser returns nil → 401.
 //
 // The HTTP method is inferred: POST when a body is provided (even an empty
 // one), GET otherwise — matching the handlers under test.
-func invokeHandler(t *testing.T, handler gin.HandlerFunc, path string, userID *uuid.UUID, body []byte) *httptest.ResponseRecorder {
+func invokeHandler(t *testing.T, handler gin.HandlerFunc, path string, callerID *uuid.UUID, body []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -120,8 +120,8 @@ func invokeHandler(t *testing.T, handler gin.HandlerFunc, path string, userID *u
 
 	r := gin.New()
 	r.Handle(method, pattern, func(c *gin.Context) {
-		if userID != nil {
-			c.Set("userID", userID.String())
+		if callerID != nil {
+			c.Set(userContextKey, &domain.User{ID: *callerID})
 		}
 		handler(c)
 	})
@@ -154,7 +154,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 		return "/v1/guilds/" + guildID.String() + "/transfer-leader"
 	}
 
-	t.Run("no userID in context → 401", func(t *testing.T) {
+	t.Run("no caller in context → 401", func(t *testing.T) {
 		api, gRepo, _ := newTestAPI()
 		body, err := json.Marshal(transferLeaderBody{NewLeaderUserID: newLeaderID})
 		assert.NoError(t, err)
@@ -275,7 +275,7 @@ func TestGuildInviteLinkGetHandler(t *testing.T) {
 		return "/v1/guilds/" + guildID.String() + "/invite-link"
 	}
 
-	t.Run("no userID → 401", func(t *testing.T) {
+	t.Run("no caller → 401", func(t *testing.T) {
 		api, _, aRepo := newTestAPI()
 
 		rec := invokeHandler(t, api.GuildInviteLinkGetHandler, getPath(uuid.New()), nil, nil)

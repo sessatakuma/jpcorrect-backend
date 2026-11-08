@@ -17,7 +17,10 @@ import (
 
 // TestRegisterGuildCaller drives real routes through Register in both gin modes
 // and pins the outcome (accepted or rejected, status and envelope code). The
-// error shape changed with #70; which requests are accepted must not.
+// error shape changed with #70; which requests are accepted must not. Under
+// spec §1.2 item 6 a real JWT is the only identity in debug and in release, so
+// the caller is a signed token in both modes and the retired identity header
+// never opens a guild route.
 func TestRegisterGuildCaller(t *testing.T) {
 	previousMode := gin.Mode()
 	t.Cleanup(func() { gin.SetMode(previousMode) })
@@ -33,17 +36,18 @@ func TestRegisterGuildCaller(t *testing.T) {
 		{"create invite", http.MethodPost, guildPath + "/invite-link", `{}`, http.StatusOK},
 	}
 	cases := []struct {
-		name, mode, callerHeader, authorization string
-		wantStatus                              int    // Zero uses the route's success status.
-		wantCode                                string // Empty when the request is accepted.
+		name, mode string
+		token      bool // Present a signed token for an initialized user.
+		header     string
+		wantStatus int    // Zero uses the route's success status.
+		wantCode   string // Empty when the request is accepted.
 	}{
-		{"debug caller", gin.DebugMode, callerID.String(), "", 0, ""},
-		{"debug missing caller", gin.DebugMode, "", "", http.StatusUnauthorized, "UNAUTHORIZED"},
-		{"debug authorization alone", gin.DebugMode, "", "Bearer unused-token", http.StatusUnauthorized, "UNAUTHORIZED"},
-		{"debug invalid caller", gin.DebugMode, "not-a-uuid", "", http.StatusBadRequest, "INVALID_REQUEST"},
-		{"debug nil caller", gin.DebugMode, uuid.Nil.String(), "", http.StatusBadRequest, "INVALID_REQUEST"},
-		{"release ignores debug caller", gin.ReleaseMode, callerID.String(), "", http.StatusUnauthorized, "UNAUTHORIZED"},
-		{"release rejects bare token without JWKS", gin.ReleaseMode, callerID.String(), "Bearer unused-token", http.StatusInternalServerError, "INTERNAL_ERROR"},
+		{"debug token", gin.DebugMode, true, "", 0, ""},
+		{"release token", gin.ReleaseMode, true, "", 0, ""},
+		{"debug no credentials", gin.DebugMode, false, "", http.StatusUnauthorized, "UNAUTHORIZED"},
+		{"release no credentials", gin.ReleaseMode, false, "", http.StatusUnauthorized, "UNAUTHORIZED"},
+		{"debug identity header only", gin.DebugMode, false, callerID.String(), http.StatusUnauthorized, "UNAUTHORIZED"},
+		{"release identity header only", gin.ReleaseMode, false, callerID.String(), http.StatusUnauthorized, "UNAUTHORIZED"},
 	}
 
 	for _, tc := range cases {
@@ -51,14 +55,22 @@ func TestRegisterGuildCaller(t *testing.T) {
 			gin.SetMode(tc.mode)
 			for _, route := range routes {
 				t.Run(route.name, func(t *testing.T) {
+					signer := newTestSigner(t)
+					sub := uuid.NewString()
 					api, gRepo, aRepo := newTestAPI()
+					users := &mockUserRepo{getBySupabaseUserIDResult: &domain.User{ID: callerID}}
+					api.userRepo = users
+					signer.attachTo(t, api)
 					aRepo.getByGuildAndUserResult = &domain.GuildAttendee{Role: domain.GuildAttendeeRoleMaster}
 					router := gin.New()
 					Register(router, api)
+
 					req := httptest.NewRequest(route.method, route.path, strings.NewReader(route.body))
 					req.Header.Set("Content-Type", "application/json")
-					req.Header.Set("X-Debug-User-ID", tc.callerHeader)
-					req.Header.Set("Authorization", tc.authorization)
+					req.Header.Set("X-Debug-User-ID", tc.header)
+					if tc.token {
+						req.Header.Set("Authorization", "Bearer "+signer.userToken(t, sub, "caller@example.com"))
+					}
 					rec := httptest.NewRecorder()
 					router.ServeHTTP(rec, req)
 
@@ -70,10 +82,13 @@ func TestRegisterGuildCaller(t *testing.T) {
 						assert.Empty(t, aRepo.getByGuildAndUserCalls)
 						assert.Zero(t, gRepo.activeInviteCalls)
 						assert.Empty(t, gRepo.createInviteLinkCalls)
+						assert.Empty(t, users.getBySupabaseUserIDCalls,
+							"a rejected request never reaches the user lookup")
 						return
 					}
 
 					require.Equal(t, route.wantStatus, rec.Code, rec.Body.String())
+					assert.Equal(t, []string{sub}, users.getBySupabaseUserIDCalls)
 					switch route.name {
 					case "create":
 						require.Len(t, gRepo.createdMasters, 1)

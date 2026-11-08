@@ -3,8 +3,10 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 
 	"jpcorrect-backend/internal/domain"
@@ -12,7 +14,6 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
@@ -64,36 +65,105 @@ func (a *API) ShutdownJWKS() {
 	a.jwksCache = nil
 }
 
-// AuthMiddleware returns a Gin middleware that validates JWT tokens
+// AuthMiddleware returns a Gin middleware that validates JWT tokens.
+//
+// Every authenticated request runs it in every GIN_MODE (spec §1.2 item 6):
+// there is no debug skip and no header-based identity. After the JWKS check the
+// middleware resolves the internal User row from the token's `sub` and stores it
+// in the context for currentUser. The one exemption is POST /v1/users/init,
+// which creates the row and therefore skips only the DB lookup (§1.2 item 4).
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := a.validateToken(c)
+		auth, err := a.verifyToken(c)
 		if err != nil {
 			writeError(c, err)
 			c.Abort()
 			return
 		}
 
+		c.Set(supabaseAuthContextKey, auth)
+
+		if !isUsersInitRequest(c) {
+			user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), auth.Subject)
+			if err != nil {
+				if errors.Is(err, domain.ErrNotFound) {
+					writeError(c, errorWithMessage(domain.ErrUserNotInitialized, "call POST /v1/users/init to create your account"))
+					c.Abort()
+					return
+				}
+				writeError(c, err)
+				c.Abort()
+				return
+			}
+			c.Set(userContextKey, user)
+		}
+
 		c.Next()
 	}
 }
 
-// debugCallerMiddleware supplies an explicitly selected caller without JWT
-// validation. Register installs it only in debug mode.
-func debugCallerMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		caller := c.GetHeader("X-Debug-User-ID")
-		if caller != "" {
-			userID, err := uuid.Parse(caller)
-			if err != nil || userID == uuid.Nil {
-				writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid X-Debug-User-ID header"))
-				c.Abort()
-				return
-			}
-			c.Set("userID", userID.String())
-		}
-		c.Next()
+const (
+	// userContextKey holds the *domain.User every authenticated handler reads
+	// through currentUser (spec §1.2 item 2). The retired keys were "userID".
+	userContextKey = "user"
+
+	// supabaseAuthContextKey holds the verified JWT identity before the DB
+	// lookup. Only POST /v1/users/init, which is exempt from that lookup, reads
+	// it.
+	supabaseAuthContextKey = "supabaseAuth"
+
+	// usersInitPath is the single authenticated path exempted from the user
+	// lookup (spec §1.2 item 4).
+	usersInitPath = "/v1/users/init"
+)
+
+// supabaseAuth is what AuthMiddleware keeps from a verified Supabase JWT.
+type supabaseAuth struct {
+	Subject string
+	Email   string
+}
+
+// supabaseClaims is the subset of the Supabase JWT the backend reads. Role or
+// other authorization claims are deliberately not part of it: authorization
+// uses only the stored User row (issue #73 clarification).
+type supabaseClaims struct {
+	Email string `json:"email"`
+	jwt.RegisteredClaims
+}
+
+// currentUser returns the internal User resolved from the request's JWT, or nil
+// when the request has no resolved user (unauthenticated request, or the
+// users/init exemption). Handlers treat nil as "reject with ErrUnauthorized".
+func currentUser(c *gin.Context) *domain.User {
+	value, exists := c.Get(userContextKey)
+	if !exists {
+		return nil
 	}
+	user, ok := value.(*domain.User)
+	if !ok {
+		return nil
+	}
+	return user
+}
+
+// currentSupabaseAuth returns the verified JWT identity, or nil when the
+// request was not authenticated by AuthMiddleware.
+func currentSupabaseAuth(c *gin.Context) *supabaseAuth {
+	value, exists := c.Get(supabaseAuthContextKey)
+	if !exists {
+		return nil
+	}
+	auth, ok := value.(*supabaseAuth)
+	if !ok {
+		return nil
+	}
+	return auth
+}
+
+// isUsersInitRequest reports whether the request is the one path exempt from the
+// user lookup.
+func isUsersInitRequest(c *gin.Context) bool {
+	return c.Request.Method == http.MethodPost && c.Request.URL.Path == usersInitPath
 }
 
 // APIKeyMiddleware requires a static API key in the X-API-Key header that matches
@@ -124,27 +194,28 @@ func (a *API) APIKeyMiddleware() gin.HandlerFunc {
 	}
 }
 
-// validateToken validates the JWT token and extracts user information.
+// verifyToken validates the JWT token and extracts the caller's Supabase
+// identity.
 // Accepts "Bearer <token>" (any casing) as well as a bare "<token>" — the
 // latter compensates for Swagger UI's apiKey field, which doesn't auto-prefix
 // the scheme.
-func (a *API) validateToken(c *gin.Context) error {
+func (a *API) verifyToken(c *gin.Context) (*supabaseAuth, error) {
 	authHeader := c.GetHeader("Authorization")
 	fields := strings.Fields(authHeader)
 
 	var tokenString string
 	switch len(fields) {
 	case 0:
-		return errorWithMessage(domain.ErrUnauthorized, "missing authorization header")
+		return nil, errorWithMessage(domain.ErrUnauthorized, "missing authorization header")
 	case 1:
 		tokenString = fields[0]
 	case 2:
 		if !strings.EqualFold(fields[0], "Bearer") {
-			return errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
+			return nil, errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
 		}
 		tokenString = fields[1]
 	default:
-		return errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
+		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
 	}
 
 	// Check if JWKS is initialized
@@ -154,30 +225,32 @@ func (a *API) validateToken(c *gin.Context) error {
 		// A misconfigured JWKS endpoint is an operator problem: log it and
 		// keep the response free of internal detail.
 		log.Printf("JWKS is not initialized: %v", a.jwksErr)
-		return domain.ErrInternal
+		return nil, domain.ErrInternal
 	}
 	kf := a.jwksCache
 	a.jwksMutex.Unlock()
 
 	// Parse and validate the token
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+	token, err := jwt.ParseWithClaims(tokenString, &supabaseClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
-		return errorWithMessage(domain.ErrUnauthorized, "invalid token")
+		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token")
 	}
 
 	if !token.Valid {
-		return errorWithMessage(domain.ErrUnauthorized, "invalid token")
+		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token")
 	}
 
 	// Extract claims
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	claims, ok := token.Claims.(*supabaseClaims)
 	if !ok {
-		return errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
+		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
+	}
+	// Without a subject the token identifies nobody, so it can neither resolve
+	// a User nor initialize one.
+	if claims.Subject == "" {
+		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
-
-	return nil
+	return &supabaseAuth{Subject: claims.Subject, Email: claims.Email}, nil
 }

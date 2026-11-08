@@ -49,30 +49,21 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
-// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param guild body domain.Guild true "Guild data"
 // @Success 201 {object} domain.Guild
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/guilds [post]
 func (a *API) GuildCreateHandler(c *gin.Context) {
-	userIDVal, exists := c.Get("userID")
-	if !exists {
+	caller := currentUser(c)
+	if caller == nil {
 		writeError(c, domain.ErrUnauthorized)
 		return
 	}
-	userIDStr, ok := userIDVal.(string)
-	if !ok {
-		writeError(c, domain.ErrInternal)
-		return
-	}
-	userID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid user id format"))
-		return
-	}
+	userID := caller.ID
 
 	var guild domain.Guild
 	if err := c.ShouldBindJSON(&guild); err != nil {
@@ -220,11 +211,10 @@ type TransferLeaderRequest struct {
 // @Tags guilds
 // @Accept json
 // @Produce json
-// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
-// @Param id path string true "Guild ID"
 // @Param request body TransferLeaderRequest true "New leader user ID"
 // @Success 200 {object} map[string]string "leader transferred successfully"
 // @Failure 400 {object} api.ErrorResponse "Invalid UUID format or request body"
+// @Failure 401 {object} api.ErrorResponse
 // @Failure 403 {object} api.ErrorResponse "Only the guild master can transfer leadership"
 // @Failure 404 {object} api.ErrorResponse "Guild not found, or the new leader is not an active member"
 // @Failure 409 {object} api.ErrorResponse "New leader already leads another guild"
@@ -245,21 +235,12 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
+	caller := currentUser(c)
+	if caller == nil {
 		writeError(c, domain.ErrUnauthorized)
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
-	if !ok {
-		writeError(c, domain.ErrInternal)
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid user id format"))
-		return
-	}
+	callerID := caller.ID
 
 	// 呼叫 Repo 執行 Transaction 更新
 	err = a.guildRepo.TransferLeader(c.Request.Context(), guildID, callerID, req.NewLeaderUserID)
@@ -305,7 +286,6 @@ type GuildInviteResponse struct {
 // @Tags guilds
 // @Accept json
 // @Produce json
-// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
 // @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
 // @Failure 400 {object} api.ErrorResponse "Invalid Guild ID format"
@@ -322,21 +302,12 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
+	caller := currentUser(c)
+	if caller == nil {
 		writeError(c, domain.ErrUnauthorized)
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
-	if !ok {
-		writeError(c, domain.ErrInternal)
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid user id format"))
-		return
-	}
+	callerID := caller.ID
 
 	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
 	if err != nil {
@@ -378,7 +349,6 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
-// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
 // @Param request body domain.InviteLink false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
 // @Success 200 {object} domain.InviteLink
@@ -396,21 +366,12 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		return
 	}
 
-	callerIDVal, exists := c.Get("userID")
-	if !exists {
+	caller := currentUser(c)
+	if caller == nil {
 		writeError(c, domain.ErrUnauthorized)
 		return
 	}
-	callerIDStr, ok := callerIDVal.(string)
-	if !ok {
-		writeError(c, domain.ErrInternal)
-		return
-	}
-	callerID, err := uuid.Parse(callerIDStr)
-	if err != nil {
-		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid user id format"))
-		return
-	}
+	callerID := caller.ID
 
 	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
 	if err != nil {
