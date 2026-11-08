@@ -145,6 +145,13 @@ func (h *Hub) GetClient(id string) (*domain.Client, bool) {
 	return c, ok
 }
 
+// GetHost reports the host (emcee) of a channel. Host state lives only in Hub
+// memory and arrives with #79 (spec §4.5); until then no channel has a host, so
+// every HOST check is denied.
+func (h *Hub) GetHost(channelID string) (uuid.UUID, bool) {
+	return uuid.Nil, false
+}
+
 func (h *Hub) ListUsers() []domain.OnlineUser {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

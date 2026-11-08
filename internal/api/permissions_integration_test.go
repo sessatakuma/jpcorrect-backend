@@ -33,6 +33,7 @@ const helperContinuedHeader = "X-Handler-Continued"
 type permissionFixture struct {
 	db  *gorm.DB
 	api *API
+	hub *fakeHostHub
 
 	guild      *domain.Guild
 	otherGuild *domain.Guild
@@ -65,7 +66,10 @@ func newPermissionFixture(t *testing.T) *permissionFixture {
 	api := NewAPI("", "", &http.Transport{}, db, "", nil)
 	t.Cleanup(api.Close)
 
-	f := &permissionFixture{db: db, api: api}
+	f := &permissionFixture{db: db, api: api, hub: newFakeHostHub()}
+	// permissions() reads the hub live, so the fake replaces the real Hub for
+	// the HOST checks.
+	api.webrtcHub = f.hub
 
 	f.guild = f.newGuild(t, "permission guild")
 	f.otherGuild = f.newGuild(t, "another guild")
@@ -193,6 +197,42 @@ func (f *permissionFixture) newSelection(t *testing.T, activityID, mistakeID, us
 	}
 	require.NoError(t, f.db.Create(selected).Error)
 	return selected
+}
+
+// fakeHostHub records which channel the HOST check asked about. The rest of
+// domain.WebRTCHub is unused by the permission checks and stays inert.
+type fakeHostHub struct {
+	hosts map[string]uuid.UUID
+	asked []string
+}
+
+func newFakeHostHub() *fakeHostHub {
+	return &fakeHostHub{hosts: map[string]uuid.UUID{}}
+}
+
+func (h *fakeHostHub) AddClient(*domain.Client)                {}
+func (h *fakeHostHub) RemoveClient(string)                     {}
+func (h *fakeHostHub) GetClient(string) (*domain.Client, bool) { return nil, false }
+func (h *fakeHostHub) ListUsers() []domain.OnlineUser          { return nil }
+func (h *fakeHostHub) BroadcastExcept(string, string, any)     {}
+
+func (h *fakeHostHub) GetHost(channelID string) (uuid.UUID, bool) {
+	h.asked = append(h.asked, channelID)
+	host, ok := h.hosts[channelID]
+	return host, ok
+}
+
+func (h *fakeHostHub) setHost(channelID string, userID uuid.UUID) {
+	h.hosts[channelID] = userID
+}
+
+func (h *fakeHostHub) clearHost(channelID string) {
+	delete(h.hosts, channelID)
+}
+
+func (h *fakeHostHub) reset() {
+	h.hosts = map[string]uuid.UUID{}
+	h.asked = nil
 }
 
 // probeRequest mounts check behind a handler that follows the §1.3 pattern:
@@ -385,6 +425,99 @@ func TestPermissionOwnershipHelpers(t *testing.T) {
 	runHelperProbes(t, probes)
 }
 
+// TestRequireActivityHost covers the HOST marker with a fake hub: host is the
+// caller, host is another user, no host at all, and the practice/review channel
+// selection of §4.2.
+func TestRequireActivityHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	f := newPermissionFixture(t)
+
+	practiceChannel := practiceChannelPrefix + f.practiceActivity.ID.String()
+	reviewChannel := reviewChannelPrefix + f.reviewActivity.ID.String()
+	doneChannel := reviewChannelPrefix + f.doneActivity.ID.String()
+
+	tests := []struct {
+		name        string
+		caller      *domain.User
+		activityID  uuid.UUID
+		arrange     func(*fakeHostHub)
+		wantStatus  int
+		wantCode    string
+		wantChannel string // channel the hub must have been asked about; "" for none
+	}{
+		{
+			name: "practice room host is allowed", caller: f.member, activityID: f.practiceActivity.ID,
+			arrange:     func(h *fakeHostHub) { h.setHost(practiceChannel, f.member.ID) },
+			wantStatus:  http.StatusNoContent,
+			wantChannel: practiceChannel,
+		},
+		{
+			name: "review room host is allowed", caller: f.member, activityID: f.reviewActivity.ID,
+			arrange:     func(h *fakeHostHub) { h.setHost(reviewChannel, f.member.ID) },
+			wantStatus:  http.StatusNoContent,
+			wantChannel: reviewChannel,
+		},
+		{
+			name: "host of another user is denied", caller: f.member, activityID: f.practiceActivity.ID,
+			arrange:     func(h *fakeHostHub) { h.setHost(practiceChannel, f.leader.ID) },
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "FORBIDDEN",
+			wantChannel: practiceChannel,
+		},
+		{
+			name: "no host is denied", caller: f.member, activityID: f.practiceActivity.ID,
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "FORBIDDEN",
+			wantChannel: practiceChannel,
+		},
+		{
+			name: "nil host is denied", caller: f.member, activityID: f.practiceActivity.ID,
+			arrange:     func(h *fakeHostHub) { h.setHost(practiceChannel, uuid.Nil) },
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "FORBIDDEN",
+			wantChannel: practiceChannel,
+		},
+		{
+			name: "practice host does not govern the review room", caller: f.member, activityID: f.reviewActivity.ID,
+			arrange:     func(h *fakeHostHub) { h.setHost(practiceChannel, f.member.ID) },
+			wantStatus:  http.StatusForbidden,
+			wantCode:    "FORBIDDEN",
+			wantChannel: reviewChannel,
+		},
+		{
+			name: "a terminal activity has no room", caller: f.member, activityID: f.doneActivity.ID,
+			arrange:    func(h *fakeHostHub) { h.setHost(doneChannel, f.member.ID) },
+			wantStatus: http.StatusForbidden,
+			wantCode:   "FORBIDDEN",
+		},
+		{
+			name: "missing activity is a 404", caller: f.member, activityID: uuid.New(),
+			wantStatus: http.StatusNotFound,
+			wantCode:   "NOT_FOUND",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f.hub.reset()
+			if tc.arrange != nil {
+				tc.arrange(f.hub)
+			}
+
+			rec := probeRequest(t, tc.caller, func(c *gin.Context) error {
+				return f.api.RequireActivityHost(c, tc.activityID)
+			})
+			assertProbeOutcome(t, rec, tc.wantStatus, tc.wantCode)
+
+			if tc.wantChannel == "" {
+				assert.Empty(t, f.hub.asked, "the hub must not be consulted")
+				return
+			}
+			assert.Equal(t, []string{tc.wantChannel}, f.hub.asked)
+		})
+	}
+}
+
 // TestPermissionHelpersRequireCaller pins the 401 every helper answers without
 // an attached caller, before any lookup happens.
 func TestPermissionHelpersRequireCaller(t *testing.T) {
@@ -410,6 +543,9 @@ func TestPermissionHelpersRequireCaller(t *testing.T) {
 		{"RequireSelectedSentenceOwner", nil, func(c *gin.Context) error {
 			return f.api.RequireSelectedSentenceOwner(c, f.ownSelection.ID)
 		}, http.StatusUnauthorized, "UNAUTHORIZED"},
+		{"RequireActivityHost", nil, func(c *gin.Context) error {
+			return f.api.RequireActivityHost(c, f.practiceActivity.ID)
+		}, http.StatusUnauthorized, "UNAUTHORIZED"},
 	}
 
 	runHelperProbes(t, probes)
@@ -421,6 +557,8 @@ func TestPermissionHelpersRequireCaller(t *testing.T) {
 func TestPermissionHelpersDenyAdminsWithoutStanding(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	f := newPermissionFixture(t)
+
+	hostChannel := practiceChannelPrefix + f.practiceActivity.ID.String()
 
 	helpers := []struct {
 		name     string
@@ -445,6 +583,9 @@ func TestPermissionHelpersDenyAdminsWithoutStanding(t *testing.T) {
 		{"RequireSelectedSentenceOwner", func(c *gin.Context) error {
 			return f.api.RequireSelectedSentenceOwner(c, f.ownSelection.ID)
 		}, "FORBIDDEN"},
+		{"RequireActivityHost", func(c *gin.Context) error {
+			return f.api.RequireActivityHost(c, f.practiceActivity.ID)
+		}, "FORBIDDEN"},
 	}
 
 	for _, caller := range []struct {
@@ -456,9 +597,51 @@ func TestPermissionHelpersDenyAdminsWithoutStanding(t *testing.T) {
 	} {
 		for _, helper := range helpers {
 			t.Run(caller.name+" "+helper.name, func(t *testing.T) {
+				f.hub.reset()
+				f.hub.setHost(hostChannel, f.member.ID)
+
 				rec := probeRequest(t, caller.user, helper.check)
 				assertProbeOutcome(t, rec, http.StatusForbidden, helper.wantCode)
 			})
 		}
 	}
+}
+
+// TestActivityRoomChannel pins the documented §4.2 channel selection rule.
+func TestActivityRoomChannel(t *testing.T) {
+	activityID := uuid.New()
+
+	tests := []struct {
+		status  domain.ActivityStatus
+		want    string
+		wantSet bool
+	}{
+		{domain.ActivityStatusPendingPractice, practiceChannelPrefix + activityID.String(), true},
+		{domain.ActivityStatusInPractice, practiceChannelPrefix + activityID.String(), true},
+		{domain.ActivityStatusAnalyzing, practiceChannelPrefix + activityID.String(), true},
+		{domain.ActivityStatusInFeedback, reviewChannelPrefix + activityID.String(), true},
+		{domain.ActivityStatusInReview, reviewChannelPrefix + activityID.String(), true},
+		{domain.ActivityStatusDone, "", false},
+		{domain.ActivityStatusAborted, "", false},
+		{domain.ActivityStatus(""), "", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.status), func(t *testing.T) {
+			channel, ok := ActivityRoomChannel(activityID, tc.status)
+			assert.Equal(t, tc.wantSet, ok)
+			assert.Equal(t, tc.want, channel)
+		})
+	}
+}
+
+// TestCheckChannelHostWithoutHub proves the core HOST check fails closed when
+// the Hub is absent, which is what #80 relies on for an uninitialized hub.
+func TestCheckChannelHostWithoutHub(t *testing.T) {
+	caller := &domain.User{ID: uuid.New()}
+	perms := NewPermissions(nil, nil, nil, nil, nil, nil)
+
+	err := perms.CheckChannelHost(caller, practiceChannelPrefix+uuid.NewString())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
 }

@@ -46,6 +46,36 @@ import (
 // A member who left (GuildAttendee.LeftAt IS NOT NULL) is not a member:
 // GuildAttendeeRepository.GetByGuildAndUser only returns active rows.
 
+// §4.2 channel names, used to find the room whose host governs an Activity.
+const (
+	practiceChannelPrefix = "practice:"
+	reviewChannelPrefix   = "review:"
+)
+
+// ActivityRoomChannel returns the §4.2 realtime channel whose host governs the
+// Activity with this status, and false when the Activity has no room that
+// carries a host.
+//
+// §1.3 leaves the channel selection to the implementation and §4.2 only names
+// the two rooms, so this is the documented rule: an Activity is hosted in the
+// room of the stage it is in — the practice room from scheduling until the
+// analysis is done (pending_practice, in_practice, analyzing) and the review
+// room afterwards (in_feedback, in_review). A terminal Activity (done,
+// aborted) has no active room, so nobody is its host.
+func ActivityRoomChannel(activityID uuid.UUID, status domain.ActivityStatus) (string, bool) {
+	switch status {
+	case domain.ActivityStatusPendingPractice,
+		domain.ActivityStatusInPractice,
+		domain.ActivityStatusAnalyzing:
+		return practiceChannelPrefix + activityID.String(), true
+	case domain.ActivityStatusInFeedback,
+		domain.ActivityStatusInReview:
+		return reviewChannelPrefix + activityID.String(), true
+	default:
+		return "", false
+	}
+}
+
 // Permissions is the core of the §1.3 permission checks: it runs them without a
 // *gin.Context. All fields are interfaces so a test can substitute a fake, and
 // so #80 can hand in the repositories it already has.
@@ -55,15 +85,18 @@ type Permissions struct {
 	activityLookupRepo   domain.ActivityLookupRepository
 	mistakeRepo          domain.MistakeRepository
 	selectedSentenceRepo domain.SelectedSentenceLookupRepository
+	hostLookup           domain.WebRTCHub
 }
 
-// NewPermissions builds the core checker.
+// NewPermissions builds the core checker. hostLookup may be nil, in which case
+// no room has a host.
 func NewPermissions(
 	guildRepo domain.GuildRepository,
 	guildAttendeeRepo domain.GuildAttendeeRepository,
 	activityLookupRepo domain.ActivityLookupRepository,
 	mistakeRepo domain.MistakeRepository,
 	selectedSentenceRepo domain.SelectedSentenceLookupRepository,
+	hostLookup domain.WebRTCHub,
 ) *Permissions {
 	return &Permissions{
 		guildRepo:            guildRepo,
@@ -71,6 +104,7 @@ func NewPermissions(
 		activityLookupRepo:   activityLookupRepo,
 		mistakeRepo:          mistakeRepo,
 		selectedSentenceRepo: selectedSentenceRepo,
+		hostLookup:           hostLookup,
 	}
 }
 
@@ -165,6 +199,40 @@ func (p *Permissions) CheckSelectedSentenceOwner(ctx context.Context, caller *do
 	return nil
 }
 
+// CheckActivityHost is the HOST marker: the caller is the Hub host of the room
+// the Activity is currently in (§4.2 through ActivityRoomChannel, rules in
+// §4.5). A terminal Activity has no room and therefore no host.
+func (p *Permissions) CheckActivityHost(ctx context.Context, caller *domain.User, activityID uuid.UUID) error {
+	activity, err := p.activity(ctx, caller, activityID)
+	if err != nil {
+		return err
+	}
+
+	channel, ok := ActivityRoomChannel(activity.ID, activity.Status)
+	if !ok {
+		return errorWithMessage(domain.ErrForbidden, "activity has no active room with a host")
+	}
+
+	return p.CheckChannelHost(caller, channel)
+}
+
+// CheckChannelHost compares the Hub's host of channelID with the caller. It is
+// the form #80 uses for a subscribe message, where the channel name is already
+// known. No host, an unknown channel and a different host are all a 403.
+func (p *Permissions) CheckChannelHost(caller *domain.User, channelID string) error {
+	if caller == nil {
+		return domain.ErrUnauthorized
+	}
+
+	if p.hostLookup != nil {
+		if host, ok := p.hostLookup.GetHost(channelID); ok && host != uuid.Nil && host == caller.ID {
+			return nil
+		}
+	}
+
+	return errorWithMessage(domain.ErrForbidden, "caller is not the host of this room")
+}
+
 // activeMembership loads guildID and the caller's active GuildAttendee row in
 // it. A missing (or soft-deleted) guild is a 404; an absent active row means
 // the caller never joined or has left, which is a 403.
@@ -209,9 +277,10 @@ func (p *Permissions) activity(ctx context.Context, caller *domain.User, activit
 	return activity, nil
 }
 
-// permissions builds the core checker around the API's repositories. The two
-// lookups below are stateless single reads, so they are created from the same
-// root handle here rather than cached on API.
+// permissions builds the core checker around the API's repositories and the
+// live hub. The two lookups above are stateless single reads, so they are
+// created from the same root handle here rather than cached on API, and the hub
+// is read live so a replaced hub is always honoured.
 func (a *API) permissions() *Permissions {
 	return NewPermissions(
 		a.guildRepo,
@@ -219,6 +288,7 @@ func (a *API) permissions() *Permissions {
 		repository.NewGormActivityLookupRepository(a.db),
 		a.mistakeRepo,
 		repository.NewGormSelectedSentenceLookupRepository(a.db),
+		a.webrtcHub,
 	)
 }
 
@@ -280,5 +350,13 @@ func (a *API) RequireMistakeOwner(c *gin.Context, mistakeID uuid.UUID) error {
 func (a *API) RequireSelectedSentenceOwner(c *gin.Context, selectedSentenceID uuid.UUID) error {
 	return a.requirePermission(c, func(p *Permissions, caller *domain.User) error {
 		return p.CheckSelectedSentenceOwner(c.Request.Context(), caller, selectedSentenceID)
+	})
+}
+
+// RequireActivityHost enforces the HOST marker (§1.3, §4.5). The channel comes
+// from the Activity's current stage; see ActivityRoomChannel.
+func (a *API) RequireActivityHost(c *gin.Context, activityID uuid.UUID) error {
+	return a.requirePermission(c, func(p *Permissions, caller *domain.User) error {
+		return p.CheckActivityHost(c.Request.Context(), caller, activityID)
 	})
 }
