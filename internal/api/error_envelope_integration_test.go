@@ -21,7 +21,7 @@ import (
 func TestUserCreateDuplicateEmailEnvelope(t *testing.T) {
 	db := testutil.NewPostgresDB(t)
 
-	api := NewAPI("", "", http.DefaultTransport.(*http.Transport).Clone(), db, "", nil)
+	api := NewAPI("", "", "", http.DefaultTransport.(*http.Transport).Clone(), db, "", nil)
 	t.Cleanup(api.Close)
 
 	gin.SetMode(gin.TestMode)

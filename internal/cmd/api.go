@@ -117,7 +117,11 @@ func Execute() {
 		}
 	}
 
-	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("CLIENT_API_KEY"), transport, db, jwksURL, allowedOrigins)
+	internalAPIKey := os.Getenv("INTERNAL_API_KEY")
+	if internalAPIKey == "" {
+		log.Println("INTERNAL_API_KEY is empty - every /internal route will answer 401")
+	}
+	a := api.NewAPI(os.Getenv("API_TOOLS_URL"), os.Getenv("CLIENT_API_KEY"), internalAPIKey, transport, db, jwksURL, allowedOrigins)
 	defer a.Close()
 
 	// AuthMiddleware runs on every user route in every GIN_MODE (spec §1.2

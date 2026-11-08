@@ -17,7 +17,7 @@ import (
 // entry point built on the root handle the single-repository fields already use.
 func TestNewAPIBuildsStoreOnTheSameDatabase(t *testing.T) {
 	db := testutil.NewPostgresDB(t)
-	api := NewAPI("", "", &http.Transport{}, db, "", nil)
+	api := NewAPI("", "", "", &http.Transport{}, db, "", nil)
 	t.Cleanup(api.Close)
 
 	require.NotNil(t, api.store)
