@@ -127,3 +127,35 @@ func TestNotificationKindIsRecurring(t *testing.T) {
 
 	assert.False(t, NotificationKindIsRecurring(""), "an unknown kind is never recurring")
 }
+
+// TestNotificationDedupKeyRejectsTheWrongBuilder pins the guard: the one-off
+// builder refuses every recurring kind and the occurrence builder refuses every
+// kind that is not recurring, so a recurring notification cannot be written
+// with a key that would drop its next occurrence.
+func TestNotificationDedupKeyRejectsTheWrongBuilder(t *testing.T) {
+	aggregateID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	recipientUserID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	occurrence := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
+
+	assert.NotEmpty(t, recurringNotificationKinds)
+	for kind := range recurringNotificationKinds {
+		assert.Panics(t, func() { NotificationDedupKey(kind, aggregateID, recipientUserID) },
+			"%s is recurring and must not accept the one-off key", kind)
+		assert.NotPanics(t, func() {
+			NotificationDedupKeyWithOccurrence(kind, aggregateID, occurrence, recipientUserID)
+		}, "%s is recurring and must accept the occurrence key", kind)
+	}
+
+	for _, kind := range []string{
+		NotificationKindActivityScheduled,
+		NotificationKindMemberJoined,
+		NotificationKindFeedCommentPosted,
+		"not.a.known.kind",
+	} {
+		assert.Panics(t, func() {
+			NotificationDedupKeyWithOccurrence(kind, aggregateID, occurrence, recipientUserID)
+		}, "%s is not recurring and must not accept an occurrence", kind)
+		assert.NotPanics(t, func() { NotificationDedupKey(kind, aggregateID, recipientUserID) },
+			"%s is one-off and must accept the one-off key", kind)
+	}
+}

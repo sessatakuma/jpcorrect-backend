@@ -106,7 +106,16 @@ type NotificationOutboxRepository interface {
 //	{kind}:{aggregate_id}:{recipient_user_id}
 //
 // Use it for every kind for which NotificationKindIsRecurring is false.
+//
+// It panics for a recurring kind. Such a key has no occurrence, so a second
+// notification of the same kind for the same aggregate would be dropped as a
+// duplicate by the unique dedup_key, silently and without any error. That is a
+// programming error, so it fails at the first call instead of at runtime.
 func NotificationDedupKey(kind string, aggregateID, recipientUserID uuid.UUID) string {
+	if NotificationKindIsRecurring(kind) {
+		panic(fmt.Sprintf("notification kind %q is recurring: build its dedup key with NotificationDedupKeyWithOccurrence", kind))
+	}
+
 	return fmt.Sprintf("%s:%s:%s", kind, aggregateID, recipientUserID)
 }
 
@@ -119,7 +128,15 @@ func NotificationDedupKey(kind string, aggregateID, recipientUserID uuid.UUID) s
 // in different time zones produces the same key, while a rescheduled occurrence
 // produces a different key and therefore its own row. Use it for every kind for
 // which NotificationKindIsRecurring is true.
+//
+// It panics for any other kind, including a kind that is not in §5.4: a
+// one-off notification must not carry an occurrence, or a retried write would
+// produce a second key and a second notification.
 func NotificationDedupKeyWithOccurrence(kind string, aggregateID uuid.UUID, occurrence time.Time, recipientUserID uuid.UUID) string {
+	if !NotificationKindIsRecurring(kind) {
+		panic(fmt.Sprintf("notification kind %q is not recurring: build its dedup key with NotificationDedupKey", kind))
+	}
+
 	return fmt.Sprintf("%s:%s:%s:%s",
 		kind,
 		aggregateID,
