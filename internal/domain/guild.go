@@ -68,9 +68,10 @@ type GuildAttendee struct {
 	// `constraint` tag has to live on the association, not on the scalar
 	// columns, or no constraint is created at all.
 	//
-	// They are never serialised, so the HTTP/Swagger contract is unchanged, and
-	// they are deliberately left nil by the repositories so a write never
-	// cascades into an unintended parent upsert.
+	// They are never serialised, so the HTTP/Swagger contract is unchanged.
+	// The attendee repositories write with Omit(clause.Associations), so even a
+	// Go caller that populates them cannot make a write upsert the guild or user
+	// rows or overwrite GuildID / UserID.
 	Guild *Guild `gorm:"foreignKey:GuildID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-" swaggerignore:"true"`
 	User  *User  `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-" swaggerignore:"true"`
 }

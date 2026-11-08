@@ -363,3 +363,131 @@ func TestPostgresHelperConnectionSearchPath(t *testing.T) {
 		assert.Equal(t, expected, schemas[i], "connection %d used the wrong search_path", i)
 	}
 }
+
+// TestGuildAttendeeBlocksHardDeleteOfGuild pins the ON DELETE RESTRICT half of
+// the guild_id foreign key. GuildRepository.Delete refuses in Go with a count
+// check before it soft-deletes, so only a raw hard delete exercises the
+// database constraint itself.
+func TestGuildAttendeeBlocksHardDeleteOfGuild(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	user := domain.User{
+		ID:    uuid.New(),
+		Email: uuid.NewString() + "@example.com",
+		Name:  "guild deletion restrict test",
+	}
+	guild := domain.Guild{ID: uuid.New(), Name: "guild deletion restrict test guild"}
+	require.NoError(t, db.WithContext(ctx).Create(&user).Error)
+	require.NoError(t, db.WithContext(ctx).Create(&guild).Error)
+
+	attendee := domain.GuildAttendee{ID: uuid.New(), GuildID: guild.ID, UserID: user.ID}
+	require.NoError(t, NewGormGuildAttendeeRepository(db).Create(ctx, &attendee))
+
+	var guildConstraint string
+	for _, fk := range listGuildAttendeeForeignKeys(t, db) {
+		if fk.ColumnName == "guild_id" {
+			guildConstraint = fk.ConstraintName
+		}
+	}
+	require.NotEmpty(t, guildConstraint, "guild_attendee.guild_id has no foreign key")
+
+	rawErr := db.WithContext(ctx).Unscoped().Delete(&domain.Guild{}, "id = ?", guild.ID).Error
+	require.Error(t, rawErr, "raw hard delete of a referenced guild must be rejected")
+
+	var pgErr *pgconn.PgError
+	require.True(t, errors.As(rawErr, &pgErr), "want *pgconn.PgError, got %T: %v", rawErr, rawErr)
+	assert.Equal(t, "23503", pgErr.Code, "want foreign_key_violation, got %s", pgErr.Code)
+	assert.Equal(t, guildConstraint, pgErr.ConstraintName,
+		"violated constraint should be the guild_attendee -> guild foreign key")
+	assert.ErrorIs(t, MapGormError(rawErr), domain.ErrHasRelatedRecords,
+		"MapGormError must translate SQLSTATE 23503 to domain.ErrHasRelatedRecords")
+
+	var stored []domain.Guild
+	require.NoError(t, db.WithContext(ctx).Unscoped().Where("id = ?", guild.ID).Find(&stored).Error)
+	require.Len(t, stored, 1, "the rejected hard delete must not remove the guild row")
+	assert.False(t, stored[0].DeletedAt.Valid, "the rejected hard delete must not soft-delete the guild")
+
+	var attendees int64
+	require.NoError(t, db.WithContext(ctx).Model(&domain.GuildAttendee{}).
+		Where("id = ?", attendee.ID).Count(&attendees).Error)
+	assert.EqualValues(t, 1, attendees, "the membership row must survive the rejected delete")
+}
+
+// TestGuildAttendeeRepositoriesIgnorePopulatedAssociations proves in code, not
+// by convention, that the Guild and User belongs-to fields on GuildAttendee
+// never make a repository write to the parent tables. Without
+// Omit(clause.Associations) GORM would upsert the referenced Guild and User on
+// Create and Save.
+func TestGuildAttendeeRepositoriesIgnorePopulatedAssociations(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	user := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "association test user"}
+	guild := domain.Guild{ID: uuid.New(), Name: "association test guild"}
+	require.NoError(t, db.WithContext(ctx).Create(&user).Error)
+	require.NoError(t, db.WithContext(ctx).Create(&guild).Error)
+
+	requireParentsUntouched := func(t *testing.T, ghostUserID, ghostGuildID uuid.UUID) {
+		t.Helper()
+
+		var storedGuild domain.Guild
+		require.NoError(t, db.WithContext(ctx).First(&storedGuild, "id = ?", guild.ID).Error)
+		assert.Equal(t, guild.Name, storedGuild.Name, "a populated Guild association must not rewrite the guild")
+
+		var storedUser domain.User
+		require.NoError(t, db.WithContext(ctx).First(&storedUser, "id = ?", user.ID).Error)
+		assert.Equal(t, user.Name, storedUser.Name, "a populated User association must not rewrite the user")
+
+		var ghostUsers, ghostGuilds int64
+		require.NoError(t, db.WithContext(ctx).Unscoped().Model(&domain.User{}).
+			Where("id = ?", ghostUserID).Count(&ghostUsers).Error)
+		require.NoError(t, db.WithContext(ctx).Unscoped().Model(&domain.Guild{}).
+			Where("id = ?", ghostGuildID).Count(&ghostGuilds).Error)
+		assert.Zero(t, ghostUsers, "a populated User association must not insert a parent row")
+		assert.Zero(t, ghostGuilds, "a populated Guild association must not insert a parent row")
+	}
+
+	t.Run("attendee Create and Update", func(t *testing.T) {
+		ghostUser := &domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "ghost user"}
+		ghostGuild := &domain.Guild{ID: uuid.New(), Name: "ghost guild"}
+		repo := NewGormGuildAttendeeRepository(db)
+
+		attendee := domain.GuildAttendee{
+			ID: uuid.New(), GuildID: guild.ID, UserID: user.ID,
+			Guild: &domain.Guild{ID: guild.ID, Name: "renamed through the association"},
+			User:  &domain.User{ID: user.ID, Email: user.Email, Name: "renamed through the association"},
+		}
+		require.NoError(t, repo.Create(ctx, &attendee))
+		requireParentsUntouched(t, ghostUser.ID, ghostGuild.ID)
+
+		attendee.Role = domain.GuildAttendeeRoleMaster
+		attendee.Guild = ghostGuild
+		attendee.User = ghostUser
+		require.NoError(t, repo.Update(ctx, &attendee))
+		requireParentsUntouched(t, ghostUser.ID, ghostGuild.ID)
+
+		var stored domain.GuildAttendee
+		require.NoError(t, db.WithContext(ctx).First(&stored, "id = ?", attendee.ID).Error)
+		assert.Equal(t, domain.GuildAttendeeRoleMaster, stored.Role, "the scalar columns must still be written")
+		assert.Equal(t, guild.ID, stored.GuildID, "guild_id must not follow the association")
+		assert.Equal(t, user.ID, stored.UserID, "user_id must not follow the association")
+	})
+
+	t.Run("CreateWithMaster", func(t *testing.T) {
+		master := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "association test master"}
+		require.NoError(t, db.WithContext(ctx).Create(&master).Error)
+		ghostUser := &domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "ghost user"}
+		ghostGuild := &domain.Guild{ID: uuid.New(), Name: "ghost guild"}
+
+		newGuild := domain.Guild{ID: uuid.New(), Name: "created with a master"}
+		attendee := domain.GuildAttendee{UserID: master.ID, Guild: ghostGuild, User: ghostUser}
+		require.NoError(t, NewGormGuildRepository(db).CreateWithMaster(ctx, &newGuild, &attendee))
+		requireParentsUntouched(t, ghostUser.ID, ghostGuild.ID)
+
+		var stored domain.GuildAttendee
+		require.NoError(t, db.WithContext(ctx).First(&stored, "id = ?", attendee.ID).Error)
+		assert.Equal(t, newGuild.ID, stored.GuildID)
+		assert.Equal(t, master.ID, stored.UserID)
+	})
+}
