@@ -212,7 +212,6 @@ func Register(r *gin.Engine, api *API) {
 			transcripts.GET("/user/:user_id", api.TranscriptGetByUserHandler)
 		}
 
-		// Event Attendees
 		// Event Attendees (raw management)
 		eventAttendees := v1.Group("/event-attendees", api.RequireSystemAdmin())
 		{
