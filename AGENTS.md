@@ -74,6 +74,11 @@ removed in #49).
   `writeError` (`internal/api/errors.go`), which maps those sentinels to the
   §1.5 envelope `{"error":{"code","message","details"}}`; an unmapped error
   is a generic 500 that never echoes its text.
+- **Pagination**: every "paginated" list uses `parsePageQuery` + `newPage`
+  (`internal/api/pagination.go`) with `repository.PageAfter`
+  (`internal/repository/pagination.go`). The helper only supports
+  `(created_at DESC, id DESC)`; a list with its own order (e.g. guild
+  discover) must define its own cursor.
 - **Soft delete**: `User`, `Guild`, `Event`, `Activity`, `Topic`, `FeedPost`
   and `FeedComment` carry `gorm.DeletedAt` (use `Unscoped()` for a hard
   delete); the other models hard-delete. `RecordingAsset.deleted_at` is a
