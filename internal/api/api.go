@@ -143,11 +143,19 @@ func Register(r *gin.Engine, api *API) {
 		apiTools.POST("/sentence-query", api.SentenceQueryHandler)
 	}
 
+	// The five groups below are the retained or deprecated legacy raw CRUD
+	// management routes of §3.15. Every route in them is admin-only raw
+	// management (§1.3 "System administration and legacy raw CRUD"), so the
+	// whole group carries RequireSystemAdmin: AuthMiddleware resolves the
+	// stored User row and the gate rejects every caller whose stored role is
+	// not admin, in every GIN_MODE, before any handler reads the body. The raw
+	// handler bindings and semantics stay exactly as they are.
 	v1 := r.Group("/v1")
 	v1.Use(api.AuthMiddleware())
 	{
-		// Mistakes
-		mistakes := v1.Group("/mistakes")
+		// Mistakes (raw management; GET /v1/mistakes/:id is gated here only
+		// until #100 replaces it with the product read)
+		mistakes := v1.Group("/mistakes", api.RequireSystemAdmin())
 		{
 			mistakes.POST("", api.MistakeCreateHandler)
 			mistakes.GET("/:id", api.MistakeGetHandler)
@@ -157,8 +165,9 @@ func Register(r *gin.Engine, api *API) {
 			mistakes.GET("/user/:user_id", api.MistakeGetByUserHandler)
 		}
 
-		// Practices (keep old route for backward compatibility)
-		practices := v1.Group("/practices")
+		// Practices (keep old route for backward compatibility; deprecated raw
+		// management, §3.4.3)
+		practices := v1.Group("/practices", api.RequireSystemAdmin())
 		{
 			practices.POST("", api.PracticeCreateHandler)
 			practices.GET("/:id", api.PracticeGetHandler)
@@ -173,14 +182,16 @@ func Register(r *gin.Engine, api *API) {
 			guilds.POST("", api.GuildCreateHandler)
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
-			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			// The one retained guild route #78 owns: admin-only access and the
+			// error envelope change, the delete semantics do not (§3.3.1).
+			guilds.DELETE("/:id", api.RequireSystemAdmin(), api.GuildDeleteHandler)
 			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
 			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
 			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
 		}
 
-		// Guild Attendees
-		guildAttendees := v1.Group("/guild-attendees")
+		// Guild Attendees (deprecated raw management, §3.3.2)
+		guildAttendees := v1.Group("/guild-attendees", api.RequireSystemAdmin())
 		{
 			guildAttendees.POST("", api.GuildAttendeeCreateHandler)
 			guildAttendees.GET("/:id", api.GuildAttendeeGetHandler)
@@ -190,8 +201,8 @@ func Register(r *gin.Engine, api *API) {
 			guildAttendees.GET("/user/:user_id", api.GuildAttendeeGetByUserHandler)
 		}
 
-		// Transcripts
-		transcripts := v1.Group("/transcripts")
+		// Transcripts (raw management)
+		transcripts := v1.Group("/transcripts", api.RequireSystemAdmin())
 		{
 			transcripts.POST("", api.TranscriptCreateHandler)
 			transcripts.GET("/:id", api.TranscriptGetHandler)
@@ -202,7 +213,8 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Event Attendees
-		eventAttendees := v1.Group("/event-attendees")
+		// Event Attendees (raw management)
+		eventAttendees := v1.Group("/event-attendees", api.RequireSystemAdmin())
 		{
 			eventAttendees.POST("", api.EventAttendeeCreateHandler)
 			eventAttendees.GET("/:id", api.EventAttendeeGetHandler)
@@ -212,16 +224,18 @@ func Register(r *gin.Engine, api *API) {
 			eventAttendees.GET("/user/:user_id", api.EventAttendeeGetByUserHandler)
 		}
 
-		// Users
+		// Users. The product routes (init/me/public profile) follow §3.1 and
+		// carry AuthMiddleware only; the raw management routes are admin-only
+		// (§3.15), which is what stops a non-admin from writing users or roles.
 		users := v1.Group("/users")
 		{
 			users.POST("/init", api.UserInitHandler)
 			users.GET("/me", api.UserMeHandler)
 			users.PUT("/me", api.UserMeUpdateHandler)
-			users.POST("", api.UserCreateHandler)
+			users.POST("", api.RequireSystemAdmin(), api.UserCreateHandler)
 			users.GET("/:id", api.UserGetHandler)
-			users.PUT("/:id", api.UserUpdateHandler)
-			users.DELETE("/:id", api.UserDeleteHandler)
+			users.PUT("/:id", api.RequireSystemAdmin(), api.UserUpdateHandler)
+			users.DELETE("/:id", api.RequireSystemAdmin(), api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
 		}
 	}
