@@ -248,7 +248,13 @@ func TestStoreTxRollsBackRepositoryInternalTransactions(t *testing.T) {
 		store := NewStore(db)
 		boom := errors.New("fail the outer transaction")
 
-		event := domain.Event{ID: uuid.New(), Title: "nested delete event", StartTime: time.Now()}
+		// An Event belongs to an Activity (spec §2.1); the fixture already stores
+		// its practice Event, so this one is the review Event.
+		fixture := newSchemaFixture(t, db)
+		event := domain.Event{
+			ID: uuid.New(), ActivityID: fixture.activity, Kind: domain.EventKindReview,
+			Title: "nested delete event", StartTime: time.Now(),
+		}
 		require.NoError(t, db.Create(&event).Error)
 
 		err := store.Tx(ctx, func(r RepoSet) error {
