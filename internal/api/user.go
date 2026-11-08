@@ -235,8 +235,9 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 // @Description with a Supabase JWT; the middleware skips the user lookup for this
 // @Description path only and the handler creates the row from the token's sub and
 // @Description email. Idempotent: a retried or concurrent call returns the same
-// @Description profile. If another account already owns the email, the request
-// @Description answers 409 and no row is created or linked.
+// @Description profile. A new account is named after the email prefix until
+// @Description PUT /v1/users/me sets a name. If another account already owns the
+// @Description email, the request answers 409 and no row is created or linked.
 // @Tags users
 // @Accept json
 // @Produce json
@@ -264,6 +265,7 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	sub := auth.Subject
 	candidate := domain.User{
 		ID:             uuid.New(),
+		Name:           defaultDisplayName(email),
 		Email:          email,
 		SupabaseUserID: &sub,
 	}
@@ -382,4 +384,24 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+// maxDisplayNameRunes is the longest name PUT /v1/users/me accepts.
+const maxDisplayNameRunes = 100
+
+// defaultDisplayName is the name a new account gets until its owner picks one
+// with PUT /v1/users/me: the part of the email before the "@", cut to the length
+// limit that endpoint applies. An address without a local part keeps the whole
+// address, so the name is never empty.
+func defaultDisplayName(email string) string {
+	name := email
+	if at := strings.LastIndex(email, "@"); at > 0 {
+		name = email[:at]
+	}
+
+	if runes := []rune(name); len(runes) > maxDisplayNameRunes {
+		name = string(runes[:maxDisplayNameRunes])
+	}
+
+	return name
 }

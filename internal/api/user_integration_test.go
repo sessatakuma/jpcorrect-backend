@@ -111,6 +111,7 @@ func TestUserInitConcurrentCalls(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, first.userID, stored.ID.String())
 	assert.Equal(t, email, stored.Email)
+	assert.Equal(t, "concurrent", stored.Name, "a new account is named after its email prefix")
 	assert.Equal(t, domain.UserRoleUser, stored.Role, "a new account gets the model default role")
 	assert.Equal(t, domain.UserStatusActive, stored.Status)
 	assert.Zero(t, stored.Points)

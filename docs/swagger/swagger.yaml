@@ -2417,8 +2417,9 @@ paths:
         with a Supabase JWT; the middleware skips the user lookup for this
         path only and the handler creates the row from the token's sub and
         email. Idempotent: a retried or concurrent call returns the same
-        profile. If another account already owns the email, the request
-        answers 409 and no row is created or linked.
+        profile. A new account is named after the email prefix until
+        PUT /v1/users/me sets a name. If another account already owns the
+        email, the request answers 409 and no row is created or linked.
       produces:
       - application/json
       responses:

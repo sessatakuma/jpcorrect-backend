@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"jpcorrect-backend/internal/domain"
@@ -281,6 +282,7 @@ func TestUserInitHandler(t *testing.T) {
 		require.NotNil(t, candidate.SupabaseUserID)
 		assert.Equal(t, "supabase-1", *candidate.SupabaseUserID)
 		assert.Equal(t, "First@Example.com", candidate.Email)
+		assert.Equal(t, "First", candidate.Name, "a new account is named after its email prefix")
 		assert.NotEqual(t, uuid.Nil, candidate.ID)
 		// New accounts start on the model defaults: the request never sets them.
 		assert.Empty(t, candidate.Role)
@@ -322,4 +324,29 @@ func TestUserInitHandler(t *testing.T) {
 		assert.Equal(t, "email is already in use by another account", env.Error.Message)
 		assert.Empty(t, repo.getBySupabaseUserIDCalls, "a conflict must not resolve or link another row")
 	})
+}
+
+func TestDefaultDisplayName(t *testing.T) {
+	long := strings.Repeat("あ", 150)
+
+	tests := []struct {
+		name  string
+		email string
+		want  string
+	}{
+		{"prefix before the at sign", "taro.yamada@example.com", "taro.yamada"},
+		{"plus tag is kept", "taro+jp@example.com", "taro+jp"},
+		{"last at sign splits a quoted local part", `"a@b"@example.com`, `"a@b"`},
+		{"no local part keeps the address", "@example.com", "@example.com"},
+		{"no at sign keeps the address", "not-an-email", "not-an-email"},
+		{"cut to the PUT /me limit in runes", long + "@example.com", strings.Repeat("あ", 100)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := defaultDisplayName(tc.email)
+			assert.Equal(t, tc.want, got)
+			assert.NotEmpty(t, got)
+			assert.LessOrEqual(t, len([]rune(got)), 100)
+		})
+	}
 }

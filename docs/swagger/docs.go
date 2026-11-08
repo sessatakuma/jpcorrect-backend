@@ -2453,7 +2453,7 @@ const docTemplate = `{
         },
         "/v1/users/init": {
             "post": {
-                "description": "First-login endpoint (spec §3.1.1, §6.3). The caller authenticates\nwith a Supabase JWT; the middleware skips the user lookup for this\npath only and the handler creates the row from the token's sub and\nemail. Idempotent: a retried or concurrent call returns the same\nprofile. If another account already owns the email, the request\nanswers 409 and no row is created or linked.",
+                "description": "First-login endpoint (spec §3.1.1, §6.3). The caller authenticates\nwith a Supabase JWT; the middleware skips the user lookup for this\npath only and the handler creates the row from the token's sub and\nemail. Idempotent: a retried or concurrent call returns the same\nprofile. A new account is named after the email prefix until\nPUT /v1/users/me sets a name. If another account already owns the\nemail, the request answers 409 and no row is created or linked.",
                 "consumes": [
                     "application/json"
                 ],
