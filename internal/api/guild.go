@@ -224,8 +224,9 @@ type TransferLeaderRequest struct {
 // @Param id path string true "Guild ID"
 // @Param request body TransferLeaderRequest true "New leader user ID"
 // @Success 200 {object} map[string]string "leader transferred successfully"
-// @Failure 400 {object} api.ErrorResponse "Invalid UUID format or user is not a member"
-// @Failure 404 {object} api.ErrorResponse "Guild not found"
+// @Failure 400 {object} api.ErrorResponse "Invalid UUID format or request body"
+// @Failure 403 {object} api.ErrorResponse "Only the guild master can transfer leadership"
+// @Failure 404 {object} api.ErrorResponse "Guild not found, or the new leader is not an active member"
 // @Failure 409 {object} api.ErrorResponse "New leader already leads another guild"
 // @Failure 500 {object} api.ErrorResponse "Internal server error"
 // @Security BearerAuth
@@ -271,10 +272,9 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 			writeError(c, errorWithMessage(domain.ErrNotGuildMaster, "only the guild master can transfer leadership"))
 			return
 		}
-		// This route has always answered 400 for a target that is not a member;
-		// keep the status and use the generic INVALID_REQUEST code.
+		// Spec §3.3: a target that is not an active member answers 404 ErrNotFound.
 		if errors.Is(err, domain.ErrNotGuildMember) {
-			writeError(c, errorWithMessage(domain.ErrInvalidRequest, "New leader must be a member of the guild"))
+			writeError(c, errorWithMessage(domain.ErrNotFound, "new leader must be an active member of the guild"))
 			return
 		}
 		if errors.Is(err, domain.ErrGuildLimitReached) {

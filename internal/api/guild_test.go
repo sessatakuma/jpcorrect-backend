@@ -206,7 +206,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("caller is master, new leader not a member → 400", func(t *testing.T) {
+	t.Run("caller is master, new leader not an active member → 404", func(t *testing.T) {
 		api, gRepo, _ := newTestAPI()
 		guildID := uuid.New()
 		gRepo.transferLeaderErr = domain.ErrNotGuildMember
@@ -215,10 +215,10 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		rec := invokeHandler(t, api.GuildTransferLeaderHandler, transferPath(guildID), &callerID, body)
 
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Contains(t, rec.Body.String(), "New leader must be a member of the guild")
-		// Legacy status preserved: this route answers 400, not the sentinel's 403.
-		assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
+		// Spec §3.3: "Target not an active member → 404 ErrNotFound".
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "new leader must be an active member of the guild")
+		assert.Equal(t, "NOT_FOUND", decodeEnvelope(t, rec).Error.Code)
 		if assert.Len(t, gRepo.transferLeaderCalls, 1) {
 			assert.Equal(t, newLeaderID, gRepo.transferLeaderCalls[0].newLeaderID)
 		}

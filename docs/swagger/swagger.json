@@ -1129,13 +1129,19 @@
                         }
                     },
                     "400": {
-                        "description": "Invalid UUID format or user is not a member",
+                        "description": "Invalid UUID format or request body",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Only the guild master can transfer leadership",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
                     "404": {
-                        "description": "Guild not found",
+                        "description": "Guild not found, or the new leader is not an active member",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
