@@ -63,8 +63,10 @@ removed in #49).
   call.
 - **Errors**: repositories map GORM/PG errors through `MapGormError()` to the
   sentinels in `internal/domain/errors.go` — never return raw GORM errors.
-  Auth exception: `domain.AuthError` struct with `StatusCode`, `Message`,
-  `Details`.
+  Handlers and middleware render every locally produced error through
+  `writeError` (`internal/api/errors.go`), which maps those sentinels to the
+  §1.5 envelope `{"error":{"code","message","details"}}`; an unmapped error
+  is a generic 500 that never echoes its text.
 - **Soft delete**: only `User`, `Guild`, `Event` carry `gorm.DeletedAt` (use
   `Unscoped()` for a hard delete); the other four models hard-delete.
 - `/v1/practices` routes use the `Event` model (backward-compat naming).
