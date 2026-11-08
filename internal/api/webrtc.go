@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"sync"
 	"time"
 
@@ -211,9 +210,8 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 
 	if !api.rateLimiter.IsAllowed(ip) {
 		log.Printf("拒絕來自 %s 的連線：短時間內連線數過多", ip)
-		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-			"error": "too many connections",
-		})
+		writeError(c, domain.ErrRateLimited)
+		c.Abort()
 		return
 	}
 

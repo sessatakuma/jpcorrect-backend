@@ -1,10 +1,13 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +26,10 @@ func (a *API) streamingHelper(c *gin.Context, target string) {
 func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration) {
 	remote, err := url.Parse(target)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid target URL"})
+		// A misconfigured API_TOOLS_URL is an operator problem: log the cause and
+		// keep the response free of internal detail.
+		log.Printf("api-tools target %q is not a valid URL: %v", target, err)
+		writeError(c, domain.ErrInternal)
 		return
 	}
 
@@ -48,9 +54,8 @@ func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration
 		},
 
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadGateway)
-			_, _ = w.Write([]byte(`{"error": "Failed to contact external API"}`))
+			log.Printf("api-tools proxy error for %s: %v", remote, err)
+			writeErrorRaw(w, domain.ErrUpstreamUnavailable)
 		},
 	}
 
@@ -64,7 +69,7 @@ func (a *API) proxyTo(c *gin.Context, target string, flushInterval time.Duration
 // @Produce json
 // @Param body body MarkAccentRequest true "Japanese text to analyze for accent patterns"
 // @Success 200 {object} MarkAccentResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/mark-accent [post]
 func (a *API) MarkAccentHandler(c *gin.Context) {
@@ -78,7 +83,7 @@ func (a *API) MarkAccentHandler(c *gin.Context) {
 // @Produce application/x-ndjson
 // @Param body body MarkAccentRequest true "Japanese text to analyze for accent patterns"
 // @Success 200 {object} MarkAccentStreamChunk "One NDJSON line per chunk; full response is a stream of these objects separated by '\\n'"
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/mark-accent/stream [post]
 func (a *API) MarkAccentStreamHandler(c *gin.Context) {
@@ -92,7 +97,7 @@ func (a *API) MarkAccentStreamHandler(c *gin.Context) {
 // @Produce json
 // @Param body body UsageQueryHeadWordsRequest true "Word to search (kanji, kana, or romaji) and corpus site"
 // @Success 200 {object} UsageQueryHeadWordsResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/usage-query/headwords [post]
 func (a *API) UsageQueryHeadWordsHandler(c *gin.Context) {
@@ -106,7 +111,7 @@ func (a *API) UsageQueryHeadWordsHandler(c *gin.Context) {
 // @Produce json
 // @Param body body UsageQueryHeadWordsRequest true "Word to search and corpus site"
 // @Success 200 {object} UsageQueryURLResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/usage-query/url [post]
 func (a *API) UsageQueryURLHandler(c *gin.Context) {
@@ -120,7 +125,7 @@ func (a *API) UsageQueryURLHandler(c *gin.Context) {
 // @Produce json
 // @Param body body UsageQueryIDDetailsRequest true "Headword ID and corpus site"
 // @Success 200 {object} UsageQueryIDDetailsResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/usage-query/id-details [post]
 func (a *API) UsageQueryIDDetailsHandler(c *gin.Context) {
@@ -134,7 +139,7 @@ func (a *API) UsageQueryIDDetailsHandler(c *gin.Context) {
 // @Produce json
 // @Param body body DictQueryRequest true "Word to look up in the dictionary"
 // @Success 200 {object} DictQueryResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/dict-query [post]
 func (a *API) DictQueryHandler(c *gin.Context) {
@@ -148,7 +153,7 @@ func (a *API) DictQueryHandler(c *gin.Context) {
 // @Produce json
 // @Param body body SentenceQueryRequest true "Word and its JMdict entry ID"
 // @Success 200 {object} SentenceQueryResponse
-// @Failure 502 {object} ProxyErrorResponse
+// @Failure 502 {object} api.ErrorResponse
 // @Security ApiKeyAuth
 // @Router /v1/sentence-query [post]
 func (a *API) SentenceQueryHandler(c *gin.Context) {

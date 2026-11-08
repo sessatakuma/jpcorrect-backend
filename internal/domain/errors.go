@@ -4,30 +4,6 @@ import (
 	"errors"
 )
 
-// AuthError represents an authentication/authorization error with HTTP status code
-type AuthError struct {
-	StatusCode int
-	Message    string
-	Details    string // Detailed error information (optional)
-}
-
-// Implement the error interface
-func (ae *AuthError) Error() string {
-	if ae.Details != "" {
-		return ae.Message + ": " + ae.Details
-	}
-	return ae.Message
-}
-
-// NewAuthError creates an AuthError with the given status code, message, and optional details
-func NewAuthError(statusCode int, message, details string) *AuthError {
-	return &AuthError{
-		StatusCode: statusCode,
-		Message:    message,
-		Details:    details,
-	}
-}
-
 // Sentinels in this file are the only source of client-visible error codes.
 // internal/api/errors.go maps each one to an HTTP status and a code for the
 // §1.5 error envelope; repositories translate persistence errors with
