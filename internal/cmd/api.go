@@ -18,22 +18,76 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// migrationModels returns the single AutoMigrate list of spec §2.3. The order is
+// the foreign-key dependency order, so one call can build an empty database:
+// a table is always migrated after everything it references. There is no
+// production data and no down migration; a failed migration means the database
+// is rebuilt.
+//
+// testutil.BaselineModels mirrors this list for the integration tests, and
+// TestMigrationModelsMatchTestBaseline fails if the two drift apart.
+func migrationModels() []any {
+	return []any{
+		// Existing models, with the spec §2.1 changes.
+		&domain.User{}, // + supabase_user_id unique
+		&domain.Guild{},
+		&domain.GuildAttendee{},
+
+		// Topic bank: the foreign key target of Activity.announce_topic_id.
+		&domain.Topic{},
+		&domain.ReportThemeSuggestion{},
+
+		// Activity depends on Guild / User / Topic.
+		&domain.Activity{},
+
+		// Successful AI submissions depend on Activity.
+		&domain.AIAnalysisSubmission{},
+
+		// Event depends on Activity / User.
+		&domain.Event{}, // + activity_id / kind / current_step / step_durations / recording_*
+		&domain.EventAttendee{},
+		&domain.Transcript{},
+		&domain.Mistake{}, // + confidence / latest_correction_* / interacted_at
+
+		// ActivityReporter depends on Activity / User.
+		&domain.ActivityReporter{},
+
+		// Guild support tables.
+		&domain.GuildDefaultSlot{},
+		&domain.InviteLink{},
+		&domain.JoinRequest{},
+
+		// Feedback and review.
+		&domain.FeedbackProgress{},
+		&domain.SelectedSentence{},
+		&domain.ReviewRecord{},
+		&domain.PracticeNote{},
+
+		// Feed.
+		&domain.FeedPost{},
+		&domain.FeedComment{},
+
+		// Notifications.
+		&domain.NotificationOutbox{},
+		&domain.Notification{}, // + outbox_id unique
+		&domain.PushSubscription{},
+
+		// Chatbot usage (spec §2.3 "billing").
+		&domain.ChatbotUsage{},
+
+		// Recording.
+		&domain.RecordingSession{},
+		&domain.RecordingAsset{},
+	}
+}
+
 func Execute() {
 	db, err := database.NewGormDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	if err := db.AutoMigrate(
-		&domain.User{},
-		&domain.Guild{},
-		&domain.GuildAttendee{},
-		&domain.Event{},
-		&domain.EventAttendee{},
-		&domain.Transcript{},
-		&domain.Mistake{},
-		&domain.InviteLink{},
-	); err != nil {
+	if err := db.AutoMigrate(migrationModels()...); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
 
