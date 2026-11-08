@@ -3314,11 +3314,18 @@ const docTemplate = `{
         "jpcorrect-backend_internal_domain.Event": {
             "type": "object",
             "properties": {
+                "activity_id": {
+                    "description": "v1.2 additions (spec §2.1).",
+                    "type": "string"
+                },
                 "actual_duration": {
                     "type": "number"
                 },
                 "created_at": {
                     "type": "string"
+                },
+                "current_step": {
+                    "type": "integer"
                 },
                 "deleted_at": {
                     "$ref": "#/definitions/gorm.DeletedAt"
@@ -3332,6 +3339,9 @@ const docTemplate = `{
                 "expected_duration": {
                     "type": "number"
                 },
+                "kind": {
+                    "$ref": "#/definitions/jpcorrect-backend_internal_domain.EventKind"
+                },
                 "mode": {
                     "$ref": "#/definitions/jpcorrect-backend_internal_domain.EventMode"
                 },
@@ -3341,8 +3351,23 @@ const docTemplate = `{
                 "record_link": {
                     "type": "string"
                 },
+                "recording_ended_at": {
+                    "type": "string"
+                },
+                "recording_started_at": {
+                    "type": "string"
+                },
+                "recording_started_by": {
+                    "type": "string"
+                },
                 "start_time": {
                     "type": "string"
+                },
+                "step_durations": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "title": {
                     "type": "string"
@@ -3386,18 +3411,27 @@ const docTemplate = `{
                 "EventAttendeeRoleEmcee"
             ]
         },
+        "jpcorrect-backend_internal_domain.EventKind": {
+            "type": "string",
+            "enum": [
+                "practice",
+                "review"
+            ],
+            "x-enum-varnames": [
+                "EventKindPractice",
+                "EventKindReview"
+            ]
+        },
         "jpcorrect-backend_internal_domain.EventMode": {
             "type": "string",
             "enum": [
                 "report",
                 "conversation",
-                "discussion",
                 "review"
             ],
             "x-enum-varnames": [
                 "EventModeReport",
                 "EventModeConversation",
-                "EventModeDiscussion",
                 "EventModeReview"
             ]
         },
@@ -3497,6 +3531,14 @@ const docTemplate = `{
                 "comment": {
                     "type": "string"
                 },
+                "confidence": {
+                    "description": "v1.2 additions (spec §2.1).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.MistakeConfidence"
+                        }
+                    ]
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -3507,6 +3549,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "fixed_text": {
+                    "type": "string"
+                },
+                "interacted_at": {
+                    "type": "string"
+                },
+                "latest_correction_source": {
+                    "$ref": "#/definitions/jpcorrect-backend_internal_domain.MistakeCorrectionSource"
+                },
+                "latest_correction_text": {
                     "type": "string"
                 },
                 "mistake_id": {
@@ -3531,6 +3582,30 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "jpcorrect-backend_internal_domain.MistakeConfidence": {
+            "type": "string",
+            "enum": [
+                "low",
+                "medium",
+                "high"
+            ],
+            "x-enum-varnames": [
+                "MistakeConfidenceLow",
+                "MistakeConfidenceMedium",
+                "MistakeConfidenceHigh"
+            ]
+        },
+        "jpcorrect-backend_internal_domain.MistakeCorrectionSource": {
+            "type": "string",
+            "enum": [
+                "initial",
+                "chatbot"
+            ],
+            "x-enum-varnames": [
+                "MistakeCorrectionSourceInitial",
+                "MistakeCorrectionSourceChatbot"
+            ]
         },
         "jpcorrect-backend_internal_domain.MistakeType": {
             "type": "string",
@@ -3620,6 +3695,10 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/jpcorrect-backend_internal_domain.UserStatus"
+                },
+                "supabase_user_id": {
+                    "description": "SupabaseUserID is the Supabase Auth user UUID looked up from JWT.sub\n(spec §2.1). It is nullable: a row created before the mapping exists has\nno value yet. The unique index doubles as the lookup index.",
+                    "type": "string"
                 },
                 "timezone": {
                     "type": "string"

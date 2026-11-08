@@ -55,8 +55,15 @@ removed in #49).
 ## Code conventions
 
 - **Schema**: the GORM `AutoMigrate` call in `internal/cmd/api.go` is the only
-  schema tool — add every new domain model there (User, Guild,
-  GuildAttendee, Event, EventAttendee, Transcript, Mistake).
+  schema tool. `migrationModels()` holds the full spec §2.3 list in
+  foreign-key order; add a new domain model there and to
+  `testutil.BaselineModels()` (`TestMigrationModelsMatchTestBaseline` catches
+  drift).
+- **Foreign keys**: declare the relation as a belongs-to association field
+  (`Guild *Guild` with `foreignKey:GuildID` and
+  `constraint:OnUpdate:CASCADE,OnDelete:RESTRICT`, JSON and Swagger ignored),
+  never as a `constraint` tag on the scalar column: GORM silently ignores the
+  latter and creates no constraint.
 - **UUIDs**: always `uuid.UUID`, never strings/ints; generate with
   `uuid.New()` in `Create` when missing.
 - **Context**: first argument everywhere; `.WithContext(ctx)` on every GORM
@@ -67,8 +74,11 @@ removed in #49).
   `writeError` (`internal/api/errors.go`), which maps those sentinels to the
   §1.5 envelope `{"error":{"code","message","details"}}`; an unmapped error
   is a generic 500 that never echoes its text.
-- **Soft delete**: only `User`, `Guild`, `Event` carry `gorm.DeletedAt` (use
-  `Unscoped()` for a hard delete); the other four models hard-delete.
+- **Soft delete**: `User`, `Guild`, `Event`, `Activity`, `Topic`, `FeedPost`
+  and `FeedComment` carry `gorm.DeletedAt` (use `Unscoped()` for a hard
+  delete); the other models hard-delete. `RecordingAsset.deleted_at` is a
+  plain `*time.Time` on purpose: the retained metadata stays visible and the
+  row is marked through `status`.
 - `/v1/practices` routes use the `Event` model (backward-compat naming).
 - `Transcript.Accent` is `datatypes.JSON` / `jsonb` — the only JSONB column.
 - `GuildAttendeeRepository` lives in `gorm_guild.go`, not its own file.
