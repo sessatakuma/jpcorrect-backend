@@ -43,6 +43,10 @@ import (
 // and host rules exactly like anyone else. LEADER means
 // GuildAttendee.Role == master in that guild, never User.Role.
 //
+// The one exception is not a permission but a route gate: RequireSystemAdmin at
+// the bottom of this file guards the retained legacy raw CRUD management routes
+// (§3.15) and is never consulted by any check above.
+//
 // A member who left (GuildAttendee.LeftAt IS NOT NULL) is not a member:
 // GuildAttendeeRepository.GetByGuildAndUser only returns active rows.
 
@@ -359,4 +363,45 @@ func (a *API) RequireActivityHost(c *gin.Context, activityID uuid.UUID) error {
 	return a.requirePermission(c, func(p *Permissions, caller *domain.User) error {
 		return p.CheckActivityHost(c.Request.Context(), caller, activityID)
 	})
+}
+
+// IsSystemAdmin reports whether user is a system administrator: a caller whose
+// trusted, server-resolved stored role is admin (spec §1.3 "System
+// administration and legacy raw CRUD").
+//
+// Guild leadership (GuildAttendee.Role == master) is not system administration,
+// staff does not imply it, and a role carried by a request body or by a custom
+// JWT claim is never consulted: user is always the row AuthMiddleware resolved
+// from the token's subject.
+func IsSystemAdmin(user *domain.User) bool {
+	return user != nil && user.Role == domain.UserRoleAdmin
+}
+
+// RequireSystemAdmin is the route-level gate of the retained legacy raw CRUD
+// management routes (§1.3, §3.15). Mount it after AuthMiddleware on a route
+// group or a single route; it allows only IsSystemAdmin(caller) and answers
+// 401 for a request without a resolved caller and 403 for every other role, in
+// every GIN_MODE, through the §1.5 envelope.
+//
+// It deliberately sits outside the six §1.3 markers above: it is a gate on the
+// raw management API, not a product permission. No product helper consults it,
+// so there is no global admin bypass, and it runs before the request body is
+// read because it is middleware.
+func (a *API) RequireSystemAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		caller := currentUser(c)
+		if caller == nil {
+			writeError(c, domain.ErrUnauthorized)
+			c.Abort()
+			return
+		}
+
+		if !IsSystemAdmin(caller) {
+			writeError(c, errorWithMessage(domain.ErrForbidden, "system administrator role required"))
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
