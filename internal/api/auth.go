@@ -276,15 +276,26 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	if claims.Subject == "" {
+	// The subject is the only identity this service trusts. Reject a missing,
+	// blank, or nil-UUID subject here, at the boundary, so no later lookup or
+	// write can ever run with it.
+	subject := strings.TrimSpace(claims.Subject)
+	if subject == "" {
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"missing token subject",
 			"",
 		)
 	}
+	if parsed, parseErr := uuid.Parse(subject); parseErr == nil && parsed == uuid.Nil {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid token subject",
+			"",
+		)
+	}
 
-	c.Set("supabaseUserID", claims.Subject)
+	c.Set("supabaseUserID", subject)
 	if claims.Email != "" {
 		c.Set("supabaseEmail", claims.Email)
 	}
