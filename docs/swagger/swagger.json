@@ -1821,6 +1821,7 @@
         },
         "/v1/practices": {
             "post": {
+                "description": "Raw admin management of the deprecated /v1/practices routes (§3.4.3). event.activity_id and event.kind are NOT NULL, so a body that omits either one is rejected with 400 INVALID_REQUEST (Appendix E row 40).",
                 "consumes": [
                     "application/json"
                 ],
