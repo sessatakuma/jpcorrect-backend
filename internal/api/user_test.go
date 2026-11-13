@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"jpcorrect-backend/internal/domain"
 
@@ -315,11 +316,31 @@ func TestUserInitHandler(t *testing.T) {
 		assert.Equal(t, created.ID, body.ID)
 	})
 
+	t.Run("a long Unicode email prefix is capped at 100 runes", func(t *testing.T) {
+		sub := uuid.New()
+		email := strings.Repeat("あ", 150) + "@example.com"
+		created := storedUser(t, sub, email)
+		repo := &mockUserRepo{getBySupabaseUserIDResult: created}
+
+		rec := invokeUserHandler(t, newUserTestAPI(repo),
+			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
+			&supabaseAuth{Subject: sub.String(), Email: email}, []byte(`{}`))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Len(t, repo.createIfAbsentCalls, 1)
+
+		name := repo.createIfAbsentCalls[0].Name
+		assert.Equal(t, strings.Repeat("あ", 100), name)
+		assert.Equal(t, 100, utf8.RuneCountInString(name), "the cap counts runes")
+		assert.Equal(t, 300, len(name), "a byte cap would cut inside a rune")
+		assert.True(t, utf8.ValidString(name))
+	})
+
 	t.Run("role sent in the body is ignored", func(t *testing.T) {
 		created := storedUser(t, uuid.New(), "first@example.com")
 		repo := &mockUserRepo{getBySupabaseUserIDResult: created}
 
-		body := []byte(`{"role":"admin","email":"attacker@example.com","points":9999}`)
+		body := []byte(`{"role":"admin","name":"attacker","email":"attacker@example.com","points":9999}`)
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
 			&supabaseAuth{Subject: uuid.NewString(), Email: "first@example.com"}, body)
@@ -329,6 +350,8 @@ func TestUserInitHandler(t *testing.T) {
 		assert.Empty(t, repo.createIfAbsentCalls[0].Role)
 		assert.Equal(t, "first@example.com", repo.createIfAbsentCalls[0].Email,
 			"the email comes from the token, never from the body")
+		assert.Equal(t, "first", repo.createIfAbsentCalls[0].Name,
+			"a display name in the body is ignored; the email prefix is the default")
 		assert.Zero(t, repo.createIfAbsentCalls[0].Points)
 	})
 
@@ -360,6 +383,8 @@ func TestDefaultDisplayName(t *testing.T) {
 		{"last at sign splits a quoted local part", `"a@b"@example.com`, `"a@b"`},
 		{"no local part keeps the address", "@example.com", "@example.com"},
 		{"no at sign keeps the address", "not-an-email", "not-an-email"},
+		{"exactly 100 runes is unchanged", strings.Repeat("あ", 100) + "@example.com", strings.Repeat("あ", 100)},
+		{"over 100 ASCII runes is cut", strings.Repeat("a", 101) + "@example.com", strings.Repeat("a", 100)},
 		{"cut to the PUT /me limit in runes", long + "@example.com", strings.Repeat("あ", 100)},
 	}
 	for _, tc := range tests {
