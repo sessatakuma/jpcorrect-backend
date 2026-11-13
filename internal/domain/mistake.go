@@ -17,8 +17,31 @@ const (
 	MistakeTypeAdvanced      MistakeType = "advanced"
 )
 
+// MistakeConfidence is the AI confidence of a correction (spec §2.1). Low
+// confidence is flagged in the feedback UI.
+type MistakeConfidence string
+
+const (
+	MistakeConfidenceLow    MistakeConfidence = "low"
+	MistakeConfidenceMedium MistakeConfidence = "medium"
+	MistakeConfidenceHigh   MistakeConfidence = "high"
+)
+
+// MistakeCorrectionSource says where the latest correction text came from
+// (spec §2.1).
+type MistakeCorrectionSource string
+
+const (
+	MistakeCorrectionSourceInitial MistakeCorrectionSource = "initial"
+	MistakeCorrectionSourceChatbot MistakeCorrectionSource = "chatbot"
+)
+
 // Mistake represents a mistake in the jpcorrect system.
 // Maps to jpcorrect.mistake table.
+//
+// The v1.2 additions come from spec §2.1. LatestCorrectionText is NULL until
+// the chatbot has iterated on the correction; the frontend then falls back to
+// FixedText, the initial version. A Mistake hangs off EventID, not an Activity.
 type Mistake struct {
 	ID             uuid.UUID   `gorm:"type:uuid;primaryKey" json:"mistake_id"`
 	EventID        uuid.UUID   `gorm:"type:uuid;index;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"event_id"`
@@ -32,6 +55,12 @@ type Mistake struct {
 	Note           *string     `gorm:"type:text" json:"note"`
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
+
+	// v1.2 additions (spec §2.1).
+	Confidence             MistakeConfidence       `gorm:"not null;default:medium" json:"confidence"`
+	LatestCorrectionText   *string                 `gorm:"type:text" json:"latest_correction_text"`
+	LatestCorrectionSource MistakeCorrectionSource `gorm:"not null;default:initial" json:"latest_correction_source"`
+	InteractedAt           *time.Time              `json:"interacted_at"`
 }
 
 type MistakeRepository interface {

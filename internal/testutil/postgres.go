@@ -24,18 +24,37 @@ import (
 const TestDatabaseURLEnv = "TEST_DATABASE_URL"
 
 // BaselineModels mirrors the AutoMigrate calls in internal/cmd/api.go, in the
-// same order. Tests must run against the production schema, not a hand-rolled
-// approximation of it, so keep the two lists in sync.
+// same order (spec §2.3). Tests must run against the production schema, not a
+// hand-rolled approximation of it, so keep the two lists in sync.
 func BaselineModels() []any {
 	return []any{
 		&domain.User{},
 		&domain.Guild{},
 		&domain.GuildAttendee{},
+		&domain.Topic{},
+		&domain.ReportThemeSuggestion{},
+		&domain.Activity{},
+		&domain.AIAnalysisSubmission{},
 		&domain.Event{},
 		&domain.EventAttendee{},
 		&domain.Transcript{},
 		&domain.Mistake{},
+		&domain.ActivityReporter{},
+		&domain.GuildDefaultSlot{},
 		&domain.InviteLink{},
+		&domain.JoinRequest{},
+		&domain.FeedbackProgress{},
+		&domain.SelectedSentence{},
+		&domain.ReviewRecord{},
+		&domain.PracticeNote{},
+		&domain.FeedPost{},
+		&domain.FeedComment{},
+		&domain.NotificationOutbox{},
+		&domain.Notification{},
+		&domain.PushSubscription{},
+		&domain.ChatbotUsage{},
+		&domain.RecordingSession{},
+		&domain.RecordingAsset{},
 	}
 }
 
@@ -105,6 +124,10 @@ func NewPostgresDB(t *testing.T) *gorm.DB {
 
 	err = db.WithContext(ctx).AutoMigrate(BaselineModels()...)
 	require.NoError(t, err, "migrate baseline schema into %s", schema)
+
+	// Mirrors internal/cmd/api.go: AutoMigrate runs first, then the explicit
+	// drop of retired indexes. Tests must see the schema the server produces.
+	require.NoError(t, database.DropLegacyIndexes(ctx, db), "drop legacy indexes in %s", schema)
 
 	return db
 }
