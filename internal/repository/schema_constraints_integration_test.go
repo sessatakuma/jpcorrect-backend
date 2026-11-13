@@ -33,6 +33,28 @@ func runConstraintCases(t *testing.T, cases []constraintCase, want error) {
 	}
 }
 
+// TestSupabaseUserIDColumnShape pins the identity-mapping column from #72:
+// supabase_user_id is a nullable uuid, not text, so PostgreSQL rejects a
+// malformed Supabase subject instead of storing it.
+func TestSupabaseUserIDColumnShape(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+	schema := requireCurrentSchema(t, db)
+
+	var column struct {
+		DataType   string
+		IsNullable string
+	}
+	require.NoError(t, db.WithContext(ctx).
+		Raw(`SELECT data_type, is_nullable FROM information_schema.columns
+			WHERE table_schema = ? AND table_name = 'user' AND column_name = 'supabase_user_id'`,
+			schema).
+		Scan(&column).Error)
+
+	assert.Equal(t, "uuid", column.DataType, "supabase_user_id must be a uuid column")
+	assert.Equal(t, "YES", column.IsNullable, "supabase_user_id must stay nullable")
+}
+
 // TestUniqueConstraintsRejectDuplicates triggers every unique constraint of the
 // spec §2 schema with a real second insert. Each must reach the caller as
 // domain.ErrDuplicateEntry.
@@ -49,7 +71,7 @@ func TestUniqueConstraintsRejectDuplicates(t *testing.T) {
 					ID:             uuid.New(),
 					Email:          uuid.NewString() + "@example.com",
 					Name:           "supabase one",
-					SupabaseUserID: ptr(uuid.NewString()),
+					SupabaseUserID: ptr(uuid.New()),
 				})
 				return db.WithContext(ctx).Create(&domain.User{
 					ID:             uuid.New(),
