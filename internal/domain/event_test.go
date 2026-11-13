@@ -61,8 +61,8 @@ func eventModeValues(t *testing.T) []string {
 	return values
 }
 
-// TestEventModeHasNoDiscussion pins spec §2.1: discussion practice is Won't
-// Have in the Phase 0 plan, confirmed before implementation started, so
+// TestEventModeHasNoDiscussion pins spec §2.1: discussion practice was
+// confirmed as Won't Have before implementation started, so
 // `discussion` is not a supported EventMode. It reads the constant
 // declarations, so adding EventModeDiscussion fails it.
 func TestEventModeHasNoDiscussion(t *testing.T) {
