@@ -29,6 +29,23 @@ make swag                             # regenerate Swagger docs
 Smoke test with all three up: `/healthz` → `ok`, `/swagger/index.html` → 200
 (debug only), `http://127.0.0.1:8000/docs` → 200.
 
+## Implementation plan terminology
+
+The backend MVP is tracked in root issue #60 as eight epics (#61–#68). Use
+"epic #N" in issues, PR bodies, commit messages and code comments; "wave" and
+the group nicknames are retired and match nothing.
+
+- **Merge gates**: only epics #61 and #62 must be fully merged to `main` before
+  downstream work starts, and epic #62 starts after epic #61 merges. Any other
+  dependency may be a predecessor layer in the same `gh stack`. Three
+  sub-issues are also blocked by a whole epic: #94 by epic #64, #99 by epic #65
+  and #109 by epic #67.
+- **Sources of truth**: the Talkuma Backend Implementation Plan in the Outline
+  docs (the spec) is the sole implementation basis; root issue #60 records
+  later decisions. The maintainer writes each product decision back to the
+  spec in the same change, and applies an implementer's proposed spec text
+  after the PR merges. If the two disagree, the spec wins.
+
 ## Testing
 
 ```bash
