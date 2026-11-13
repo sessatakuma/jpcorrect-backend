@@ -61,13 +61,14 @@ func eventModeValues(t *testing.T) []string {
 	return values
 }
 
-// TestEventModeHasNoDiscussion pins spec §2.1: discussion practice was dropped
-// in Phase 0, so `discussion` must not be a supported EventMode any more. It
-// reads the constant declarations, so re-adding EventModeDiscussion fails it.
+// TestEventModeHasNoDiscussion pins spec §2.1: discussion practice was
+// confirmed as Won't Have before implementation started, so
+// `discussion` is not a supported EventMode. It reads the constant
+// declarations, so adding EventModeDiscussion fails it.
 func TestEventModeHasNoDiscussion(t *testing.T) {
 	modes := eventModeValues(t)
 
-	assert.NotContains(t, modes, "discussion", "spec §2.1 removes the discussion EventMode")
+	assert.NotContains(t, modes, "discussion", "discussion practice is Won't Have, so it is not an EventMode")
 	assert.Equal(t, []string{"conversation", "report", "review"}, modes)
 }
 

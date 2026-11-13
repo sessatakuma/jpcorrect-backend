@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -15,81 +14,6 @@ import (
 	"jpcorrect-backend/internal/domain"
 	"jpcorrect-backend/internal/testutil"
 )
-
-func TestCreateWithMasterConcurrentLimit(t *testing.T) {
-	db := testutil.NewPostgresDB(t)
-
-	// Keep the production pool small so the concurrent CreateWithMaster calls
-	// really do contend on separate connections instead of queueing.
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(4)
-
-	user := domain.User{
-		ID:    uuid.New(),
-		Email: uuid.NewString() + "@example.com",
-		Name:  "concurrent guild master test",
-	}
-	require.NoError(t, db.Create(&user).Error)
-
-	guilds := []domain.Guild{
-		{ID: uuid.New(), Name: "concurrent guild one"},
-		{ID: uuid.New(), Name: "concurrent guild two"},
-	}
-	attendees := []domain.GuildAttendee{
-		{ID: uuid.New(), UserID: user.ID},
-		{ID: uuid.New(), UserID: user.ID},
-	}
-
-	repo := NewGormGuildRepository(db)
-	start := make(chan struct{})
-	results := make(chan error, len(guilds))
-	var ready sync.WaitGroup
-	ready.Add(len(guilds))
-
-	for i := range guilds {
-		go func(i int) {
-			ready.Done()
-			<-start
-			results <- repo.CreateWithMaster(
-				context.Background(),
-				&guilds[i],
-				&attendees[i],
-			)
-		}(i)
-	}
-
-	ready.Wait()
-	close(start)
-
-	var succeeded, limitReached int
-	for range guilds {
-		err := <-results
-		switch {
-		case err == nil:
-			succeeded++
-		case errors.Is(err, domain.ErrGuildLimitReached):
-			limitReached++
-		default:
-			t.Fatalf("unexpected CreateWithMaster error: %v", err)
-		}
-	}
-
-	assert.Equal(t, 1, succeeded)
-	assert.Equal(t, 1, limitReached)
-
-	var activeMasterCount int64
-	require.NoError(t, db.Model(&domain.GuildAttendee{}).
-		Where("user_id = ? AND role = ? AND left_at IS NULL", user.ID, domain.GuildAttendeeRoleMaster).
-		Count(&activeMasterCount).Error)
-	assert.EqualValues(t, 1, activeMasterCount)
-
-	var guildCount int64
-	require.NoError(t, db.Model(&domain.Guild{}).
-		Where("id IN ?", []uuid.UUID{guilds[0].ID, guilds[1].ID}).
-		Count(&guildCount).Error)
-	assert.EqualValues(t, 1, guildCount)
-}
 
 func TestGetByGuildAndUserExcludesLeftMember(t *testing.T) {
 	db := testutil.NewPostgresDB(t)

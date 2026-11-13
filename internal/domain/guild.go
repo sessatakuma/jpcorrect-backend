@@ -33,20 +33,17 @@ type Guild struct {
 // InviteLink is a guild invitation link (spec §2.2, table invite_link). It
 // replaces the legacy GuildInvite model.
 //
-// The spec gives the fields, the unique token and the (guild_id, expires_at)
-// index. It does not give nullability, defaults, foreign-key actions or the
-// response JSON keys, so the following are our own decisions, not spec text:
-//   - expires_at is NOT NULL: the spec says every link expires "7 days after
-//     creation", so a link without an expiry does not exist. Only expires_at
-//     decides whether a link is valid.
+// §2.2 fixes the fields, the unique token, the (guild_id, expires_at)
+// index, expires_at NOT NULL, the optional request field ttl_seconds (1 to
+// 31536000) and the token's JSON key `token` (Appendix E row 28). Two things
+// are still our decisions, not spec text:
 //   - created_by_user_id is NOT NULL: #72 lists the nullable foreign keys
 //     explicitly and this one is not among them.
 //   - Both foreign keys use ON UPDATE CASCADE / ON DELETE RESTRICT, the existing
 //     GuildAttendee pattern ("follow the existing FK pattern").
-//   - The JSON key for the token is `token`, not the `code` that #54 shipped.
-//     The spec does not define response keys; `token` matches the spec's column
-//     name and the `/v1/invites/:token` path. This breaks any client that reads
-//     `code`.
+//
+// The JSON key `token` replaces the `code` that #54 shipped, which breaks any
+// client that reads `code`.
 type InviteLink struct {
 	ID              uuid.UUID `gorm:"type:uuid;primaryKey" json:"id"`
 	GuildID         uuid.UUID `gorm:"type:uuid;not null;index:idx_invite_link_guild_expires,priority:1" json:"guild_id"`
@@ -55,9 +52,9 @@ type InviteLink struct {
 	CreatedByUserID uuid.UUID `gorm:"type:uuid;not null" json:"created_by_user_id"`
 	CreatedAt       time.Time `json:"created_at"`
 
-	// TTLSeconds is a request-only option and is not a column. It is kept from
-	// #54 as an optional override of the default 7-day lifetime; the spec itself
-	// only defines the 7 days.
+	// TTLSeconds is a request-only option and is not a column. §2.2 keeps it as
+	// an optional override of the default 7-day lifetime, with the range 1 to
+	// 31536000 (Appendix E row 28).
 	TTLSeconds *int64 `gorm:"-" json:"ttl_seconds,omitempty"`
 
 	// Guild and CreatedByUser are belongs-to associations only, so AutoMigrate
@@ -85,10 +82,16 @@ type GuildRepository interface {
 
 // GuildAttendee represents a member of a guild.
 // Maps to jpcorrect.guild_attendee table.
+//
+// (guild_id, user_id) is unique. The "one guild led per user" quota (§3.3.1)
+// is deliberately not a partial unique index on user_id: guild carries a soft
+// delete, so such an index would also count the membership row of a deleted
+// guild and keep its leader from creating another one. Issue #81 owns the
+// replacement locked query that excludes deleted guilds.
 type GuildAttendee struct {
 	ID       uuid.UUID         `gorm:"type:uuid;primaryKey" json:"guild_attendee_id"`
 	GuildID  uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:1" json:"guild_id"`
-	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2;uniqueIndex:idx_guild_attendee_active_master,where:role = 'master' AND left_at IS NULL" json:"user_id"`
+	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2" json:"user_id"`
 	Role     GuildAttendeeRole `gorm:"default:member" json:"role"`
 	JoinedAt *time.Time        `json:"joined_at"`
 	LeftAt   *time.Time        `json:"left_at"`
