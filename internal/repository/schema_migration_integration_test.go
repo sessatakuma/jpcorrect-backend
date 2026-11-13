@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"jpcorrect-backend/internal/database"
 	"jpcorrect-backend/internal/testutil"
 )
 
@@ -169,4 +170,44 @@ func schemaFingerprint(t *testing.T, db *gorm.DB, schema string) []string {
 	sort.Strings(fingerprint)
 
 	return fingerprint
+}
+
+// TestLegacyActiveMasterIndexIsDropped simulates a database created before the
+// leader-quota index was retired: it creates idx_guild_attendee_active_master by
+// hand, runs the production migration and requires the index to be gone. The
+// index tag is all that AutoMigrate sees, so removing the tag alone would leave
+// the index in every existing database; internal/cmd/api.go therefore drops it
+// explicitly (issue #72, spec §3.3.1 row 38).
+func TestLegacyActiveMasterIndexIsDropped(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+	schema := requireCurrentSchema(t, db)
+
+	const legacyIndex = `CREATE UNIQUE INDEX idx_guild_attendee_active_master
+		ON guild_attendee (user_id) WHERE role = 'master' AND left_at IS NULL`
+	require.NoError(t, db.WithContext(ctx).Exec(legacyIndex).Error,
+		"create the legacy index that an older release left behind")
+	require.Contains(t, tableIndexes(t, db, schema, "guild_attendee"),
+		"idx_guild_attendee_active_master", "the legacy index must exist before the migration")
+
+	// The production order: AutoMigrate, then the explicit drop.
+	require.NoError(t, db.WithContext(ctx).AutoMigrate(testutil.BaselineModels()...))
+	require.NoError(t, database.DropLegacyIndexes(ctx, db))
+
+	assert.NotContains(t, tableIndexes(t, db, schema, "guild_attendee"),
+		"idx_guild_attendee_active_master",
+		"the migration must drop the legacy leader-quota index")
+	assert.Contains(t, tableIndexes(t, db, schema, "guild_attendee"),
+		"idx_guild_attendee_guild_user",
+		"the migration must keep the (guild_id, user_id) unique index")
+
+	// A second run is a no-op: DROP INDEX IF EXISTS succeeds and the schema
+	// fingerprint does not move.
+	before := schemaFingerprint(t, db, schema)
+	require.NoError(t, db.WithContext(ctx).AutoMigrate(testutil.BaselineModels()...),
+		"a second migration run must succeed")
+	require.NoError(t, database.DropLegacyIndexes(ctx, db),
+		"dropping an absent legacy index must succeed")
+	assert.Equal(t, before, schemaFingerprint(t, db, schema),
+		"a second migration run must not change tables, constraints or indexes")
 }

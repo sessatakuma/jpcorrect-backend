@@ -105,7 +105,7 @@ func TestGuildAttendeeForeignKeyConstraints(t *testing.T) {
 }
 
 // TestGuildAttendeeIndexesPreserved proves adding the belongs-to associations
-// did not disturb the pre-existing unique and partial indexes.
+// did not disturb the pre-existing (guild_id, user_id) unique index.
 func TestGuildAttendeeIndexesPreserved(t *testing.T) {
 	db := testutil.NewPostgresDB(t)
 
@@ -144,12 +144,9 @@ ORDER BY i.relname`
 	assert.Contains(t, uniquePair, "UNIQUE")
 	assert.Contains(t, uniquePair, "(guild_id, user_id)")
 
-	activeMaster, ok := indexes["idx_guild_attendee_active_master"]
-	require.True(t, ok, "missing partial unique index idx_guild_attendee_active_master, got %v", indexes)
-	assert.Contains(t, activeMaster, "UNIQUE")
-	assert.Contains(t, activeMaster, "(user_id)")
-	assert.Contains(t, activeMaster, "WHERE")
-	assert.Contains(t, activeMaster, "left_at IS NULL")
+	// The retired leader-quota index must be gone, not merely unused.
+	_, retired := indexes["idx_guild_attendee_active_master"]
+	assert.False(t, retired, "idx_guild_attendee_active_master must be dropped, got %v", indexes)
 }
 
 // TestGuildAttendeeAssociationsAddNoColumns guards the other side of the change:

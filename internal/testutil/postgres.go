@@ -125,6 +125,10 @@ func NewPostgresDB(t *testing.T) *gorm.DB {
 	err = db.WithContext(ctx).AutoMigrate(BaselineModels()...)
 	require.NoError(t, err, "migrate baseline schema into %s", schema)
 
+	// Mirrors internal/cmd/api.go: AutoMigrate runs first, then the explicit
+	// drop of retired indexes. Tests must see the schema the server produces.
+	require.NoError(t, database.DropLegacyIndexes(ctx, db), "drop legacy indexes in %s", schema)
+
 	return db
 }
 

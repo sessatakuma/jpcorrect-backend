@@ -82,10 +82,16 @@ type GuildRepository interface {
 
 // GuildAttendee represents a member of a guild.
 // Maps to jpcorrect.guild_attendee table.
+//
+// (guild_id, user_id) is unique. The "one guild led per user" quota (§3.3.1)
+// is deliberately not a partial unique index on user_id: guild carries a soft
+// delete, so such an index would also count the membership row of a deleted
+// guild and keep its leader from creating another one. The repository enforces
+// the quota in lockLeaderQuota instead (internal/repository/gorm_guild.go).
 type GuildAttendee struct {
 	ID       uuid.UUID         `gorm:"type:uuid;primaryKey" json:"guild_attendee_id"`
 	GuildID  uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:1" json:"guild_id"`
-	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2;uniqueIndex:idx_guild_attendee_active_master,where:role = 'master' AND left_at IS NULL" json:"user_id"`
+	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2" json:"user_id"`
 	Role     GuildAttendeeRole `gorm:"default:member" json:"role"`
 	JoinedAt *time.Time        `json:"joined_at"`
 	LeftAt   *time.Time        `json:"left_at"`
