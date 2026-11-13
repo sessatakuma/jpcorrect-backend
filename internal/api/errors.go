@@ -39,14 +39,13 @@ type errorMapping struct {
 // only matters for sentinels that could wrap each other; the current set is
 // flat.
 //
-// Code set: §1.5 fixes the 11 business codes and their statuses but names none
-// of the codes for the remaining statuses, and leaves that choice to the
-// implementer. This package uses one consistent set for them:
+// Code set: §1.5 holds the 11 business codes and the nine generic codes #70
+// chose (Appendix E row 31). This table is the one place that maps them:
 //
 //	400 INVALID_REQUEST        malformed path parameter, query or request body
 //	401 UNAUTHORIZED           missing, malformed or invalid credentials
 //	403 FORBIDDEN              authenticated caller without the permission,
-//	                           for failures the catalog does not name
+//	                           including a non-member or non-leader of a guild
 //	404 NOT_FOUND              ErrNotFound
 //	409 CONFLICT               ErrDuplicateEntry
 //	409 RELATED_RECORDS_EXIST  ErrHasRelatedRecords
