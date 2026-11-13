@@ -19,6 +19,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts/{id} [get]
 func (a *API) TranscriptGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +51,7 @@ func (a *API) TranscriptGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts [post]
 func (a *API) TranscriptCreateHandler(c *gin.Context) {
 	var transcript domain.Transcript
@@ -81,6 +83,7 @@ func (a *API) TranscriptCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts/{id} [put]
 func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -137,6 +140,7 @@ func (a *API) TranscriptUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts/{id} [delete]
 func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -177,6 +181,7 @@ func (a *API) TranscriptDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.Transcript
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts/event/{event_id} [get]
 func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 	eventIDStr := c.Param("event_id")
@@ -203,6 +208,7 @@ func (a *API) TranscriptGetByEventHandler(c *gin.Context) {
 // @Success 200 {array} domain.Transcript
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/transcripts/user/{user_id} [get]
 func (a *API) TranscriptGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
@@ -40,6 +40,14 @@ func TestMapGormError(t *testing.T) {
 				Message: "duplicate key value violates unique constraint \"users_email_key\"",
 			},
 			expected: domain.ErrDuplicateEntry,
+		},
+		{
+			name: "active master unique violation returns domain.ErrGuildLimitReached",
+			input: &pgconn.PgError{
+				Code:           "23505",
+				ConstraintName: activeMasterIndex,
+			},
+			expected: domain.ErrGuildLimitReached,
 		},
 		{
 			name: "wrapped pgconn unique violation returns domain.ErrDuplicateEntry",
