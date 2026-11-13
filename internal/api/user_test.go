@@ -256,11 +256,31 @@ func TestUserInitHandler(t *testing.T) {
 		assert.Empty(t, repo.createIfAbsentCalls)
 	})
 
+	t.Run("unusable subject → 400 without a repo call", func(t *testing.T) {
+		for _, tc := range []struct{ name, subject string }{
+			{"missing subject", ""},
+			{"subject that is not a UUID", "not-a-uuid"},
+			{"nil UUID subject", uuid.Nil.String()},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				repo := &mockUserRepo{}
+				rec := invokeUserHandler(t, newUserTestAPI(repo),
+					http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
+					&supabaseAuth{Subject: tc.subject, Email: "first@example.com"}, []byte(`{}`))
+
+				require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+				assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
+				assert.Empty(t, repo.getBySupabaseUserIDCalls, "an unusable subject must not read a row")
+				assert.Empty(t, repo.createIfAbsentCalls, "an unusable subject must not write a row")
+			})
+		}
+	})
+
 	t.Run("token without email → 400", func(t *testing.T) {
 		repo := &mockUserRepo{}
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: uuid.New()}, []byte(`{}`))
+			&supabaseAuth{Subject: uuid.NewString()}, []byte(`{}`))
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
@@ -274,7 +294,7 @@ func TestUserInitHandler(t *testing.T) {
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: sub, Email: "First@Example.com"}, []byte(`{}`))
+			&supabaseAuth{Subject: sub.String(), Email: "First@Example.com"}, []byte(`{}`))
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Len(t, repo.createIfAbsentCalls, 1)
@@ -302,7 +322,7 @@ func TestUserInitHandler(t *testing.T) {
 		body := []byte(`{"role":"admin","email":"attacker@example.com","points":9999}`)
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: uuid.New(), Email: "first@example.com"}, body)
+			&supabaseAuth{Subject: uuid.NewString(), Email: "first@example.com"}, body)
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Len(t, repo.createIfAbsentCalls, 1)
@@ -317,7 +337,7 @@ func TestUserInitHandler(t *testing.T) {
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: uuid.New(), Email: "taken@example.com"}, []byte(`{}`))
+			&supabaseAuth{Subject: uuid.NewString(), Email: "taken@example.com"}, []byte(`{}`))
 
 		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 		env := decodeEnvelope(t, rec)

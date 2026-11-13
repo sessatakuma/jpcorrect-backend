@@ -2418,9 +2418,12 @@ paths:
         with a Supabase JWT; the middleware skips the user lookup for this
         path only and the handler creates the row from the token's sub and
         email. Idempotent: a retried or concurrent call returns the same
-        profile. A new account is named after the email prefix until
-        PUT /v1/users/me sets a name. If another account already owns the
-        email, the request answers 409 and no row is created or linked.
+        profile. A new account is named after the email prefix, capped at
+        100 runes, until PUT /v1/users/me sets a name. A `sub` that is not
+        a UUID, or a token with no email address, answers 400
+        INVALID_REQUEST and writes nothing. If another account already
+        owns the email, the request answers 409 and no row is created or
+        linked.
       produces:
       - application/json
       responses:
@@ -2429,7 +2432,8 @@ paths:
           schema:
             $ref: '#/definitions/jpcorrect-backend_internal_domain.User'
         "400":
-          description: The token carries no email address
+          description: The token carries no email address or a subject that is not
+            a UUID
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "401":
