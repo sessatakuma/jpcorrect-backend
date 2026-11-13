@@ -250,3 +250,39 @@ func TestGuildAttendeeWritesEnforceLeaderQuota(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.GuildAttendeeRoleMember, stored.Role, "the rejected update must not write")
 }
+
+// TestCreateWithMasterAfterGuildDelete is the regression test for the retired
+// partial unique index: a soft-deleted guild leaves its master's membership row
+// behind, and that row must not count against the quota of a live guild.
+func TestCreateWithMasterAfterGuildDelete(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	user := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "leader after delete"}
+	require.NoError(t, db.Create(&user).Error)
+
+	repo := NewGormGuildRepository(db)
+	first := domain.Guild{ID: uuid.New(), Name: "guild that will be deleted"}
+	require.NoError(t, repo.CreateWithMaster(ctx, &first, &domain.GuildAttendee{
+		ID: uuid.New(), UserID: user.ID,
+	}))
+
+	require.NoError(t, db.WithContext(ctx).Delete(&domain.Guild{}, "id = ?", first.ID).Error,
+		"soft-delete the guild, which leaves the attendee row in place")
+
+	var surviving int64
+	require.NoError(t, db.WithContext(ctx).Model(&domain.GuildAttendee{}).
+		Where("guild_id = ? AND role = ? AND left_at IS NULL", first.ID, domain.GuildAttendeeRoleMaster).
+		Count(&surviving).Error)
+	require.EqualValues(t, 1, surviving, "the fixture needs the surviving master row")
+
+	second := domain.Guild{ID: uuid.New(), Name: "replacement guild"}
+	require.NoError(t, repo.CreateWithMaster(ctx, &second, &domain.GuildAttendee{
+		ID: uuid.New(), UserID: user.ID,
+	}), "a leader whose guild was deleted must be able to create another one")
+
+	var live int64
+	require.NoError(t, db.WithContext(ctx).Model(&domain.Guild{}).
+		Where("id = ? AND deleted_at IS NULL", second.ID).Count(&live).Error)
+	assert.EqualValues(t, 1, live)
+}
