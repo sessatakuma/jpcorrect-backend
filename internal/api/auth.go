@@ -73,6 +73,10 @@ func (a *API) ShutdownJWKS() {
 // middleware resolves the internal User row from the token's `sub` and stores it
 // in the context for currentUser. The one exemption is POST /v1/users/init,
 // which creates the row and therefore skips only the DB lookup (§1.2 item 4).
+//
+// A verified `sub` that is not a UUID gets a route-specific answer: 401 here on
+// every route that resolves a user, and 400 INVALID_REQUEST from users/init
+// itself (spec §2.1). Neither case reaches the repository.
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth, err := a.verifyToken(c)
@@ -84,20 +88,30 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 
 		c.Set(supabaseAuthContextKey, auth)
 
-		if !isUsersInitRequest(c) {
-			user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), auth.Subject)
-			if err != nil {
-				if errors.Is(err, domain.ErrNotFound) {
-					writeError(c, errorWithMessage(domain.ErrUserNotInitialized, "call POST /v1/users/init to create your account"))
-					c.Abort()
-					return
-				}
-				writeError(c, err)
+		if isUsersInitRequest(c) {
+			c.Next()
+			return
+		}
+
+		subject, err := parseSubject(auth.Subject)
+		if err != nil {
+			writeError(c, errorWithMessage(domain.ErrUnauthorized, "invalid token claims"))
+			c.Abort()
+			return
+		}
+
+		user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), subject)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				writeError(c, errorWithMessage(domain.ErrUserNotInitialized, "call POST /v1/users/init to create your account"))
 				c.Abort()
 				return
 			}
-			c.Set(userContextKey, user)
+			writeError(c, err)
+			c.Abort()
+			return
 		}
+		c.Set(userContextKey, user)
 
 		c.Next()
 	}
@@ -119,12 +133,33 @@ const (
 )
 
 // supabaseAuth is what AuthMiddleware keeps from a verified Supabase JWT. The
-// subject is parsed into a uuid.UUID here, at the authentication boundary, so
-// handlers and repositories only ever see a validated identity; the raw claim
-// string does not travel further.
+// subject stays the raw `sub` claim because the route decides how to reject an
+// unusable one: every user-resolving route answers 401, while users/init answers
+// 400 INVALID_REQUEST (spec §2.1). AuthMiddleware parses the claim before the
+// lookup, so handlers other than init only see validated identities.
 type supabaseAuth struct {
-	Subject uuid.UUID
+	Subject string
 	Email   string
+}
+
+// parseSubject turns the verified `sub` claim into the UUID the user table
+// stores. An empty claim, a claim that is not a UUID, and the nil UUID identify
+// no account. Callers choose the status: 401 on authenticated routes and 400
+// INVALID_REQUEST on POST /v1/users/init (spec §2.1).
+func parseSubject(raw string) (uuid.UUID, error) {
+	if raw == "" {
+		return uuid.Nil, errors.New("the access token has no subject")
+	}
+
+	subject, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, errors.New("the access token subject is not a UUID")
+	}
+	if subject == uuid.Nil {
+		return uuid.Nil, errors.New("the access token subject is the nil UUID")
+	}
+
+	return subject, nil
 }
 
 // supabaseClaims is the subset of the Supabase JWT the backend reads. Role or
@@ -250,14 +285,8 @@ func (a *API) verifyToken(c *gin.Context) (*supabaseAuth, error) {
 	if !ok {
 		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
-	// Without a subject the token identifies nobody, so it can neither resolve
-	// a User nor initialize one. The internal mapping column is uuid, so a
-	// subject that does not parse as one cannot identify a row either; reject
-	// both here instead of passing an unusable identity down the stack.
-	subject, err := uuid.Parse(claims.Subject)
-	if err != nil || subject == uuid.Nil {
-		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
-	}
-
-	return &supabaseAuth{Subject: subject, Email: claims.Email}, nil
+	// The subject is deliberately not parsed here. users/init owns the parse so
+	// it can answer 400 INVALID_REQUEST for a `sub` that is not a UUID, while
+	// every other route answers 401 in AuthMiddleware (spec §2.1).
+	return &supabaseAuth{Subject: claims.Subject, Email: claims.Email}, nil
 }

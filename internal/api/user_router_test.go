@@ -152,23 +152,38 @@ func TestRegisterUserRoutesAuthentication(t *testing.T) {
 				assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 			})
 
-			for _, subject := range []string{"not-a-uuid", uuid.Nil.String()} {
-				t.Run("invalid subject "+subject+" → 401 without lookup", func(t *testing.T) {
+			for _, tc := range []struct{ name, subject string }{
+				{"missing subject", ""},
+				{"subject that is not a UUID", "not-a-uuid"},
+				{"nil UUID subject", uuid.Nil.String()},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
 					f := newUserRouterFixture(t, caller)
 					token := f.signer.token(t, supabaseClaims{
 						Email:            caller.Email,
-						RegisteredClaims: jwt.RegisteredClaims{Subject: subject},
+						RegisteredClaims: jwt.RegisteredClaims{Subject: tc.subject},
 					})
-					for _, route := range []struct{ method, path string }{
-						{http.MethodGet, "/v1/users/me"},
-						{http.MethodPost, "/v1/users/init"},
+
+					// users/init owns the parse (spec §2.1): 400 INVALID_REQUEST,
+					// and no row is read or written.
+					rec := f.do(http.MethodPost, "/v1/users/init", `{}`, "Bearer "+token, "")
+					require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+					assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
+
+					// Every route that resolves a stored user keeps treating the
+					// same claim as a token problem: 401, and no lookup.
+					for _, path := range []string{
+						"/v1/users/me",
+						"/v1/users/" + uuid.NewString(),
+						"/v1/guilds/" + uuid.NewString(),
 					} {
-						rec := f.do(route.method, route.path, `{}`, "Bearer "+token, "")
-						require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
-						assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+						rec := f.do(http.MethodGet, path, "", "Bearer "+token, "")
+						require.Equal(t, http.StatusUnauthorized, rec.Code, "%s: %s", path, rec.Body.String())
+						assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code, path)
 					}
-					assert.Empty(t, f.users.getBySupabaseUserIDCalls)
-					assert.Empty(t, f.users.createIfAbsentCalls)
+
+					assert.Empty(t, f.users.getBySupabaseUserIDCalls, "an unusable subject must not reach the repository")
+					assert.Empty(t, f.users.createIfAbsentCalls, "an unusable subject must not write a row")
 				})
 			}
 

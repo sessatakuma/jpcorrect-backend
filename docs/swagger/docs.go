@@ -2453,7 +2453,7 @@ const docTemplate = `{
         },
         "/v1/users/init": {
             "post": {
-                "description": "First-login endpoint (spec §3.1.1, §6.3). The caller authenticates\nwith a Supabase JWT; the middleware skips the user lookup for this\npath only and the handler creates the row from the token's sub and\nemail. Idempotent: a retried or concurrent call returns the same\nprofile. A new account is named after the email prefix until\nPUT /v1/users/me sets a name. If another account already owns the\nemail, the request answers 409 and no row is created or linked.",
+                "description": "First-login endpoint (spec §3.1.1, §6.3). The caller authenticates\nwith a Supabase JWT; the middleware skips the user lookup for this\npath only and the handler creates the row from the token's sub and\nemail. Idempotent: a retried or concurrent call returns the same\nprofile. A new account is named after the email prefix, capped at\n100 runes, until PUT /v1/users/me sets a name. A ` + "`" + `sub` + "`" + ` that is not\na UUID, or a token with no email address, answers 400\nINVALID_REQUEST and writes nothing. If another account already\nowns the email, the request answers 409 and no row is created or\nlinked.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2472,7 +2472,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "The token carries no email address",
+                        "description": "The token carries no email address or a subject that is not a UUID",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -3650,7 +3650,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "ttl_seconds": {
-                    "description": "TTLSeconds is a request-only option and is not a column. It is kept from\n#54 as an optional override of the default 7-day lifetime; the spec itself\nonly defines the 7 days.",
+                    "description": "TTLSeconds is a request-only option and is not a column. §2.2 keeps it as\nan optional override of the default 7-day lifetime, with the range 1 to\n31536000 (Appendix E row 28).",
                     "type": "integer"
                 }
             }

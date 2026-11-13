@@ -126,9 +126,14 @@ func TestSchemaIndexes(t *testing.T) {
 		}
 	}
 
-	// The pre-existing partial unique index on guild_attendee
-	_, ok := tableIndexes(t, db, schema, "guild_attendee")["idx_guild_attendee_active_master"]
-	assert.True(t, ok, "the pre-existing partial unique index must survive the full migration")
+	// The retired partial unique index on guild_attendee must not come back:
+	// the spec (#72) leaves the leader quota to the repository, because a
+	// partial index on user_id also counts the row of a soft-deleted guild.
+	guildAttendeeIndexes := tableIndexes(t, db, schema, "guild_attendee")
+	_, retired := guildAttendeeIndexes["idx_guild_attendee_active_master"]
+	assert.False(t, retired, "the retired partial unique index must not exist; found %v", keys(guildAttendeeIndexes))
+	_, guildUser := guildAttendeeIndexes["idx_guild_attendee_guild_user"]
+	assert.True(t, guildUser, "the (guild_id, user_id) unique index must stay; found %v", keys(guildAttendeeIndexes))
 }
 
 func keys[V any](m map[string]V) []string {
