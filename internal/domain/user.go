@@ -41,8 +41,9 @@ type User struct {
 
 	// SupabaseUserID is the Supabase Auth user UUID looked up from JWT.sub
 	// (spec §2.1). It is nullable: a row created before the mapping exists has
-	// no value yet. The unique index doubles as the lookup index.
-	SupabaseUserID *string        `gorm:"uniqueIndex" json:"supabase_user_id"`
+	// no value yet. The unique index doubles as the lookup index. It is a UUID
+	// column, not text, so PostgreSQL rejects a malformed identifier.
+	SupabaseUserID *uuid.UUID     `gorm:"type:uuid;uniqueIndex" json:"supabase_user_id"`
 	LateStreak     int            `gorm:"default:0" json:"late_streak"`
 	Points         int            `gorm:"default:0" json:"points"`
 	Level          int            `gorm:"default:0" json:"level"`
