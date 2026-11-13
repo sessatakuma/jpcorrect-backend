@@ -61,8 +61,8 @@ const (
 // scalar column is silently ignored by GORM. announce_topic_id and
 // aborted_by_user_id are nullable as #72 specifies, the rest are NOT NULL.
 //
-// StatusEnteredAt is an internal field, not part of v1.2; see its field comment
-// and ActivityStatusRepository.
+// StatusEnteredAt comes from spec §2.2 row 30; see its field comment and
+// ActivityStatusRepository.
 type Activity struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"activity_id"`
 	GuildID         uuid.UUID      `gorm:"type:uuid;not null;index;uniqueIndex:idx_activity_guild_sequence,priority:1" json:"guild_id"`

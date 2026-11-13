@@ -38,8 +38,8 @@ func newActivity(guildID uuid.UUID, sequence int) *domain.Activity {
 	}
 }
 
-// TestActivityStatusEnteredAt covers the engineering note of #72: the internal
-// status_entered_at column moves when the status changes through
+// TestActivityStatusEnteredAt covers the engineering note of #72 and spec §2.2
+// row 30: status_entered_at moves when the status changes through
 // TransitionStatus and on no other write. #98 relies on that to measure how long
 // an Activity has been stuck in in_practice / analyzing / in_review.
 func TestActivityStatusEnteredAt(t *testing.T) {

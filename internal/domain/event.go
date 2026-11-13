@@ -11,8 +11,9 @@ import (
 
 // EventMode represents the mode of an event.
 //
-// EventModeDiscussion was removed in spec §2.1: discussion practice is Won't
-// Have in Phase 0. `discussion` is therefore not a valid mode any more.
+// There is no discussion mode. Discussion practice was confirmed as Won't Have
+// in the Phase 0 plan before implementation started, so `discussion` is not a
+// valid mode and EventModeDiscussion does not exist.
 type EventMode string
 
 const (
