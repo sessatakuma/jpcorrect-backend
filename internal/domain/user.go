@@ -41,8 +41,9 @@ type User struct {
 
 	// SupabaseUserID is the Supabase Auth user UUID looked up from JWT.sub
 	// (spec §2.1). It is nullable: a row created before the mapping exists has
-	// no value yet. The unique index doubles as the lookup index.
-	SupabaseUserID *string        `gorm:"uniqueIndex" json:"supabase_user_id"`
+	// no value yet. The unique index doubles as the lookup index. It is a UUID
+	// column, not text, so PostgreSQL rejects a malformed identifier.
+	SupabaseUserID *uuid.UUID     `gorm:"type:uuid;uniqueIndex" json:"supabase_user_id"`
 	LateStreak     int            `gorm:"default:0" json:"late_streak"`
 	Points         int            `gorm:"default:0" json:"points"`
 	Level          int            `gorm:"default:0" json:"level"`
@@ -56,8 +57,10 @@ type UserRepository interface {
 	GetByName(ctx context.Context, name string) ([]*User, error)
 
 	// GetBySupabaseUserID resolves the internal row from the verified JWT `sub`
-	// (spec §1.2). It returns ErrNotFound while the caller is not initialized.
-	GetBySupabaseUserID(ctx context.Context, supabaseUserID string) (*User, error)
+	// (spec §1.2). supabaseUserID is the subject parsed once at the auth
+	// boundary; the column is uuid, so a raw claim string never gets here. It
+	// returns ErrNotFound while the caller is not initialized.
+	GetBySupabaseUserID(ctx context.Context, supabaseUserID uuid.UUID) (*User, error)
 
 	Create(ctx context.Context, user *User) error
 	// CreateIfAbsentBySupabaseUserID inserts user only when no row already

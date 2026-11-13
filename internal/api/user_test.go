@@ -78,7 +78,7 @@ func TestUserMeHandler(t *testing.T) {
 	})
 
 	t.Run("returns the caller's own profile", func(t *testing.T) {
-		user := storedUser(t, "supabase-1", "me@example.com")
+		user := storedUser(t, uuid.New(), "me@example.com")
 		rec := invokeUserHandler(t, newUserTestAPI(&mockUserRepo{}),
 			http.MethodGet, "/v1/users/me", "/v1/users/me", user, nil, nil)
 
@@ -104,7 +104,7 @@ func TestUserMeUpdateHandler(t *testing.T) {
 	})
 
 	t.Run("updates name and avatar only", func(t *testing.T) {
-		caller := storedUser(t, "supabase-1", "me@example.com")
+		caller := storedUser(t, uuid.New(), "me@example.com")
 		repo := &mockUserRepo{getByIDResult: caller}
 
 		body := []byte(`{"name":"renamed","avatar_url":"https://example.com/new.png"}`)
@@ -126,11 +126,11 @@ func TestUserMeUpdateHandler(t *testing.T) {
 	})
 
 	t.Run("server-owned fields in the body are ignored", func(t *testing.T) {
-		caller := storedUser(t, "supabase-1", "me@example.com")
+		caller := storedUser(t, uuid.New(), "me@example.com")
 		repo := &mockUserRepo{getByIDResult: caller}
 
 		body := []byte(`{"name":"renamed","email":"attacker@example.com","role":"admin",` +
-			`"status":"banned","points":9999,"supabase_user_id":"other-sub","is_email_verified":false}`)
+			`"status":"banned","points":9999,"supabase_user_id":"9f3e8a52-4b1c-4d6f-8e07-2a5b9c1d3e4f","is_email_verified":false}`)
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, body)
 
@@ -148,7 +148,7 @@ func TestUserMeUpdateHandler(t *testing.T) {
 	})
 
 	t.Run("empty name is rejected", func(t *testing.T) {
-		caller := storedUser(t, "supabase-1", "me@example.com")
+		caller := storedUser(t, uuid.New(), "me@example.com")
 		repo := &mockUserRepo{getByIDResult: caller}
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
@@ -178,7 +178,7 @@ func TestUserGetHandlerPublicProfile(t *testing.T) {
 	})
 
 	t.Run("returns only allowlisted fields", func(t *testing.T) {
-		target := storedUser(t, "supabase-target", "target@example.com")
+		target := storedUser(t, uuid.New(), "target@example.com")
 		repo := &mockUserRepo{getByIDResult: target}
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
@@ -190,8 +190,8 @@ func TestUserGetHandlerPublicProfile(t *testing.T) {
 }
 
 func TestUserGetByNameHandlerPublicProfile(t *testing.T) {
-	first := storedUser(t, "supabase-1", "one@example.com")
-	second := storedUser(t, "supabase-2", "two@example.com")
+	first := storedUser(t, uuid.New(), "one@example.com")
+	second := storedUser(t, uuid.New(), "two@example.com")
 	repo := &mockUserRepo{getByNameResult: []*domain.User{first, second}}
 
 	rec := invokeUserHandler(t, newUserTestAPI(repo),
@@ -260,7 +260,7 @@ func TestUserInitHandler(t *testing.T) {
 		repo := &mockUserRepo{}
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: "supabase-1"}, []byte(`{}`))
+			&supabaseAuth{Subject: uuid.New()}, []byte(`{}`))
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
@@ -268,19 +268,20 @@ func TestUserInitHandler(t *testing.T) {
 	})
 
 	t.Run("creates the row from the token and returns it", func(t *testing.T) {
-		created := storedUser(t, "supabase-1", "first@example.com")
+		sub := uuid.New()
+		created := storedUser(t, sub, "first@example.com")
 		repo := &mockUserRepo{getBySupabaseUserIDResult: created}
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: "supabase-1", Email: "First@Example.com"}, []byte(`{}`))
+			&supabaseAuth{Subject: sub, Email: "First@Example.com"}, []byte(`{}`))
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Len(t, repo.createIfAbsentCalls, 1)
 
 		candidate := repo.createIfAbsentCalls[0]
 		require.NotNil(t, candidate.SupabaseUserID)
-		assert.Equal(t, "supabase-1", *candidate.SupabaseUserID)
+		assert.Equal(t, sub, *candidate.SupabaseUserID)
 		assert.Equal(t, "First@Example.com", candidate.Email)
 		assert.Equal(t, "First", candidate.Name, "a new account is named after its email prefix")
 		assert.NotEqual(t, uuid.Nil, candidate.ID)
@@ -295,13 +296,13 @@ func TestUserInitHandler(t *testing.T) {
 	})
 
 	t.Run("role sent in the body is ignored", func(t *testing.T) {
-		created := storedUser(t, "supabase-1", "first@example.com")
+		created := storedUser(t, uuid.New(), "first@example.com")
 		repo := &mockUserRepo{getBySupabaseUserIDResult: created}
 
 		body := []byte(`{"role":"admin","email":"attacker@example.com","points":9999}`)
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: "supabase-1", Email: "first@example.com"}, body)
+			&supabaseAuth{Subject: uuid.New(), Email: "first@example.com"}, body)
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Len(t, repo.createIfAbsentCalls, 1)
@@ -316,7 +317,7 @@ func TestUserInitHandler(t *testing.T) {
 
 		rec := invokeUserHandler(t, newUserTestAPI(repo),
 			http.MethodPost, "/v1/users/init", "/v1/users/init", nil,
-			&supabaseAuth{Subject: "supabase-1", Email: "taken@example.com"}, []byte(`{}`))
+			&supabaseAuth{Subject: uuid.New(), Email: "taken@example.com"}, []byte(`{}`))
 
 		require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 		env := decodeEnvelope(t, rec)
