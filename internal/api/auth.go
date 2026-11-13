@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,9 +19,20 @@ import (
 
 // Context keys for values stored in the gin context by the auth middleware.
 const (
+	// ContextKeySupabaseID holds the verified JWT subject as a uuid.UUID.
 	ContextKeySupabaseID = "supabaseID"
-	ContextKeyEmail      = "email"
+	// ContextKeyEmail holds the email claim of the verified token.
+	ContextKeyEmail = "email"
+	// ContextKeyUser holds the internal *domain.User resolved from the subject.
+	ContextKeyUser = "user"
+	// ContextKeyUserID holds the internal user UUID as a string, for handlers
+	// that read the caller ID directly.
+	ContextKeyUserID = "userID"
 )
+
+// usersInitPath is the one authenticated path exempt from the user lookup: it is
+// the request that creates the row.
+const usersInitPath = "/v1/users/init"
 
 // SupabaseClaims extends standard JWT registered claims with Supabase-specific
 // fields (such as the user's email) that are needed by downstream handlers.
@@ -78,7 +90,8 @@ func (a *API) ShutdownJWKS() {
 	a.jwksCache = nil
 }
 
-// AuthMiddleware returns a Gin middleware that validates JWT tokens
+// AuthMiddleware returns a Gin middleware that validates JWT tokens and
+// resolves the internal user the token belongs to.
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := a.validateToken(c)
@@ -88,8 +101,76 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// POST /v1/users/init creates the row, so it is the only request that
+		// runs without the lookup.
+		if !isUsersInitRequest(c) {
+			if err := a.resolveUser(c); err != nil {
+				a.respondAuthError(c, err)
+				c.Abort()
+				return
+			}
+		}
+
 		c.Next()
 	}
+}
+
+// resolveUser maps the verified Supabase subject to the stored internal user and
+// publishes it on the request. Downstream handlers must use the internal user
+// ID, never the Supabase subject: guild membership and every other ownership
+// check is keyed by the internal ID.
+func (a *API) resolveUser(c *gin.Context) error {
+	val, exists := c.Get(ContextKeySupabaseID)
+	supabaseID, ok := val.(uuid.UUID)
+	if !exists || !ok {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"missing authentication info",
+			"",
+		)
+	}
+
+	user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), supabaseID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.NewAuthError(
+				http.StatusUnauthorized,
+				"user not initialized",
+				"call POST /v1/users/init to create the account",
+			)
+		}
+		log.Printf("failed to resolve the user for supabase subject %s: %v", supabaseID, err)
+		return domain.NewAuthError(
+			http.StatusInternalServerError,
+			"failed to resolve user",
+			"",
+		)
+	}
+
+	c.Set(ContextKeyUser, user)
+	c.Set(ContextKeyUserID, user.ID.String())
+
+	return nil
+}
+
+// currentUser returns the internal user resolved from the request JWT, or nil
+// when the request carries no resolved identity.
+func currentUser(c *gin.Context) *domain.User {
+	val, exists := c.Get(ContextKeyUser)
+	if !exists {
+		return nil
+	}
+	user, ok := val.(*domain.User)
+	if !ok {
+		return nil
+	}
+	return user
+}
+
+// isUsersInitRequest reports whether the request is the one path exempt from the
+// user lookup.
+func isUsersInitRequest(c *gin.Context) bool {
+	return c.Request.Method == http.MethodPost && c.Request.URL.Path == usersInitPath
 }
 
 // debugCallerMiddleware supplies an explicitly selected caller without JWT
@@ -251,13 +332,10 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Expose the Supabase ID and email to downstream handlers.
+	// Expose the Supabase ID and email to downstream handlers. The subject is not
+	// the internal user ID: AuthMiddleware resolves that separately.
 	c.Set(ContextKeySupabaseID, supabaseID)
 	c.Set(ContextKeyEmail, claims.Email)
-
-	// The guild handlers still read the caller from "userID" as a string, so
-	// keep setting it; removing it makes every guild request return 401.
-	c.Set("userID", claims.Subject)
 
 	return nil
 }
