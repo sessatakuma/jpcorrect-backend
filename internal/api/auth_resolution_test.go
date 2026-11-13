@@ -227,6 +227,28 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 		assert.Empty(t, repo.getBySupabaseUserIDCalls, "a malformed subject must not reach the repository")
 	})
 
+	t.Run("nil UUID subject → 401 without a lookup", func(t *testing.T) {
+		repo := &mockUserRepo{}
+		api, signer := newJWTTestAPI(t, repo)
+
+		r := gin.New()
+		r.GET("/protected", api.AuthMiddleware(), func(c *gin.Context) { c.Status(http.StatusOK) })
+
+		token := signer.token(t, supabaseClaims{
+			Email:            email,
+			RegisteredClaims: jwt.RegisteredClaims{Subject: uuid.Nil.String()},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+		assert.Empty(t, repo.getBySupabaseUserIDCalls, "the nil UUID must not reach the repository")
+	})
+
 	t.Run("identity header without a token → 401", func(t *testing.T) {
 		api, _ := newJWTTestAPI(t, &mockUserRepo{})
 
@@ -250,14 +272,14 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 
 	sub := uuid.MustParse("8f2d5c14-3a6b-4f7e-9b21-5c8e4a1d7f60")
 
-	newServer := func(t *testing.T, repo *mockUserRepo) (*gin.Engine, *testSigner) {
+	newServer := func(t *testing.T, repo *mockUserRepo, wantSubject string) (*gin.Engine, *testSigner) {
 		t.Helper()
 		api, signer := newJWTTestAPI(t, repo)
 		r := gin.New()
 		r.POST("/v1/users/init", api.AuthMiddleware(), func(c *gin.Context) {
 			auth := currentSupabaseAuth(c)
 			require.NotNil(t, auth)
-			assert.Equal(t, sub, auth.Subject, "the subject is parsed once at the auth boundary")
+			assert.Equal(t, wantSubject, auth.Subject, "users/init receives the verified subject claim unparsed")
 			assert.Equal(t, "first@example.com", auth.Email)
 			assert.Nil(t, currentUser(c), "the exemption resolves no user")
 			c.Status(http.StatusOK)
@@ -267,7 +289,7 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 
 	t.Run("lookup is skipped", func(t *testing.T) {
 		repo := &mockUserRepo{}
-		r, signer := newServer(t, repo)
+		r, signer := newServer(t, repo, sub.String())
 
 		req := httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
 		req.Header.Set("Authorization", "Bearer "+signer.userToken(t, sub, "first@example.com"))
@@ -278,9 +300,38 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 		assert.Empty(t, repo.getBySupabaseUserIDCalls, "users/init must not query the user table")
 	})
 
+	// The middleware must not reject the claim for this route: the handler owns
+	// the 400 INVALID_REQUEST answer (spec §2.1), and either way no repo call
+	// happens for an unusable subject.
+	t.Run("an unusable subject reaches the handler", func(t *testing.T) {
+		for _, tc := range []struct{ name, subject string }{
+			{"missing subject", ""},
+			{"subject that is not a UUID", "not-a-uuid"},
+			{"nil UUID subject", uuid.Nil.String()},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				repo := &mockUserRepo{}
+				r, signer := newServer(t, repo, tc.subject)
+
+				token := signer.token(t, supabaseClaims{
+					Email:            "first@example.com",
+					RegisteredClaims: jwt.RegisteredClaims{Subject: tc.subject},
+				})
+				req := httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
+				req.Header.Set("Authorization", "Bearer "+token)
+				rec := httptest.NewRecorder()
+				r.ServeHTTP(rec, req)
+
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				assert.Empty(t, repo.getBySupabaseUserIDCalls, "the exemption never queries the user table")
+				assert.Empty(t, repo.createIfAbsentCalls, "the middleware never writes a row")
+			})
+		}
+	})
+
 	t.Run("the exemption still requires a valid token", func(t *testing.T) {
 		repo := &mockUserRepo{}
-		r, signer := newServer(t, repo)
+		r, signer := newServer(t, repo, sub.String())
 
 		tests := []struct {
 			name       string
