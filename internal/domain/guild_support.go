@@ -18,7 +18,7 @@ type GuildDefaultSlot struct {
 	GuildID   uuid.UUID      `gorm:"type:uuid;not null;primaryKey" json:"guild_id"`
 	DayOfWeek int            `gorm:"not null" json:"day_of_week"`
 	TimeOfDay datatypes.Time `gorm:"type:time;not null" json:"time_of_day"`
-	Timezone  string         `gorm:"default:Asia/Taipei" json:"timezone"`
+	Timezone  string         `gorm:"not null;default:Asia/Taipei" json:"timezone"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 
@@ -43,7 +43,7 @@ type JoinRequest struct {
 	ID        uuid.UUID         `gorm:"type:uuid;primaryKey" json:"id"`
 	GuildID   uuid.UUID         `gorm:"type:uuid;not null;index" json:"guild_id"`
 	UserID    uuid.UUID         `gorm:"type:uuid;not null;index;index:idx_join_request_user_status_pending,priority:1,where:status = 'pending'" json:"user_id"`
-	Status    JoinRequestStatus `gorm:"default:pending;index:idx_join_request_user_status_pending,priority:2" json:"status"`
+	Status    JoinRequestStatus `gorm:"not null;default:pending;index:idx_join_request_user_status_pending,priority:2" json:"status"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`
 

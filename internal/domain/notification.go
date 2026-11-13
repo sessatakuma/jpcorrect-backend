@@ -31,8 +31,8 @@ type NotificationOutbox struct {
 	AggregateID     uuid.UUID                `gorm:"type:uuid;not null" json:"aggregate_id"`
 	RecipientUserID uuid.UUID                `gorm:"type:uuid;not null;index" json:"recipient_user_id"`
 	Payload         datatypes.JSON           `gorm:"type:jsonb;not null" json:"payload"`
-	Status          NotificationOutboxStatus `gorm:"default:pending" json:"status"`
-	AttemptCount    int                      `gorm:"default:0" json:"attempt_count"`
+	Status          NotificationOutboxStatus `gorm:"not null;default:pending" json:"status"`
+	AttemptCount    int                      `gorm:"not null;default:0" json:"attempt_count"`
 	NextAttemptAt   *time.Time               `json:"next_attempt_at"`
 	LastError       *string                  `gorm:"type:text" json:"last_error"`
 	CreatedAt       time.Time                `json:"created_at"`

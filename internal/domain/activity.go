@@ -67,13 +67,13 @@ type Activity struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey" json:"activity_id"`
 	GuildID         uuid.UUID      `gorm:"type:uuid;not null;index;uniqueIndex:idx_activity_guild_sequence,priority:1" json:"guild_id"`
 	SequenceNumber  int            `gorm:"not null;uniqueIndex:idx_activity_guild_sequence,priority:2" json:"sequence_number"`
-	Status          ActivityStatus `gorm:"default:pending_practice;index" json:"status"`
+	Status          ActivityStatus `gorm:"not null;default:pending_practice;index" json:"status"`
 	Mode            ActivityMode   `gorm:"not null" json:"mode"`
 	Theme           *string        `gorm:"type:text" json:"theme"`
 	AnnounceTopicID *uuid.UUID     `gorm:"type:uuid" json:"announce_topic_id"`
 	YouTubeURL      *string        `gorm:"column:youtube_url" json:"youtube_url"`
-	AIStatus        AIStatus       `gorm:"default:pending;index" json:"ai_status"`
-	YouTubeStatus   YouTubeStatus  `gorm:"column:youtube_status;default:pending;index:idx_activity_youtube_status" json:"youtube_status"`
+	AIStatus        AIStatus       `gorm:"not null;default:pending;index" json:"ai_status"`
+	YouTubeStatus   YouTubeStatus  `gorm:"column:youtube_status;not null;default:pending;index:idx_activity_youtube_status" json:"youtube_status"`
 	AbortedByUserID *uuid.UUID     `gorm:"type:uuid" json:"aborted_by_user_id"`
 	AbortedAt       *time.Time     `json:"aborted_at"`
 	AbortedReason   *string        `gorm:"type:text" json:"aborted_reason"`

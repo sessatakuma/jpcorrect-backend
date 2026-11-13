@@ -57,9 +57,9 @@ type Mistake struct {
 	UpdatedAt      time.Time   `json:"updated_at"`
 
 	// v1.2 additions (spec §2.1).
-	Confidence             MistakeConfidence       `gorm:"default:medium" json:"confidence"`
+	Confidence             MistakeConfidence       `gorm:"not null;default:medium" json:"confidence"`
 	LatestCorrectionText   *string                 `gorm:"type:text" json:"latest_correction_text"`
-	LatestCorrectionSource MistakeCorrectionSource `gorm:"default:initial" json:"latest_correction_source"`
+	LatestCorrectionSource MistakeCorrectionSource `gorm:"not null;default:initial" json:"latest_correction_source"`
 	InteractedAt           *time.Time              `json:"interacted_at"`
 }
 
