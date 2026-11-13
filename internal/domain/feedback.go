@@ -27,7 +27,7 @@ const (
 type FeedbackProgress struct {
 	ActivityID  uuid.UUID              `gorm:"type:uuid;not null;primaryKey;index:idx_feedback_progress_activity_status,priority:1" json:"activity_id"`
 	UserID      uuid.UUID              `gorm:"type:uuid;not null;primaryKey" json:"user_id"`
-	Status      FeedbackProgressStatus `gorm:"default:not_started;index:idx_feedback_progress_activity_status,priority:2" json:"status"`
+	Status      FeedbackProgressStatus `gorm:"not null;default:not_started;index:idx_feedback_progress_activity_status,priority:2" json:"status"`
 	StartedAt   *time.Time             `json:"started_at"`
 	CompletedAt *time.Time             `json:"completed_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
@@ -46,7 +46,7 @@ type SelectedSentence struct {
 	ActivityID       uuid.UUID  `gorm:"type:uuid;not null;index;index:idx_selected_sentence_activity_mistake,priority:1;index:idx_selected_sentence_user_activity,priority:2" json:"activity_id"`
 	MistakeID        uuid.UUID  `gorm:"type:uuid;not null;index;index:idx_selected_sentence_activity_mistake,priority:2;uniqueIndex:idx_selected_sentence_mistake_user,priority:1" json:"mistake_id"`
 	SelectedByUserID uuid.UUID  `gorm:"type:uuid;not null;index;index:idx_selected_sentence_user_activity,priority:1;uniqueIndex:idx_selected_sentence_mistake_user,priority:2" json:"selected_by_user_id"`
-	IsDegraded       bool       `gorm:"default:false" json:"is_degraded"`
+	IsDegraded       bool       `gorm:"not null;default:false" json:"is_degraded"`
 	RevealedAt       *time.Time `json:"revealed_at"`
 	RevealedByUserID *uuid.UUID `gorm:"type:uuid" json:"revealed_by_user_id"`
 	CreatedAt        time.Time  `json:"created_at"`

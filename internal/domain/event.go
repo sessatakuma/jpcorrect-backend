@@ -58,7 +58,7 @@ type Event struct {
 	// v1.2 additions (spec §2.1).
 	ActivityID         uuid.UUID      `gorm:"type:uuid;not null;index;uniqueIndex:idx_event_activity_kind,priority:1" json:"activity_id"`
 	Kind               EventKind      `gorm:"not null;uniqueIndex:idx_event_activity_kind,priority:2" json:"kind"`
-	CurrentStep        int            `gorm:"default:0" json:"current_step"`
+	CurrentStep        int            `gorm:"not null;default:0" json:"current_step"`
 	StepDurations      datatypes.JSON `gorm:"type:jsonb" json:"step_durations"`
 	RecordingStartedBy *uuid.UUID     `gorm:"type:uuid" json:"recording_started_by"`
 	RecordingStartedAt *time.Time     `json:"recording_started_at"`
