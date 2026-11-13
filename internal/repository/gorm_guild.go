@@ -164,10 +164,14 @@ func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guil
 		First(&invite).Error
 
 	if err != nil {
+		// No unexpired link is a normal answer for this lookup, not an error:
+		// callers decide whether to rotate a new invite. Every other failure is
+		// a real database problem, so it goes through MapGormError like the rest
+		// of the repository layer instead of escaping raw.
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, MapGormError(err)
 	}
 
 	return &invite, nil

@@ -259,6 +259,35 @@ func TestCreateInviteLinkWithTxIgnoresPopulatedAssociations(t *testing.T) {
 	assert.Zero(t, ghostUsers, "a populated CreatedByUser association must not insert a parent row")
 }
 
+// TestGetActiveInviteByGuildIDErrorSemantics pins both halves of this lookup's
+// contract: no unexpired link answers (nil, nil) so callers may rotate a new
+// one, and a real database failure is returned as an error through
+// MapGormError instead of being flattened into that answer. The second part
+// matters because the invite-link GET handler turns a nil link into 200 null,
+// which would hide a broken query.
+func TestGetActiveInviteByGuildIDErrorSemantics(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	guild, _ := newInviteLinkFixture(t, db)
+	repo := NewGormGuildRepository(db)
+
+	t.Run("no active link is not an error", func(t *testing.T) {
+		got, err := repo.GetActiveInviteByGuildID(context.Background(), guild.ID, time.Now())
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+
+	t.Run("database failure is not reported as no active link", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		got, err := repo.GetActiveInviteByGuildID(ctx, guild.ID, time.Now())
+		require.Error(t, err, "a failed query must not look like an empty result")
+		assert.Nil(t, got)
+		assert.False(t, errors.Is(err, domain.ErrNotFound),
+			"a database failure must not be mapped to not found")
+	})
+}
+
 // TestGetActiveInviteIgnoresExpiredLinks checks the repository query now that
 // expires_at is NOT NULL: an expired link is never returned, the newest
 // unexpired one is.
