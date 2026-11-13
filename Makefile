@@ -12,6 +12,9 @@ endif
 
 .PHONY: air swag
 
+POSTGRES_PORT ?= 5432
+API_TOOLS_PORT ?= 8000
+
 air:
 	go tool air --build.cmd "go build -o ./tmp/main$(BIN_EXT) ./cmd/jpcorrect/main.go" --build.entrypoint "./tmp/main$(BIN_EXT)"
 

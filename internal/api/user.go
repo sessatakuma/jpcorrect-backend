@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"jpcorrect-backend/internal/domain"
 
@@ -19,6 +20,7 @@ import (
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [get]
 func (a *API) UserGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -50,6 +52,7 @@ func (a *API) UserGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users [post]
 func (a *API) UserCreateHandler(c *gin.Context) {
 	var user domain.User
@@ -81,6 +84,7 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [put]
 func (a *API) UserUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -135,6 +139,7 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/{id} [delete]
 func (a *API) UserDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -173,6 +178,7 @@ func (a *API) UserDeleteHandler(c *gin.Context) {
 // @Param name path string true "User name"
 // @Success 200 {array} domain.User
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/name/{name} [get]
 func (a *API) UserGetByNameHandler(c *gin.Context) {
 	name := c.Param("name")
@@ -187,17 +193,107 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 }
 
 // @Summary Initialize current user
-// @Description Return the authenticated user based on JWT supabase_user_id (idempotent)
+// @Description Create or link the local User row for the JWT supabase_user_id (idempotent)
 // @Tags users
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.User
+// @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
+// @Failure 500 {object} map[string]string
 // @Router /v1/users/init [post]
 // @Security BearerAuth
 func (a *API) UserInitHandler(c *gin.Context) {
-	user := c.MustGet("user").(*domain.User)
-	c.JSON(http.StatusOK, user)
+	ctx := c.Request.Context()
+
+	// A caller that already resolved to a local user (debug caller or a
+	// middleware that ran RequireLocalUser) needs no provisioning.
+	if existing, ok := c.Get("user"); ok {
+		if user, ok := existing.(*domain.User); ok && user != nil {
+			c.JSON(http.StatusOK, user)
+			return
+		}
+	}
+
+	subject, _ := c.Get("supabaseUserID")
+	supabaseUserID, _ := subject.(string)
+	if supabaseUserID == "" {
+		// Debug mode selects the caller by local user ID instead of a JWT.
+		if id, ok := callerID(c); ok && gin.IsDebugging() {
+			user, err := a.userRepo.GetByID(ctx, id)
+			if err == nil {
+				c.JSON(http.StatusOK, user)
+				return
+			}
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing authenticated subject"})
+		return
+	}
+
+	user, err := a.userRepo.GetBySupabaseUserID(ctx, supabaseUserID)
+	if err == nil {
+		c.JSON(http.StatusOK, user)
+		return
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		return
+	}
+
+	emailValue, _ := c.Get("supabaseEmail")
+	email, _ := emailValue.(string)
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "token has no email claim"})
+		return
+	}
+
+	// Rows created before supabase_user_id existed are linked by email so
+	// existing accounts keep their data instead of colliding on the unique email.
+	legacy, legacyErr := a.userRepo.GetByEmail(ctx, email)
+	switch {
+	case legacyErr == nil:
+		if legacy.SupabaseUserID != "" {
+			c.JSON(http.StatusConflict, gin.H{"error": "email is linked to another account"})
+			return
+		}
+		legacy.SupabaseUserID = supabaseUserID
+		if err := a.userRepo.Update(ctx, legacy); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link user"})
+			return
+		}
+		c.JSON(http.StatusOK, legacy)
+		return
+	case !errors.Is(legacyErr, domain.ErrNotFound):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		return
+	}
+
+	name, _, _ := strings.Cut(email, "@")
+	newUser := &domain.User{
+		Email:          email,
+		Name:           name,
+		SupabaseUserID: supabaseUserID,
+	}
+	if verifiedValue, ok := c.Get("supabaseEmailVerified"); ok {
+		if verified, ok := verifiedValue.(bool); ok {
+			newUser.IsEmailVerified = verified
+		}
+	}
+	if err := a.userRepo.Create(ctx, newUser); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			// Another request provisioned the same account first; return it.
+			if existing, lookupErr := a.userRepo.GetBySupabaseUserID(ctx, supabaseUserID); lookupErr == nil {
+				c.JSON(http.StatusOK, existing)
+				return
+			}
+			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, newUser)
 }
 
 // @Summary Get current user profile
@@ -264,6 +360,7 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 // @Success 200 {object} domain.User
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/users/email/{email} [get]
 func (a *API) UserGetByEmailHandler(c *gin.Context) {
 	email := c.Param("email")

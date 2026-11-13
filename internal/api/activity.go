@@ -92,6 +92,7 @@ func (a *API) ActivityCreateHandler(c *gin.Context) {
 		}
 
 		activity = domain.Activity{
+			ID:              uuid.New(),
 			GuildID:         guildID,
 			SequenceNumber:  maxSeq + 1,
 			Status:          domain.ActivityStatusPendingPractice,
@@ -110,6 +111,7 @@ func (a *API) ActivityCreateHandler(c *gin.Context) {
 		}
 
 		practiceEvent := domain.Event{
+			ID:         uuid.New(),
 			Title:      "Practice",
 			StartTime:  req.PracticeAt,
 			Mode:       eventMode,
@@ -120,6 +122,7 @@ func (a *API) ActivityCreateHandler(c *gin.Context) {
 		}
 
 		reviewEvent := domain.Event{
+			ID:         uuid.New(),
 			Title:      "Review",
 			StartTime:  reviewAt,
 			Mode:       domain.EventModeReview,
@@ -331,14 +334,8 @@ func (a *API) ActivityAbortHandler(c *gin.Context) {
 	var req abortActivityRequest
 	_ = c.ShouldBindJSON(&req)
 
-	userIDRaw, exists := c.Get("userID")
-	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "user id not found in context"})
-		return
-	}
-	userID, ok := userIDRaw.(uuid.UUID)
+	userID, ok := requireCallerID(c)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user id type"})
 		return
 	}
 	now := time.Now()

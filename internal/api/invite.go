@@ -8,7 +8,6 @@ import (
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -29,19 +28,17 @@ func (a *API) InviteInfoHandler(c *gin.Context) {
 		return
 	}
 
-	inviteLink, err := a.inviteLinkRepo.GetByToken(c.Request.Context(), token)
+	invite, err := a.guildRepo.GetInviteByCode(c.Request.Context(), token)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
-			return
-		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if invite == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		return
+	}
 
-	isExpired := time.Now().After(inviteLink.ExpiresAt)
-
-	guild, err := a.guildRepo.GetByID(c.Request.Context(), inviteLink.GuildID)
+	guild, err := a.guildRepo.GetByID(c.Request.Context(), invite.GuildID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "guild not found"})
@@ -50,6 +47,8 @@ func (a *API) InviteInfoHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	isExpired := invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt)
 
 	c.JSON(http.StatusOK, gin.H{
 		"guild": gin.H{
@@ -81,26 +80,27 @@ func (a *API) InviteAcceptHandler(c *gin.Context) {
 		return
 	}
 
-	userIDRaw, _ := c.Get("userID")
-	userID := userIDRaw.(uuid.UUID)
-
-	inviteLink, err := a.inviteLinkRepo.GetByToken(c.Request.Context(), token)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	userID, ok := requireCallerID(c)
+	if !ok {
 		return
 	}
 
-	if time.Now().After(inviteLink.ExpiresAt) {
+	invite, err := a.guildRepo.GetInviteByCode(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if invite == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
+		return
+	}
+	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "invite expired"})
 		return
 	}
 
 	// Check user not already in this guild
-	_, err = a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), inviteLink.GuildID, userID)
+	_, err = a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), invite.GuildID, userID)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "already a member of this guild"})
 		return
@@ -121,21 +121,21 @@ func (a *API) InviteAcceptHandler(c *gin.Context) {
 		return
 	}
 
-	// Transaction: create GuildAttendee + cancel pending JoinRequests
+	// Transaction: create GuildAttendee + cancel pending JoinRequests. Both
+	// writes must use the same tx so a failure rolls the whole acceptance back.
 	now := time.Now()
 	attendee := &domain.GuildAttendee{
-		ID:       uuid.New(),
-		GuildID:  inviteLink.GuildID,
+		GuildID:  invite.GuildID,
 		UserID:   userID,
 		Role:     domain.GuildAttendeeRoleMember,
 		JoinedAt: &now,
 	}
 
 	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(attendee).Error; err != nil {
+		if err := a.guildAttendeeRepo.CreateWithTx(c.Request.Context(), tx, attendee); err != nil {
 			return err
 		}
-		return a.joinRequestRepo.CancelPendingByUserID(c.Request.Context(), userID)
+		return a.joinRequestRepo.CancelPendingByUserIDWithTx(c.Request.Context(), tx, userID)
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {

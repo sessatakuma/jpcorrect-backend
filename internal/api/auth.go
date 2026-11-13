@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
@@ -62,12 +64,114 @@ func (a *API) ShutdownJWKS() {
 	a.jwksCache = nil
 }
 
-// AuthMiddleware returns a Gin middleware that validates JWT tokens
+// AuthMiddleware returns a Gin middleware that validates JWT tokens. It only
+// proves that the caller holds a valid Supabase token; it does not require a
+// local User row, so first-login routes such as /v1/users/init stay reachable.
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := a.validateToken(c)
 		if err != nil {
 			a.respondAuthError(c, err)
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequireLocalUser resolves the JWT subject (supabase_user_id) to a local User
+// row and exposes it as "userID" (uuid.UUID) and "user". It must run after
+// AuthMiddleware. Routes that need a local account mount it; the registration
+// routes deliberately do not.
+func (a *API) RequireLocalUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		subject, ok := c.Get("supabaseUserID")
+		supabaseUserID, _ := subject.(string)
+		if !ok || supabaseUserID == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"missing authenticated subject",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), supabaseUserID)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusUnauthorized,
+					"user not registered",
+					"",
+				))
+			} else {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusInternalServerError,
+					"internal server error",
+					"",
+				))
+			}
+			c.Abort()
+			return
+		}
+
+		c.Set("userID", user.ID)
+		c.Set("user", user)
+		c.Next()
+	}
+}
+
+// debugCallerMiddleware supplies an explicitly selected caller without JWT
+// validation. Register installs it only in debug mode.
+func debugCallerMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		caller := c.GetHeader("X-Debug-User-ID")
+		if caller != "" {
+			userID, err := uuid.Parse(caller)
+			if err != nil || userID == uuid.Nil {
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
+				return
+			}
+			c.Set("userID", userID)
+		}
+		c.Next()
+	}
+}
+
+// APIKeyMiddleware requires a static API key in the X-API-Key header that matches
+// CLIENT_API_KEY. Intended for non-user-specific service callers; user-scoped
+// callers should use the JWT-based AuthMiddleware on regular /v1 routes instead.
+func (a *API) APIKeyMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if a.clientAPIKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"API key authentication is not configured",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		providedKey := c.GetHeader("X-API-Key")
+		if providedKey == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"missing X-API-Key header",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid API key",
+				"",
+			))
 			c.Abort()
 			return
 		}
@@ -91,29 +195,34 @@ func (a *API) respondAuthError(c *gin.Context, err error) {
 	}
 }
 
-// validateToken validates the JWT token and extracts user information
+// validateToken validates the JWT token and extracts user information.
+// Accepts "Bearer <token>" (any casing) as well as a bare "<token>" — the
+// latter compensates for Swagger UI's apiKey field, which doesn't auto-prefix
+// the scheme.
 func (a *API) validateToken(c *gin.Context) error {
 	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
+	fields := strings.Fields(authHeader)
+
+	var tokenString string
+	switch len(fields) {
+	case 0:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"missing authorization header",
 			"",
 		)
-	}
-
-	// Extract the token from "Bearer <token>"
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || parts[0] != "Bearer" {
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid authorization header format",
-			"",
-		)
-	}
-
-	tokenString := strings.TrimSpace(parts[1])
-	if tokenString == "" {
+	case 1:
+		tokenString = fields[0]
+	case 2:
+		if !strings.EqualFold(fields[0], "Bearer") {
+			return domain.NewAuthError(
+				http.StatusUnauthorized,
+				"invalid authorization header format",
+				"",
+			)
+		}
+		tokenString = fields[1]
+	default:
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"invalid authorization header format",
@@ -133,7 +242,14 @@ func (a *API) validateToken(c *gin.Context) error {
 	kf := a.jwksCache
 	a.jwksMutex.Unlock()
 
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+	// Parse and validate the token. Supabase puts the user's email in the
+	// token, so a custom claims type carries it for first-login provisioning.
+	type supabaseClaims struct {
+		jwt.RegisteredClaims
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+	}
+	token, err := jwt.ParseWithClaims(tokenString, &supabaseClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
 		return domain.NewAuthError(
@@ -151,7 +267,7 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	claims, ok := token.Claims.(*supabaseClaims)
 	if !ok {
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
@@ -160,18 +276,19 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Look up the user by supabase_user_id from the JWT sub claim
-	user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), claims.Subject)
-	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			return domain.NewAuthError(http.StatusUnauthorized, "user not registered", "")
-		}
-		return domain.NewAuthError(http.StatusInternalServerError, "internal server error", "")
+	if claims.Subject == "" {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"missing token subject",
+			"",
+		)
 	}
 
-	// Store the user ID (uuid.UUID) and full user object in the context for downstream handlers
-	c.Set("userID", user.ID)
-	c.Set("user", user)
+	c.Set("supabaseUserID", claims.Subject)
+	if claims.Email != "" {
+		c.Set("supabaseEmail", claims.Email)
+	}
+	c.Set("supabaseEmailVerified", claims.EmailVerified)
 
 	return nil
 }

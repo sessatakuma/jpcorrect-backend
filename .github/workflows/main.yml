@@ -40,3 +40,36 @@ jobs:
       # Checks: go mod tidy, golangci-lint, tests (race detector), build
       run-go-checks: true
       go-version: "1.25"
+
+  guild-concurrency-test:
+    name: Guild master concurrency test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://test:test@localhost/test?sslmode=disable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+
+      - name: Test concurrent guild creation
+        run: >-
+          go test -race ./internal/repository
+          -run '^TestCreateWithMasterConcurrentLimit$'

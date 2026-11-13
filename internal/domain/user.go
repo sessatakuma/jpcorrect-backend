@@ -33,7 +33,7 @@ type User struct {
 	Email           string         `gorm:"uniqueIndex" json:"email"`
 	Name            string         `json:"name"`
 	AvatarURL       *string        `json:"avatar_url"`
-	SupabaseUserID  string         `gorm:"uniqueIndex" json:"supabase_user_id"`
+	SupabaseUserID  string         `gorm:"default:'';uniqueIndex:idx_user_supabase_user_id,where:supabase_user_id <> ''" json:"supabase_user_id"`
 	PasswordHash    *string        `gorm:"column:password_hash" json:"-"`
 	IsEmailVerified bool           `gorm:"default:false" json:"is_email_verified"`
 	Role            UserRole       `gorm:"default:user" json:"role"`

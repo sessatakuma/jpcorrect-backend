@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // JoinRequestStatus represents the status of a guild join request.
@@ -35,4 +36,11 @@ type JoinRequestRepository interface {
 	Create(ctx context.Context, req *JoinRequest) error
 	Update(ctx context.Context, req *JoinRequest) error
 	CancelPendingByUserID(ctx context.Context, userID uuid.UUID) error
+
+	// Transaction-bound variants. The handlers own the transaction; these
+	// methods must use the caller's tx so a later failure rolls back the whole
+	// approval or invite acceptance.
+	GetPendingForUpdate(ctx context.Context, tx *gorm.DB, guildID, id uuid.UUID) (*JoinRequest, error)
+	UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id uuid.UUID, status JoinRequestStatus) error
+	CancelPendingByUserIDWithTx(ctx context.Context, tx *gorm.DB, userID uuid.UUID) error
 }

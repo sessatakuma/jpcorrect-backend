@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -61,6 +62,39 @@ func (r *gormJoinRequestRepository) Update(ctx context.Context, req *domain.Join
 
 func (r *gormJoinRequestRepository) CancelPendingByUserID(ctx context.Context, userID uuid.UUID) error {
 	return MapGormError(r.db.WithContext(ctx).Model(&domain.JoinRequest{}).
+		Where("user_id = ? AND status = ?", userID, domain.JoinRequestStatusPending).
+		Update("status", domain.JoinRequestStatusCancelled).Error)
+}
+
+// GetPendingForUpdate locks a still-pending request that belongs to guildID.
+// A request from another guild, or one already reviewed, returns ErrNotFound.
+func (r *gormJoinRequestRepository) GetPendingForUpdate(ctx context.Context, tx *gorm.DB, guildID, id uuid.UUID) (*domain.JoinRequest, error) {
+	var req domain.JoinRequest
+	err := tx.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND guild_id = ? AND status = ?", id, guildID, domain.JoinRequestStatusPending).
+		First(&req).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &req, nil
+}
+
+func (r *gormJoinRequestRepository) UpdateStatusWithTx(ctx context.Context, tx *gorm.DB, id uuid.UUID, status domain.JoinRequestStatus) error {
+	result := tx.WithContext(ctx).Model(&domain.JoinRequest{}).
+		Where("id = ?", id).
+		Update("status", status)
+	if result.Error != nil {
+		return MapGormError(result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (r *gormJoinRequestRepository) CancelPendingByUserIDWithTx(ctx context.Context, tx *gorm.DB, userID uuid.UUID) error {
+	return MapGormError(tx.WithContext(ctx).Model(&domain.JoinRequest{}).
 		Where("user_id = ? AND status = ?", userID, domain.JoinRequestStatusPending).
 		Update("status", domain.JoinRequestStatusCancelled).Error)
 }

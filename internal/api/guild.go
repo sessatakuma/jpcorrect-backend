@@ -1,13 +1,12 @@
 package api
 
 import (
-	crypto_rand "crypto/rand"
-	"encoding/hex"
 	"errors"
-	"log"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"jpcorrect-backend/internal/domain"
@@ -27,6 +26,7 @@ import (
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [get]
 // @Security BearerAuth
 func (a *API) GuildGetHandler(c *gin.Context) {
@@ -59,25 +59,19 @@ func (a *API) GuildGetHandler(c *gin.Context) {
 // @Tags guilds
 // @Accept json
 // @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param guild body domain.Guild true "Guild data"
 // @Success 201 {object} domain.Guild
 // @Failure 400 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds [post]
 // @Security BearerAuth
 func (a *API) GuildCreateHandler(c *gin.Context) {
-	userIDRaw, _ := c.Get("userID")
-	userID := userIDRaw.(uuid.UUID)
-
-	attendees, err := a.guildAttendeeRepo.GetByUserID(c.Request.Context(), userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if len(attendees) >= 1 {
-		c.JSON(http.StatusForbidden, gin.H{"error": "already in a guild"})
+	userID, ok := requireCallerID(c)
+	if !ok {
 		return
 	}
 
@@ -87,22 +81,19 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
-	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&guild).Error; err != nil {
-			return err
-		}
-		attendee := &domain.GuildAttendee{
-			GuildID:  guild.ID,
-			UserID:   userID,
-			Role:     domain.GuildAttendeeRoleMaster,
-			JoinedAt: &now,
-		}
-		return tx.Create(attendee).Error
-	})
-	if err != nil {
+	attendee := domain.GuildAttendee{
+		UserID: userID,
+		Role:   domain.GuildAttendeeRoleMaster,
+	}
+
+	// Write Guild and GuildAttendee within the same transaction.
+	if err := a.guildRepo.CreateWithMaster(c.Request.Context(), &guild, &attendee); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
+			return
+		}
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user has already created a guild"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -112,18 +103,24 @@ func (a *API) GuildCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, guild)
 }
 
+type UpdateGuildRequest struct {
+	Name        *string `json:"name" binding:"omitempty,max=100"`
+	Description *string `json:"description" binding:"omitempty,max=500"`
+}
+
 // @Summary Update a guild
 // @Tags guilds
 // @Accept json
 // @Produce json
 // @Param id path string true "Guild ID"
-// @Param guild body domain.Guild true "Guild data"
+// @Param guild body UpdateGuildRequest true "Guild data"
 // @Success 200 {object} domain.Guild
 // @Failure 400 {object} map[string]string
 // @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [put]
 // @Security BearerAuth
 func (a *API) GuildUpdateHandler(c *gin.Context) {
@@ -138,7 +135,7 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	_, err = a.guildRepo.GetByID(c.Request.Context(), id)
+	guild, err := a.guildRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Guild not found"})
@@ -148,14 +145,20 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	var guild domain.Guild
-	if err := c.ShouldBindJSON(&guild); err != nil {
+	var req UpdateGuildRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	guild.ID = id
-	if err := a.guildRepo.Update(c.Request.Context(), &guild); err != nil {
+	if req.Name != nil {
+		guild.Name = *req.Name
+	}
+	if req.Description != nil {
+		guild.Description = *req.Description
+	}
+
+	if err := a.guildRepo.Update(c.Request.Context(), guild); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "Guild already exists"})
 			return
@@ -183,6 +186,7 @@ func (a *API) GuildUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guilds/{id} [delete]
 func (a *API) GuildDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -218,6 +222,213 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+type TransferLeaderRequest struct {
+	NewLeaderUserID uuid.UUID `json:"new_leader_user_id" binding:"required"`
+}
+
+// @Summary Transfer guild leadership
+// @Description Transfer the master/leader role of a guild to another member
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
+// @Param id path string true "Guild ID"
+// @Param request body TransferLeaderRequest true "New leader user ID"
+// @Success 200 {object} map[string]string "leader transferred successfully"
+// @Failure 400 {object} map[string]string "Invalid UUID format or user is not a member"
+// @Failure 404 {object} map[string]string "Guild not found"
+// @Failure 409 {object} map[string]string "New leader already leads another guild"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /v1/guilds/{id}/transfer-leader [post]
+func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
+	idStr := c.Param("id")
+	guildID, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID format"})
+		return
+	}
+
+	var req TransferLeaderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	callerID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
+
+	// 呼叫 Repo 執行 Transaction 更新
+	err = a.guildRepo.TransferLeader(c.Request.Context(), guildID, callerID, req.NewLeaderUserID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Guild not found"})
+			return
+		}
+		if errors.Is(err, domain.ErrNotGuildMaster) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can transfer leadership"})
+			return
+		}
+		if errors.Is(err, domain.ErrNotGuildMember) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "New leader must be a member of the guild"})
+			return
+		}
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "new leader already leads another guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
+}
+
+type GuildInviteResponse struct {
+	Code      string     `json:"code"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// @Summary Get active guild invite link
+// @Description Get the currently active invite link for a guild. Returns 200 with null if expired or not found.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
+// @Param id path string true "Guild ID" format(uuid)
+// @Success 200 {object} GuildInviteResponse "Returns the active invite link, or null if expired or not found"
+// @Failure 400 {object} map[string]string "Invalid Guild ID format"
+// @Failure 500 {object} map[string]string "Internal server error"
+// @Security BearerAuth
+// @Router /v1/guilds/{id}/invite-link [get]
+func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
+
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
+		return
+	}
+	if attendee == nil || attendee.LeftAt != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
+		return
+	}
+
+	invite, err := a.guildRepo.GetActiveInviteByGuildID(c.Request.Context(), guildID, time.Now())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch invite link"})
+		return
+	}
+
+	if invite == nil {
+		c.JSON(http.StatusOK, nil)
+		return
+	}
+
+	// Convert to Response format or return the invite directly.
+	resp := GuildInviteResponse{
+		Code:      invite.Code,
+		ExpiresAt: invite.ExpiresAt,
+		CreatedAt: invite.CreatedAt,
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
+// @Summary Create a new guild invite link
+// @Description Creates a new active invite link for a guild and expires any existing active links within a single transaction.
+// @Tags guilds
+// @Accept json
+// @Produce json
+// @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
+// @Param id path string true "Guild ID" format(uuid)
+// @Param request body domain.GuildInvite false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
+// @Success 200 {object} domain.GuildInvite
+// @Failure 400 {object} map[string]string "Invalid Guild ID or Request Body"
+// @Failure 500 {object} map[string]string "Internal Server Error"
+// @Security BearerAuth
+// @Router /v1/guilds/{id}/invite-link [post]
+func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
+	guildIDParam := c.Param("id")
+	guildID, err := uuid.Parse(guildIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild_id"})
+		return
+	}
+
+	callerID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
+
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, callerID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "user is not a member of this guild"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify membership"})
+		return
+	}
+	if attendee == nil || attendee.LeftAt != nil || attendee.Role != domain.GuildAttendeeRoleMaster {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only the guild master can manage invite links"})
+		return
+	}
+
+	var input domain.GuildInvite
+	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	now := time.Now()
+	const maxTTLSeconds int64 = 31536000 // 1 year
+	var expiresAt *time.Time
+	if input.TTLSeconds != nil {
+		ttl := *input.TTLSeconds
+		if ttl <= 0 || ttl > maxTTLSeconds {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ttl_seconds must be between 1 and 31536000"})
+			return
+		}
+		t := now.Add(time.Duration(ttl) * time.Second)
+		expiresAt = &t
+	}
+
+	// Generate a new invitation link
+	newInvite := &domain.GuildInvite{
+		ID:        uuid.New(),
+		GuildID:   guildID,
+		Code:      strings.ReplaceAll(uuid.New().String(), "-", ""),
+		ExpiresAt: expiresAt,
+		CreatedAt: now,
+	}
+
+	// In the Transaction: expire old links + create new link
+	if err := a.guildRepo.CreateInviteLinkWithTx(c.Request.Context(), guildID, newInvite, now); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite link"})
+		return
+	}
+
+	c.JSON(http.StatusOK, newInvite)
+}
+
 // @Summary Get a guild attendee by ID
 // @Tags guild-attendees
 // @Accept json
@@ -227,6 +438,7 @@ func (a *API) GuildDeleteHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [get]
 func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -258,6 +470,7 @@ func (a *API) GuildAttendeeGetHandler(c *gin.Context) {
 // @Failure 400 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees [post]
 func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	var attendee domain.GuildAttendee
@@ -267,6 +480,10 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 	}
 
 	if err := a.guildAttendeeRepo.Create(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
@@ -289,6 +506,7 @@ func (a *API) GuildAttendeeCreateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [put]
 func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -316,6 +534,10 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 
 	attendee.ID = id
 	if err := a.guildAttendeeRepo.Update(c.Request.Context(), &attendee); err != nil {
+		if errors.Is(err, domain.ErrGuildLimitReached) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user already leads another guild"})
+			return
+		}
 		if errors.Is(err, domain.ErrDuplicateEntry) {
 			c.JSON(http.StatusConflict, gin.H{"error": "GuildAttendee already exists"})
 			return
@@ -343,6 +565,7 @@ func (a *API) GuildAttendeeUpdateHandler(c *gin.Context) {
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/{id} [delete]
 func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 	idStr := c.Param("id")
@@ -382,6 +605,7 @@ func (a *API) GuildAttendeeDeleteHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/guild/{guild_id} [get]
 func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 	guildIDStr := c.Param("guild_id")
@@ -408,6 +632,7 @@ func (a *API) GuildAttendeeGetByGuildHandler(c *gin.Context) {
 // @Success 200 {array} domain.GuildAttendee
 // @Failure 400 {object} map[string]string
 // @Failure 500 {object} map[string]string
+// @Security BearerAuth
 // @Router /v1/guild-attendees/user/{user_id} [get]
 func (a *API) GuildAttendeeGetByUserHandler(c *gin.Context) {
 	userIDStr := c.Param("user_id")
@@ -483,8 +708,11 @@ func (a *API) GuildMemberRemoveHandler(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	if userID.(uuid.UUID) == targetUserID {
+	userID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
+	if userID == targetUserID {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot remove yourself, use leave instead"})
 		return
 	}
@@ -526,8 +754,11 @@ func (a *API) GuildLeaveHandler(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
-	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, userID.(uuid.UUID))
+	userID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
+	attendee, err := a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "membership not found"})
 		return
@@ -564,16 +795,19 @@ func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("userID")
+	userID, ok := requireCallerID(c)
+	if !ok {
+		return
+	}
 
-	_, err = a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, userID.(uuid.UUID))
+	_, err = a.guildAttendeeRepo.GetByGuildAndUser(c.Request.Context(), guildID, userID)
 	if err == nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "already a member"})
 		return
 	}
 
 	// Check no pending application
-	existing, _ := a.joinRequestRepo.GetByUserID(c.Request.Context(), userID.(uuid.UUID))
+	existing, _ := a.joinRequestRepo.GetByUserID(c.Request.Context(), userID)
 	for _, req := range existing {
 		if req.GuildID == guildID && req.Status == domain.JoinRequestStatusPending {
 			c.JSON(http.StatusConflict, gin.H{"error": "already have a pending application"})
@@ -583,7 +817,7 @@ func (a *API) GuildApplicationCreateHandler(c *gin.Context) {
 
 	req := &domain.JoinRequest{
 		GuildID: guildID,
-		UserID:  userID.(uuid.UUID),
+		UserID:  userID,
 		Status:  domain.JoinRequestStatusPending,
 	}
 
@@ -652,20 +886,16 @@ func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 		return
 	}
 
-	req, err := a.joinRequestRepo.GetByID(c.Request.Context(), appID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
-		return
-	}
-
+	var req *domain.JoinRequest
 	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		// Approve the request
-		req.Status = domain.JoinRequestStatusApproved
-		if err := a.joinRequestRepo.Update(c.Request.Context(), req); err != nil {
+		// Only a still-pending request that belongs to this guild may be approved.
+		pending, err := a.joinRequestRepo.GetPendingForUpdate(c.Request.Context(), tx, guildID, appID)
+		if err != nil {
 			return err
 		}
+		req = pending
 
-		// Create guild attendee
+		// Create guild attendee on the same transaction.
 		now := time.Now()
 		attendee := &domain.GuildAttendee{
 			GuildID:  guildID,
@@ -673,16 +903,27 @@ func (a *API) GuildApplicationApproveHandler(c *gin.Context) {
 			Role:     domain.GuildAttendeeRoleMember,
 			JoinedAt: &now,
 		}
-		if err := a.guildAttendeeRepo.Create(c.Request.Context(), attendee); err != nil {
+		if err := a.guildAttendeeRepo.CreateWithTx(c.Request.Context(), tx, attendee); err != nil {
 			return err
 		}
 
-		// Cancel user's other pending requests
-		return a.joinRequestRepo.CancelPendingByUserID(c.Request.Context(), req.UserID)
+		if err := a.joinRequestRepo.UpdateStatusWithTx(c.Request.Context(), tx, req.ID, domain.JoinRequestStatusApproved); err != nil {
+			return err
+		}
+
+		// Cancel user's other pending requests on the same transaction.
+		return a.joinRequestRepo.CancelPendingByUserIDWithTx(c.Request.Context(), tx, req.UserID)
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve application"})
+		switch {
+		case errors.Is(err, domain.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+		case errors.Is(err, domain.ErrDuplicateEntry):
+			c.JSON(http.StatusConflict, gin.H{"error": "user is already a member of this guild"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to approve application"})
+		}
 		return
 	}
 
@@ -717,119 +958,26 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 		return
 	}
 
-	req, err := a.joinRequestRepo.GetByID(c.Request.Context(), appID)
+	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if _, err := a.joinRequestRepo.GetPendingForUpdate(c.Request.Context(), tx, guildID, appID); err != nil {
+			return err
+		}
+		return a.joinRequestRepo.UpdateStatusWithTx(c.Request.Context(), tx, appID, domain.JoinRequestStatusRejected)
+	})
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
-		return
-	}
-
-	req.Status = domain.JoinRequestStatusRejected
-	if err := a.joinRequestRepo.Update(c.Request.Context(), req); err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "application not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reject application"})
 		return
 	}
 
 	// TODO: trigger notification
 	c.JSON(http.StatusOK, gin.H{"message": "application rejected"})
-}
 
-// @Summary Get guild invite link
-// @Description Get the current active invite link for the guild
-// @Tags guilds
-// @Produce json
-// @Param id path string true "Guild ID"
-// @Success 200 {object} domain.InviteLink
-// @Failure 403 {object} map[string]string
-// @Router /v1/guilds/{id}/invite-link [get]
-// @Security BearerAuth
-func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
-	guildID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild id"})
-		return
-	}
-	if err := a.RequireGuildLeader(c, guildID); err != nil {
-		return
-	}
-
-	links, err := a.inviteLinkRepo.GetByGuildID(c.Request.Context(), guildID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get invite link"})
-		return
-	}
-
-	now := time.Now()
-	for _, link := range links {
-		if link.ExpiresAt.After(now) {
-			c.JSON(http.StatusOK, link)
-			return
-		}
-	}
-
-	c.JSON(http.StatusOK, nil)
-}
-
-// @Summary Create guild invite link
-// @Description Generate a new invite link for the guild (expires old ones)
-// @Tags guilds
-// @Produce json
-// @Param id path string true "Guild ID"
-// @Success 201 {object} domain.InviteLink
-// @Failure 403 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /v1/guilds/{id}/invite-link [post]
-// @Security BearerAuth
-func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
-	guildID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild id"})
-		return
-	}
-	if err := a.RequireGuildLeader(c, guildID); err != nil {
-		return
-	}
-
-	userIDRaw, _ := c.Get("userID")
-	userID := userIDRaw.(uuid.UUID)
-
-	tokenBytes := make([]byte, 16)
-	if _, err := crypto_rand.Read(tokenBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
-		return
-	}
-	token := hex.EncodeToString(tokenBytes)
-
-	var newLink *domain.InviteLink
-	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		oldLinks, err := a.inviteLinkRepo.GetByGuildID(c.Request.Context(), guildID)
-		if err == nil {
-			for _, link := range oldLinks {
-				if link.ExpiresAt.After(now) {
-					link.ExpiresAt = now
-					if err := a.inviteLinkRepo.Update(c.Request.Context(), link); err != nil {
-						// Log but don't fail — expiring old links is best-effort
-						log.Printf("failed to expire old invite link %s: %v", link.ID, err)
-					}
-				}
-			}
-		}
-
-		newLink = &domain.InviteLink{
-			GuildID:         guildID,
-			Token:           token,
-			ExpiresAt:       now.Add(7 * 24 * time.Hour),
-			CreatedByUserID: userID,
-		}
-		return a.inviteLinkRepo.Create(c.Request.Context(), newLink)
-	})
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite link"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, newLink)
+	// TODO: trigger notification
+	c.JSON(http.StatusOK, gin.H{"message": "application rejected"})
 }
 
 // @Summary Get guild default slot
@@ -934,68 +1082,6 @@ func (a *API) GuildDefaultSlotDeleteHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "default slot deleted"})
 }
 
-// @Summary Transfer guild leadership
-// @Description Transfer guild leader role to another member
-// @Tags guilds
-// @Accept json
-// @Produce json
-// @Param id path string true "Guild ID"
-// @Param body body object true "New leader" example({"new_leader_user_id": "uuid"})
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /v1/guilds/{id}/transfer-leader [post]
-// @Security BearerAuth
-func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
-	guildID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid guild id"})
-		return
-	}
-	if err := a.RequireGuildLeader(c, guildID); err != nil {
-		return
-	}
-
-	var body struct {
-		NewLeaderUserID string `json:"new_leader_user_id"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input"})
-		return
-	}
-	newLeaderID, err := uuid.Parse(body.NewLeaderUserID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-		return
-	}
-
-	userIDRaw, _ := c.Get("userID")
-	userID := userIDRaw.(uuid.UUID)
-
-	err = a.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&domain.GuildAttendee{}).
-			Where("guild_id = ? AND user_id = ?", guildID, userID).
-			Update("role", domain.GuildAttendeeRoleMember).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&domain.GuildAttendee{}).
-			Where("guild_id = ? AND user_id = ?", guildID, newLeaderID).
-			Update("role", domain.GuildAttendeeRoleMaster).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to transfer leadership"})
-		return
-	}
-
-	// TODO: trigger notification
-	c.JSON(http.StatusOK, gin.H{"message": "leadership transferred"})
-}
-
 // GuildDiscoverHandler lists public guilds ordered by most recent activity
 // @Summary Discover public guilds
 // @Description List public guilds ordered by most recent activity time with pagination
@@ -1029,11 +1115,11 @@ func (a *API) GuildDiscoverHandler(c *gin.Context) {
 	var results []guildDiscoverRow
 	err := a.db.WithContext(ctx).
 		Table("guild").
-		Select("guild.*, COUNT(DISTINCT guild_attendee.guild_attendee_id) AS member_count, MAX(activity.created_at) AS last_activity_at").
-		Joins("LEFT JOIN guild_attendee ON guild_attendee.guild_id = guild.guild_id").
-		Joins("LEFT JOIN activity ON activity.guild_id = guild.guild_id").
+		Select("guild.*, COUNT(DISTINCT guild_attendee.id) AS member_count, MAX(activity.created_at) AS last_activity_at").
+		Joins("LEFT JOIN guild_attendee ON guild_attendee.guild_id = guild.id").
+		Joins("LEFT JOIN activity ON activity.guild_id = guild.id").
 		Where("guild.deleted_at IS NULL").
-		Group("guild.guild_id").
+		Group("guild.id").
 		Order("last_activity_at DESC NULLS LAST").
 		Limit(perPage).
 		Offset(offset).
@@ -1096,9 +1182,9 @@ func (a *API) GuildReportRotationHandler(c *gin.Context) {
 		}
 		a.db.WithContext(ctx).
 			Table("activity").
-			Select("activity.activity_id, activity.created_at").
-			Joins("JOIN event ON event.activity_id = activity.activity_id").
-			Joins("JOIN event_attendee ON event_attendee.event_id = event.event_id").
+			Select("activity.id AS activity_id, activity.created_at").
+			Joins("JOIN event ON event.activity_id = activity.id").
+			Joins("JOIN event_attendee ON event_attendee.event_id = event.id").
 			Where("activity.guild_id = ? AND activity.mode = ? AND event_attendee.user_id = ?", guildID, domain.ActivityModeReport, m.UserID).
 			Where("activity.deleted_at IS NULL").
 			Order("activity.created_at DESC").
