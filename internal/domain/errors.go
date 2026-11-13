@@ -11,7 +11,6 @@ type AuthError struct {
 	Details    string // Detailed error information (optional)
 }
 
-// Implement the error interface
 func (ae *AuthError) Error() string {
 	if ae.Details != "" {
 		return ae.Message + ": " + ae.Details
@@ -19,7 +18,6 @@ func (ae *AuthError) Error() string {
 	return ae.Message
 }
 
-// NewAuthError creates an AuthError with the given status code, message, and optional details
 func NewAuthError(statusCode int, message, details string) *AuthError {
 	return &AuthError{
 		StatusCode: statusCode,

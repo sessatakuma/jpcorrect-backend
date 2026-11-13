@@ -25,14 +25,20 @@ func Execute() {
 	}
 
 	if err := db.AutoMigrate(
+		// Order matters for foreign keys; see docs/talkuma-schema-plan.md §5
 		&domain.User{},
 		&domain.Guild{},
 		&domain.GuildAttendee{},
+		&domain.GuildDefaultSlot{},
+		&domain.JoinRequest{},
+		&domain.Topic{},
+		&domain.ReportThemeSuggestion{},
+		&domain.Activity{},
 		&domain.Event{},
 		&domain.EventAttendee{},
 		&domain.Transcript{},
 		&domain.Mistake{},
-		&domain.GuildInvite{},
+		&domain.InviteLink{},
 	); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
@@ -106,8 +112,6 @@ func Execute() {
 		return err == nil
 	}
 
-	// Initializing the server in a goroutine so that
-	// it won't block the graceful shutdown handling below
 	go func() {
 		if fileExists(certPath) && fileExists(keyPath) {
 			log.Println("🔒 使用 HTTPS 模式")

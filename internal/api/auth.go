@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -41,7 +42,7 @@ func (a *API) InitializeJWKS(initCtx context.Context) error {
 		return fmt.Errorf("JWKS initialization timeout: %w", initCtx.Err())
 	case result := <-resultCh:
 		if result.err != nil {
-			a.jwksCancel() // Clean up the context if initialization fails
+			a.jwksCancel()
 			a.jwksErr = result.err
 			return fmt.Errorf("failed to initialize JWKS: %w", result.err)
 		}
@@ -56,16 +57,16 @@ func (a *API) ShutdownJWKS() {
 	a.jwksMutex.Lock()
 	defer a.jwksMutex.Unlock()
 
-	// Cancel the context to stop the JWKS refresh goroutine
 	if a.jwksCancel != nil {
 		a.jwksCancel()
 	}
 
-	// Set jwksCache to nil to allow garbage collection
 	a.jwksCache = nil
 }
 
-// AuthMiddleware returns a Gin middleware that validates JWT tokens
+// AuthMiddleware returns a Gin middleware that validates JWT tokens. It only
+// proves that the caller holds a valid Supabase token; it does not require a
+// local User row, so first-login routes such as /v1/users/init stay reachable.
 func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := a.validateToken(c)
@@ -75,6 +76,49 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+// RequireLocalUser resolves the JWT subject (supabase_user_id) to a local User
+// row and exposes it as "userID" (uuid.UUID) and "user". It must run after
+// AuthMiddleware. Routes that need a local account mount it; the registration
+// routes deliberately do not.
+func (a *API) RequireLocalUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		subject, ok := c.Get("supabaseUserID")
+		supabaseUserID, _ := subject.(string)
+		if !ok || supabaseUserID == "" {
+			a.respondAuthError(c, domain.NewAuthError(
+				http.StatusUnauthorized,
+				"missing authenticated subject",
+				"",
+			))
+			c.Abort()
+			return
+		}
+
+		user, err := a.userRepo.GetBySupabaseUserID(c.Request.Context(), supabaseUserID)
+		if err != nil {
+			if errors.Is(err, domain.ErrNotFound) {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusUnauthorized,
+					"user not registered",
+					"",
+				))
+			} else {
+				a.respondAuthError(c, domain.NewAuthError(
+					http.StatusInternalServerError,
+					"internal server error",
+					"",
+				))
+			}
+			c.Abort()
+			return
+		}
+
+		c.Set("userID", user.ID)
+		c.Set("user", user)
 		c.Next()
 	}
 }
@@ -90,7 +134,7 @@ func debugCallerMiddleware() gin.HandlerFunc {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
 				return
 			}
-			c.Set("userID", userID.String())
+			c.Set("userID", userID)
 		}
 		c.Next()
 	}
@@ -186,7 +230,6 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Check if JWKS is initialized
 	a.jwksMutex.Lock()
 	if a.jwksErr != nil || a.jwksCache == nil {
 		a.jwksMutex.Unlock()
@@ -199,8 +242,14 @@ func (a *API) validateToken(c *gin.Context) error {
 	kf := a.jwksCache
 	a.jwksMutex.Unlock()
 
-	// Parse and validate the token
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
+	// Parse and validate the token. Supabase puts the user's email in the
+	// token, so a custom claims type carries it for first-login provisioning.
+	type supabaseClaims struct {
+		jwt.RegisteredClaims
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+	}
+	token, err := jwt.ParseWithClaims(tokenString, &supabaseClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
 		return domain.NewAuthError(
@@ -218,8 +267,7 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Extract claims
-	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	claims, ok := token.Claims.(*supabaseClaims)
 	if !ok {
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
@@ -228,8 +276,30 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
+	// The subject is the only identity this service trusts. Reject a missing,
+	// blank, or nil-UUID subject here, at the boundary, so no later lookup or
+	// write can ever run with it.
+	subject := strings.TrimSpace(claims.Subject)
+	if subject == "" {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"missing token subject",
+			"",
+		)
+	}
+	if parsed, parseErr := uuid.Parse(subject); parseErr == nil && parsed == uuid.Nil {
+		return domain.NewAuthError(
+			http.StatusUnauthorized,
+			"invalid token subject",
+			"",
+		)
+	}
+
+	c.Set("supabaseUserID", subject)
+	if claims.Email != "" {
+		c.Set("supabaseEmail", claims.Email)
+	}
+	c.Set("supabaseEmailVerified", claims.EmailVerified)
 
 	return nil
 }

@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -13,30 +12,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"jpcorrect-backend/internal/database"
 	"jpcorrect-backend/internal/domain"
+	"jpcorrect-backend/internal/testutil"
 )
 
 func TestCreateWithMasterConcurrentLimit(t *testing.T) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
-	}
+	db := testutil.NewPostgresDB(t)
 
-	db, err := database.NewGormDB(databaseURL)
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(
-		&domain.User{},
-		&domain.Guild{},
-		&domain.GuildAttendee{},
-	))
-
+	// Keep the production pool small so the concurrent CreateWithMaster calls
+	// really do contend on separate connections instead of queueing.
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(4)
-	t.Cleanup(func() {
-		assert.NoError(t, sqlDB.Close())
-	})
 
 	user := domain.User{
 		ID:    uuid.New(),
@@ -53,18 +40,6 @@ func TestCreateWithMasterConcurrentLimit(t *testing.T) {
 		{ID: uuid.New(), UserID: user.ID},
 		{ID: uuid.New(), UserID: user.ID},
 	}
-
-	t.Cleanup(func() {
-		assert.NoError(t, db.Where(
-			"id IN ?",
-			[]uuid.UUID{attendees[0].ID, attendees[1].ID},
-		).Delete(&domain.GuildAttendee{}).Error)
-		assert.NoError(t, db.Unscoped().Where(
-			"id IN ?",
-			[]uuid.UUID{guilds[0].ID, guilds[1].ID},
-		).Delete(&domain.Guild{}).Error)
-		assert.NoError(t, db.Unscoped().Delete(&domain.User{}, "id = ?", user.ID).Error)
-	})
 
 	repo := NewGormGuildRepository(db)
 	start := make(chan struct{})
@@ -117,17 +92,7 @@ func TestCreateWithMasterConcurrentLimit(t *testing.T) {
 }
 
 func TestGetByGuildAndUserExcludesLeftMember(t *testing.T) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
-	}
-
-	db, err := database.NewGormDB(databaseURL)
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, sqlDB.Close()) })
-	require.NoError(t, db.AutoMigrate(&domain.User{}, &domain.Guild{}, &domain.GuildAttendee{}))
+	db := testutil.NewPostgresDB(t)
 
 	tx := db.Begin()
 	require.NoError(t, tx.Error)
@@ -153,25 +118,16 @@ func TestGetByGuildAndUserExcludesLeftMember(t *testing.T) {
 }
 
 func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
-	}
+	db := testutil.NewPostgresDB(t)
 
-	db, err := database.NewGormDB(databaseURL)
-	require.NoError(t, err)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(4)
-	t.Cleanup(func() { assert.NoError(t, sqlDB.Close()) })
-	require.NoError(t, db.AutoMigrate(&domain.Guild{}, &domain.GuildInvite{}))
 
 	guild := domain.Guild{ID: uuid.New(), Name: "concurrent invite rotation test"}
 	require.NoError(t, db.Create(&guild).Error)
-	t.Cleanup(func() {
-		assert.NoError(t, db.Where("guild_id = ?", guild.ID).Delete(&domain.GuildInvite{}).Error)
-		assert.NoError(t, db.Unscoped().Delete(&guild).Error)
-	})
+	creator := domain.User{ID: uuid.New(), Email: "invite-rotation@example.com", Name: "invite creator"}
+	require.NoError(t, db.Create(&creator).Error)
 
 	repo := NewGormGuildRepository(db)
 	start := make(chan struct{})
@@ -181,14 +137,17 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 
 	for range 2 {
 		go func() {
-			invite := &domain.GuildInvite{
-				ID:      uuid.New(),
-				GuildID: guild.ID,
-				Code:    strings.ReplaceAll(uuid.NewString(), "-", ""),
+			now := time.Now()
+			invite := &domain.InviteLink{
+				ID:              uuid.New(),
+				GuildID:         guild.ID,
+				Token:           strings.ReplaceAll(uuid.NewString(), "-", ""),
+				ExpiresAt:       now.Add(7 * 24 * time.Hour),
+				CreatedByUserID: creator.ID,
 			}
 			ready.Done()
 			<-start
-			results <- repo.CreateInviteLinkWithTx(context.Background(), guild.ID, invite, time.Now())
+			results <- repo.CreateInviteLinkWithTx(context.Background(), guild.ID, invite, now)
 		}()
 	}
 
@@ -199,9 +158,9 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 	}
 
 	var total, active int64
-	require.NoError(t, db.Model(&domain.GuildInvite{}).Where("guild_id = ?", guild.ID).Count(&total).Error)
-	require.NoError(t, db.Model(&domain.GuildInvite{}).
-		Where("guild_id = ? AND (expires_at IS NULL OR expires_at > ?)", guild.ID, time.Now()).
+	require.NoError(t, db.Model(&domain.InviteLink{}).Where("guild_id = ?", guild.ID).Count(&total).Error)
+	require.NoError(t, db.Model(&domain.InviteLink{}).
+		Where("guild_id = ? AND expires_at > ?", guild.ID, time.Now()).
 		Count(&active).Error)
 	assert.EqualValues(t, 2, total)
 	assert.EqualValues(t, 1, active)

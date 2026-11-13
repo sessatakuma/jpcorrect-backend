@@ -49,7 +49,9 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 			attendee.JoinedAt = &now
 		}
 
-		if err := tx.Create(attendee).Error; err != nil {
+		// Omit associations: GuildAttendee.Guild/User exist only to emit the
+		// foreign keys and must never make a write touch the parent tables.
+		if err := tx.Omit(clause.Associations).Create(attendee).Error; err != nil {
 			return err
 		}
 
@@ -94,19 +96,25 @@ func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.U
 		}
 
 		// Downgrade the original master to member.
-		err = tx.Model(&domain.GuildAttendee{}).
-			Where("guild_id = ? AND role = ?", guildID, domain.GuildAttendeeRoleMaster).
-			Update("role", domain.GuildAttendeeRoleMember).Error
-		if err != nil {
-			return err
+		result := tx.Model(&domain.GuildAttendee{}).
+			Where("guild_id = ? AND user_id = ? AND role = ?", guildID, callerID, domain.GuildAttendeeRoleMaster).
+			Update("role", domain.GuildAttendeeRoleMember)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return domain.ErrNotGuildMaster
 		}
 
 		// Promote the new leader to master.
-		err = tx.Model(&domain.GuildAttendee{}).
-			Where("guild_id = ? AND user_id = ?", guildID, newLeaderUserID).
-			Update("role", domain.GuildAttendeeRoleMaster).Error
-		if err != nil {
-			return err
+		result = tx.Model(&domain.GuildAttendee{}).
+			Where("guild_id = ? AND user_id = ? AND left_at IS NULL", guildID, newLeaderUserID).
+			Update("role", domain.GuildAttendeeRoleMaster)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return domain.ErrNotGuildMember
 		}
 
 		// Update the updated_at timestamp
@@ -146,26 +154,42 @@ func (r *gormGuildRepository) Delete(ctx context.Context, guildID uuid.UUID) err
 	})
 }
 
-func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*domain.GuildInvite, error) {
-	var invite domain.GuildInvite
+func (r *gormGuildRepository) GetActiveInviteByGuildID(ctx context.Context, guildID uuid.UUID, now time.Time) (*domain.InviteLink, error) {
+	var invite domain.InviteLink
 
 	err := r.db.WithContext(ctx).
 		Where("guild_id = ?", guildID).
-		Where("expires_at IS NULL OR expires_at > ?", now).
+		Where("expires_at > ?", now).
 		Order("created_at DESC").
 		First(&invite).Error
 
 	if err != nil {
+		// No unexpired link is a normal answer for this lookup, not an error:
+		// callers decide whether to rotate a new invite. Every other failure is
+		// a real database problem, so it goes through MapGormError like the rest
+		// of the repository layer instead of escaping raw.
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, MapGormError(err)
 	}
 
 	return &invite, nil
 }
 
-func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, now time.Time) error {
+func (r *gormGuildRepository) GetInviteByToken(ctx context.Context, token string) (*domain.InviteLink, error) {
+	var invite domain.InviteLink
+	err := r.db.WithContext(ctx).Where("token = ?", token).First(&invite).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, MapGormError(err)
+	}
+	return &invite, nil
+}
+
+func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildID uuid.UUID, newInvite *domain.InviteLink, now time.Time) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Serialize rotations for this guild, including when it has no invites yet.
 		var guild domain.Guild
@@ -175,15 +199,17 @@ func (r *gormGuildRepository) CreateInviteLinkWithTx(ctx context.Context, guildI
 		}
 
 		// Update the `expires_at` timestamp for all of the guild's currently valid (unexpired) old links to `now`.
-		err := tx.Model(&domain.GuildInvite{}).
+		err := tx.Model(&domain.InviteLink{}).
 			Where("guild_id = ?", guildID).
-			Where("expires_at IS NULL OR expires_at > ?", now).
+			Where("expires_at > ?", now).
 			Update("expires_at", now).Error
 		if err != nil {
 			return err
 		}
 
-		if err := tx.Create(newInvite).Error; err != nil {
+		// Omit associations: InviteLink.Guild/CreatedByUser exist only to emit the
+		// foreign keys and must never make a write touch the parent tables.
+		if err := tx.Omit(clause.Associations).Create(newInvite).Error; err != nil {
 			return err
 		}
 
@@ -241,11 +267,22 @@ func (r *gormGuildAttendeeRepository) Create(ctx context.Context, attendee *doma
 	if attendee.ID == uuid.Nil {
 		attendee.ID = uuid.New()
 	}
-	return MapGormError(r.db.WithContext(ctx).Create(attendee).Error)
+	// Omit associations: see CreateWithMaster.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Create(attendee).Error)
+}
+
+// CreateWithTx writes the attendee on the caller's transaction.
+func (r *gormGuildAttendeeRepository) CreateWithTx(ctx context.Context, tx *gorm.DB, attendee *domain.GuildAttendee) error {
+	if attendee.ID == uuid.Nil {
+		attendee.ID = uuid.New()
+	}
+	// Omit associations: see CreateWithMaster.
+	return MapGormError(tx.WithContext(ctx).Omit(clause.Associations).Create(attendee).Error)
 }
 
 func (r *gormGuildAttendeeRepository) Update(ctx context.Context, attendee *domain.GuildAttendee) error {
-	return MapGormError(r.db.WithContext(ctx).Save(attendee).Error)
+	// Omit associations: see CreateWithMaster.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Save(attendee).Error)
 }
 
 func (r *gormGuildAttendeeRepository) Delete(ctx context.Context, id uuid.UUID) error {

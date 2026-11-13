@@ -93,7 +93,6 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
 	_, err = a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -120,7 +119,6 @@ func (a *API) MistakeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	// Return updated object
 	updated, err := a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -150,7 +148,6 @@ func (a *API) MistakeDeleteHandler(c *gin.Context) {
 		return
 	}
 
-	// Check if record exists first
 	_, err = a.mistakeRepo.GetByID(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {

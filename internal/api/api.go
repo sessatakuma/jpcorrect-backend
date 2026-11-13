@@ -22,26 +22,31 @@ import (
 )
 
 type API struct {
-	db                *gorm.DB
-	apiToolsURL       string
-	clientAPIKey      string
-	proxyTransport    *http.Transport
-	jwksURL           string
-	jwksCache         keyfunc.Keyfunc
-	jwksCtx           context.Context
-	jwksCancel        context.CancelFunc
-	jwksMutex         sync.Mutex
-	jwksErr           error
-	userRepo          domain.UserRepository
-	guildRepo         domain.GuildRepository
-	guildAttendeeRepo domain.GuildAttendeeRepository
-	eventRepo         domain.EventRepository
-	eventAttendeeRepo domain.EventAttendeeRepository
-	transcriptRepo    domain.TranscriptRepository
-	mistakeRepo       domain.MistakeRepository
-	webrtcHub         domain.WebRTCHub
-	rateLimiter       *RateLimiter
-	upgrader          websocket.Upgrader
+	db                        *gorm.DB
+	apiToolsURL               string
+	clientAPIKey              string
+	proxyTransport            *http.Transport
+	jwksURL                   string
+	jwksCache                 keyfunc.Keyfunc
+	jwksCtx                   context.Context
+	jwksCancel                context.CancelFunc
+	jwksMutex                 sync.Mutex
+	jwksErr                   error
+	userRepo                  domain.UserRepository
+	guildRepo                 domain.GuildRepository
+	guildAttendeeRepo         domain.GuildAttendeeRepository
+	eventRepo                 domain.EventRepository
+	eventAttendeeRepo         domain.EventAttendeeRepository
+	transcriptRepo            domain.TranscriptRepository
+	mistakeRepo               domain.MistakeRepository
+	activityRepo              domain.ActivityRepository
+	guildDefaultSlotRepo      domain.GuildDefaultSlotRepository
+	topicRepo                 domain.TopicRepository
+	reportThemeSuggestionRepo domain.ReportThemeSuggestionRepository
+	joinRequestRepo           domain.JoinRequestRepository
+	webrtcHub                 domain.WebRTCHub
+	rateLimiter               *RateLimiter
+	upgrader                  websocket.Upgrader
 }
 
 func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
@@ -52,19 +57,18 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
 	mistakeRepo := repository.NewGormMistakeRepository(db)
+	activityRepo := repository.NewGormActivityRepository(db)
+	guildDefaultSlotRepo := repository.NewGormGuildDefaultSlotRepository(db)
+	topicRepo := repository.NewGormTopicRepository(db)
+	reportThemeSuggestionRepo := repository.NewGormReportThemeSuggestionRepository(db)
+	joinRequestRepo := repository.NewGormJoinRequestRepository(db)
 	webrtcHub := NewHub()
-	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
+	rateLimiter := NewRateLimiter(10*time.Second, 15)
 
-	// 配置 WebSocket upgrader 的來源驗證
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			if len(allowedOrigins) == 0 {
-				// 開發模式：允許所有來源
-				if gin.IsDebugging() {
-					return true
-				}
-				// 生產模式：必須設定 ALLOWED_ORIGINS
-				return false
+				return gin.IsDebugging()
 			}
 			origin := r.Header.Get("Origin")
 			for _, allowed := range allowedOrigins {
@@ -77,29 +81,31 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 	}
 
 	return &API{
-		db:                db,
-		apiToolsURL:       url,
-		clientAPIKey:      clientAPIKey,
-		proxyTransport:    transport,
-		jwksURL:           jwksURL,
-		userRepo:          userRepo,
-		guildRepo:         guildRepo,
-		guildAttendeeRepo: guildAttendeeRepo,
-		eventRepo:         eventRepo,
-		eventAttendeeRepo: eventAttendeeRepo,
-		transcriptRepo:    transcriptRepo,
-		mistakeRepo:       mistakeRepo,
-		webrtcHub:         webrtcHub,
-		rateLimiter:       rateLimiter,
-		upgrader:          upgrader,
+		db:                        db,
+		apiToolsURL:               url,
+		clientAPIKey:              clientAPIKey,
+		proxyTransport:            transport,
+		jwksURL:                   jwksURL,
+		userRepo:                  userRepo,
+		guildRepo:                 guildRepo,
+		guildAttendeeRepo:         guildAttendeeRepo,
+		eventRepo:                 eventRepo,
+		eventAttendeeRepo:         eventAttendeeRepo,
+		transcriptRepo:            transcriptRepo,
+		mistakeRepo:               mistakeRepo,
+		activityRepo:              activityRepo,
+		guildDefaultSlotRepo:      guildDefaultSlotRepo,
+		topicRepo:                 topicRepo,
+		reportThemeSuggestionRepo: reportThemeSuggestionRepo,
+		joinRequestRepo:           joinRequestRepo,
+		webrtcHub:                 webrtcHub,
+		rateLimiter:               rateLimiter,
+		upgrader:                  upgrader,
 	}
 }
 
-// Close stops the RateLimiter's cleanup goroutine
 func (api *API) Close() {
-	if api.rateLimiter != nil {
-		api.rateLimiter.Close()
-	}
+	api.rateLimiter.Close()
 }
 
 func Register(r *gin.Engine, api *API) {
@@ -112,6 +118,9 @@ func Register(r *gin.Engine, api *API) {
 
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
+
+	// Invite info is public: the landing page must render before login.
+	r.GET("/v1/invites/:token", api.InviteInfoHandler)
 
 	// In debug mode (GIN_MODE=debug), APIKeyMiddleware + AuthMiddleware are
 	// skipped so the dev / internal deployment can be gated solely by an edge
@@ -138,15 +147,29 @@ func Register(r *gin.Engine, api *API) {
 		apiTools.POST("/sentence-query", api.SentenceQueryHandler)
 	}
 
+	// v1 requires a valid JWT in release mode. It does not require a local
+	// User row: /v1/users/init provisions one on first login.
 	v1 := r.Group("/v1")
 	if debug {
 		v1.Use(debugCallerMiddleware())
 	} else {
 		v1.Use(api.AuthMiddleware())
 	}
+
+	// First-login provisioning deliberately sits before RequireLocalUser.
+	v1.POST("/users/init", api.UserInitHandler)
+
+	// Everything else needs a local account.
+	authed := v1.Group("")
+	if !debug {
+		authed.Use(api.RequireLocalUser())
+	}
 	{
+		// Invites (auth-required)
+		authed.POST("/invites/:token/accept", api.InviteAcceptHandler)
+
 		// Mistakes
-		mistakes := v1.Group("/mistakes")
+		mistakes := authed.Group("/mistakes")
 		{
 			mistakes.POST("", api.MistakeCreateHandler)
 			mistakes.GET("/:id", api.MistakeGetHandler)
@@ -157,7 +180,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Practices (keep old route for backward compatibility)
-		practices := v1.Group("/practices")
+		practices := authed.Group("/practices")
 		{
 			practices.POST("", api.PracticeCreateHandler)
 			practices.GET("/:id", api.PracticeGetHandler)
@@ -167,19 +190,47 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Guilds
-		guilds := v1.Group("/guilds")
+		guilds := authed.Group("/guilds")
 		{
 			guilds.POST("", api.GuildCreateHandler)
+			guilds.GET("/discover", api.GuildDiscoverHandler)
 			guilds.GET("/:id", api.GuildGetHandler)
 			guilds.PUT("/:id", api.GuildUpdateHandler)
 			guilds.DELETE("/:id", api.GuildDeleteHandler)
+			guilds.GET("/:id/members", api.GuildMembersHandler)
+			guilds.DELETE("/:id/members/:user_id", api.GuildMemberRemoveHandler)
+			guilds.POST("/:id/leave", api.GuildLeaveHandler)
+			guilds.POST("/:id/applications", api.GuildApplicationCreateHandler)
+			guilds.GET("/:id/applications", api.GuildApplicationsHandler)
+			guilds.POST("/:id/applications/:app_id/approve", api.GuildApplicationApproveHandler)
+			guilds.POST("/:id/applications/:app_id/reject", api.GuildApplicationRejectHandler)
 			guilds.POST("/:id/transfer-leader", api.GuildTransferLeaderHandler)
 			guilds.GET("/:id/invite-link", api.GuildInviteLinkGetHandler)
 			guilds.POST("/:id/invite-link", api.GuildInviteLinkCreateHandler)
+			guilds.GET("/:id/default-slot", api.GuildDefaultSlotGetHandler)
+			guilds.PUT("/:id/default-slot", api.GuildDefaultSlotUpsertHandler)
+			guilds.DELETE("/:id/default-slot", api.GuildDefaultSlotDeleteHandler)
+			guilds.GET("/:id/report-rotation-suggestion", api.GuildReportRotationHandler)
+			guilds.POST("/:id/activities", api.ActivityCreateHandler)
+			guilds.GET("/:id/activities", api.GuildActivitiesHandler)
+		}
+
+		// Activities
+		authed.GET("/activities/:id", api.ActivityGetHandler)
+		authed.PUT("/activities/:id", api.ActivityUpdateHandler)
+		authed.POST("/activities/:id/abort", api.ActivityAbortHandler)
+
+		// Topics
+		topics := authed.Group("/topics")
+		{
+			topics.GET("/announce/search", api.TopicAnnounceSearchHandler)
+			topics.GET("/random", api.TopicRandomHandler)
+			topics.GET("/report-suggestions", api.ReportThemeSuggestionsHandler)
+			topics.GET("/:id", api.TopicGetHandler)
 		}
 
 		// Guild Attendees
-		guildAttendees := v1.Group("/guild-attendees")
+		guildAttendees := authed.Group("/guild-attendees")
 		{
 			guildAttendees.POST("", api.GuildAttendeeCreateHandler)
 			guildAttendees.GET("/:id", api.GuildAttendeeGetHandler)
@@ -190,7 +241,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Transcripts
-		transcripts := v1.Group("/transcripts")
+		transcripts := authed.Group("/transcripts")
 		{
 			transcripts.POST("", api.TranscriptCreateHandler)
 			transcripts.GET("/:id", api.TranscriptGetHandler)
@@ -201,7 +252,7 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Event Attendees
-		eventAttendees := v1.Group("/event-attendees")
+		eventAttendees := authed.Group("/event-attendees")
 		{
 			eventAttendees.POST("", api.EventAttendeeCreateHandler)
 			eventAttendees.GET("/:id", api.EventAttendeeGetHandler)
@@ -211,13 +262,21 @@ func Register(r *gin.Engine, api *API) {
 			eventAttendees.GET("/user/:user_id", api.EventAttendeeGetByUserHandler)
 		}
 
-		// Users
-		users := v1.Group("/users")
+		// Users (excluding /users/init, mounted above)
+		users := authed.Group("/users")
 		{
-			users.POST("", api.UserCreateHandler)
+			// Raw user CRUD is a legacy management route. Issue #78 allows only a
+			// system admin, because these handlers bind the whole domain.User and
+			// would otherwise let any caller rewrite the server-owned identity
+			// mapping (supabase_user_id), email, role or status. Account
+			// provisioning and self-service edits go through /users/init and
+			// /users/me, which bind allowlisted DTOs.
+			users.POST("", api.RequireSystemAdmin(), api.UserCreateHandler)
+			users.GET("/me", api.UserMeHandler)
+			users.PUT("/me", api.UserMeUpdateHandler)
 			users.GET("/:id", api.UserGetHandler)
-			users.PUT("/:id", api.UserUpdateHandler)
-			users.DELETE("/:id", api.UserDeleteHandler)
+			users.PUT("/:id", api.RequireSystemAdmin(), api.UserUpdateHandler)
+			users.DELETE("/:id", api.RequireSystemAdmin(), api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
 			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}

@@ -30,8 +30,15 @@ type mockGuildRepo struct {
 	transferLeaderErr   error
 
 	activeInviteCalls int
-	activeInvite      *domain.GuildInvite
+	activeInvite      *domain.InviteLink
 	activeInviteErr   error
+
+	inviteByTokenCalls []string
+	inviteByToken      *domain.InviteLink
+	inviteByTokenErr   error
+
+	guildByID    *domain.Guild
+	guildByIDErr error
 
 	createInviteLinkCalls []createInviteLinkCall
 	createInviteLinkErr   error
@@ -43,7 +50,7 @@ type transferLeaderCall struct {
 
 type createInviteLinkCall struct {
 	guildID uuid.UUID
-	invite  *domain.GuildInvite
+	invite  *domain.InviteLink
 }
 
 func (m *mockGuildRepo) CreateWithMaster(_ context.Context, _ *domain.Guild, attendee *domain.GuildAttendee) error {
@@ -56,12 +63,21 @@ func (m *mockGuildRepo) TransferLeader(_ context.Context, guildID, callerID, new
 	return m.transferLeaderErr
 }
 
-func (m *mockGuildRepo) GetActiveInviteByGuildID(_ context.Context, _ uuid.UUID, _ time.Time) (*domain.GuildInvite, error) {
+func (m *mockGuildRepo) GetActiveInviteByGuildID(_ context.Context, _ uuid.UUID, _ time.Time) (*domain.InviteLink, error) {
 	m.activeInviteCalls++
 	return m.activeInvite, m.activeInviteErr
 }
 
-func (m *mockGuildRepo) CreateInviteLinkWithTx(_ context.Context, guildID uuid.UUID, newInvite *domain.GuildInvite, _ time.Time) error {
+func (m *mockGuildRepo) GetInviteByToken(_ context.Context, token string) (*domain.InviteLink, error) {
+	m.inviteByTokenCalls = append(m.inviteByTokenCalls, token)
+	return m.inviteByToken, m.inviteByTokenErr
+}
+
+func (m *mockGuildRepo) GetByID(_ context.Context, _ uuid.UUID) (*domain.Guild, error) {
+	return m.guildByID, m.guildByIDErr
+}
+
+func (m *mockGuildRepo) CreateInviteLinkWithTx(_ context.Context, guildID uuid.UUID, newInvite *domain.InviteLink, _ time.Time) error {
 	m.createInviteLinkCalls = append(m.createInviteLinkCalls, createInviteLinkCall{guildID: guildID, invite: newInvite})
 	return m.createInviteLinkErr
 }
@@ -314,16 +330,17 @@ func TestGuildInviteLinkGetHandler(t *testing.T) {
 		guildID := uuid.New()
 		aRepo.getByGuildAndUserResult = &domain.GuildAttendee{Role: domain.GuildAttendeeRoleMaster}
 		expiresAt := time.Now().Add(time.Hour)
-		gRepo.activeInvite = &domain.GuildInvite{
-			Code:      "abc123",
-			ExpiresAt: &expiresAt,
+		gRepo.activeInvite = &domain.InviteLink{
+			Token:     "abc123",
+			ExpiresAt: expiresAt,
 			CreatedAt: time.Now(),
 		}
 
 		rec := invokeHandler(t, api.GuildInviteLinkGetHandler, getPath(guildID), &callerID, nil)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Contains(t, rec.Body.String(), `"code":"abc123"`)
+		assert.Contains(t, rec.Body.String(), `"token":"abc123"`)
+		assert.NotContains(t, rec.Body.String(), `"code"`, "the response key is `token`, not the legacy `code`")
 		if assert.Len(t, aRepo.getByGuildAndUserCalls, 1) {
 			assert.Equal(t, guildID, aRepo.getByGuildAndUserCalls[0].guildID)
 			assert.Equal(t, callerID, aRepo.getByGuildAndUserCalls[0].userID)
@@ -419,36 +436,42 @@ func TestGuildInviteLinkCreateHandler(t *testing.T) {
 		rec := invokeHandler(t, api.GuildInviteLinkCreateHandler, createPath(guildID), &callerID, body)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
+		before := time.Now()
 		var resp struct {
-			Code      string     `json:"code"`
-			ExpiresAt *time.Time `json:"expires_at"`
+			Token           string    `json:"token"`
+			ExpiresAt       time.Time `json:"expires_at"`
+			CreatedByUserID uuid.UUID `json:"created_by_user_id"`
 		}
 		assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-		assert.Regexp(t, codePattern, resp.Code)
-		assert.NotNil(t, resp.ExpiresAt)
+		assert.Regexp(t, codePattern, resp.Token)
+		assert.Equal(t, callerID, resp.CreatedByUserID)
+		assert.WithinDuration(t, before.Add(time.Hour), resp.ExpiresAt, 5*time.Second)
+		assert.NotContains(t, rec.Body.String(), `"code"`, "the response key is `token`, not the legacy `code`")
 		if assert.Len(t, gRepo.createInviteLinkCalls, 1) {
 			assert.Equal(t, guildID, gRepo.createInviteLinkCalls[0].guildID)
-			assert.NotNil(t, gRepo.createInviteLinkCalls[0].invite.ExpiresAt)
-			assert.Len(t, gRepo.createInviteLinkCalls[0].invite.Code, 32)
+			assert.Len(t, gRepo.createInviteLinkCalls[0].invite.Token, 32)
+			assert.Equal(t, callerID, gRepo.createInviteLinkCalls[0].invite.CreatedByUserID)
 		}
 	})
 
-	t.Run("master, empty body → 200 permanent", func(t *testing.T) {
+	t.Run("master, empty body → 200 with the default 7-day expiry", func(t *testing.T) {
 		api, gRepo, aRepo := newTestAPI()
 		aRepo.getByGuildAndUserResult = &domain.GuildAttendee{Role: domain.GuildAttendeeRoleMaster}
 
 		rec := invokeHandler(t, api.GuildInviteLinkCreateHandler, createPath(uuid.New()), &callerID, []byte{})
 
 		assert.Equal(t, http.StatusOK, rec.Code)
+		before := time.Now()
 		var resp struct {
-			Code      string     `json:"code"`
-			ExpiresAt *time.Time `json:"expires_at"`
+			Token     string    `json:"token"`
+			ExpiresAt time.Time `json:"expires_at"`
 		}
 		assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-		assert.Regexp(t, codePattern, resp.Code)
-		assert.Nil(t, resp.ExpiresAt)
+		assert.Regexp(t, codePattern, resp.Token)
+		// expires_at is NOT NULL: a link always carries an expiry, 7 days by default.
+		assert.WithinDuration(t, before.Add(7*24*time.Hour), resp.ExpiresAt, 5*time.Second)
 		if assert.Len(t, gRepo.createInviteLinkCalls, 1) {
-			assert.Nil(t, gRepo.createInviteLinkCalls[0].invite.ExpiresAt)
+			assert.False(t, gRepo.createInviteLinkCalls[0].invite.ExpiresAt.IsZero())
 		}
 	})
 }
