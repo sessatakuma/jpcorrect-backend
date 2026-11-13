@@ -296,6 +296,32 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, newUser)
 }
 
+// currentUser returns the caller's local User. It prefers the object loaded
+// by RequireLocalUser and falls back to a lookup by userID, which is all the
+// debug caller middleware provides.
+func (a *API) currentUser(c *gin.Context) (*domain.User, bool) {
+	if value, ok := c.Get("user"); ok {
+		if user, ok := value.(*domain.User); ok && user != nil {
+			return user, true
+		}
+	}
+	userID, ok := callerID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return nil, false
+	}
+	user, err := a.userRepo.GetByID(c.Request.Context(), userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not registered"})
+			return nil, false
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load user"})
+		return nil, false
+	}
+	return user, true
+}
+
 // @Summary Get current user profile
 // @Description Get the authenticated user's profile
 // @Tags users
@@ -305,7 +331,10 @@ func (a *API) UserInitHandler(c *gin.Context) {
 // @Router /v1/users/me [get]
 // @Security BearerAuth
 func (a *API) UserMeHandler(c *gin.Context) {
-	user := c.MustGet("user").(*domain.User)
+	user, ok := a.currentUser(c)
+	if !ok {
+		return
+	}
 	c.JSON(http.StatusOK, user)
 }
 
@@ -322,7 +351,10 @@ func (a *API) UserMeHandler(c *gin.Context) {
 // @Router /v1/users/me [put]
 // @Security BearerAuth
 func (a *API) UserMeUpdateHandler(c *gin.Context) {
-	user := c.MustGet("user").(*domain.User)
+	user, ok := a.currentUser(c)
+	if !ok {
+		return
+	}
 
 	var input struct {
 		Name      *string `json:"name"`

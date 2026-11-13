@@ -20,14 +20,16 @@ type mockUserRepo struct {
 
 	bySupabase map[string]*domain.User
 	byEmail    map[string]*domain.User
+	byID       map[uuid.UUID]*domain.User
 	created    []*domain.User
 	updated    []*domain.User
 	createErr  error
 }
 
 func newMockUserRepo(users ...*domain.User) *mockUserRepo {
-	m := &mockUserRepo{bySupabase: map[string]*domain.User{}, byEmail: map[string]*domain.User{}}
+	m := &mockUserRepo{bySupabase: map[string]*domain.User{}, byEmail: map[string]*domain.User{}, byID: map[uuid.UUID]*domain.User{}}
 	for _, user := range users {
+		m.byID[user.ID] = user
 		if user.SupabaseUserID != "" {
 			m.bySupabase[user.SupabaseUserID] = user
 		}
@@ -38,6 +40,13 @@ func newMockUserRepo(users ...*domain.User) *mockUserRepo {
 
 func (m *mockUserRepo) GetBySupabaseUserID(_ context.Context, supabaseUserID string) (*domain.User, error) {
 	if user, ok := m.bySupabase[supabaseUserID]; ok {
+		return user, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (m *mockUserRepo) GetByID(_ context.Context, id uuid.UUID) (*domain.User, error) {
+	if user, ok := m.byID[id]; ok {
 		return user, nil
 	}
 	return nil, domain.ErrNotFound
@@ -203,4 +212,21 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})
+}
+
+func TestUserMeHandlerFallsBackToCallerID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &domain.User{ID: uuid.New(), Email: "member@example.com", SupabaseUserID: "supabase-1"}
+	api := &API{userRepo: newMockUserRepo(user)}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/users/me", nil)
+	c.Set("userID", user.ID)
+
+	api.UserMeHandler(c)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), "member@example.com")
 }
