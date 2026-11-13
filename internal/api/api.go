@@ -32,6 +32,7 @@ type API struct {
 	jwksCancel        context.CancelFunc
 	jwksMutex         sync.Mutex
 	jwksErr           error
+	store             *repository.Store
 	userRepo          domain.UserRepository
 	guildRepo         domain.GuildRepository
 	guildAttendeeRepo domain.GuildAttendeeRepository
@@ -52,6 +53,7 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 	eventAttendeeRepo := repository.NewGormEventAttendeeRepository(db)
 	transcriptRepo := repository.NewGormTranscriptRepository(db)
 	mistakeRepo := repository.NewGormMistakeRepository(db)
+	store := repository.NewStore(db)
 	webrtcHub := NewHub()
 	rateLimiter := NewRateLimiter(10*time.Second, 15) // 10秒窗口，最多15次連線
 
@@ -85,6 +87,7 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 		clientAPIKey:      clientAPIKey,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
+		store:             store,
 		userRepo:          userRepo,
 		guildRepo:         guildRepo,
 		guildAttendeeRepo: guildAttendeeRepo,
