@@ -91,6 +91,13 @@ func Execute() {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}
 
+	// AutoMigrate cannot drop an index whose tag was removed from the model, so
+	// retired indexes are dropped explicitly. Idempotent: safe on a fresh
+	// database and on one that still carries the index.
+	if err := database.DropLegacyIndexes(context.Background(), db); err != nil {
+		log.Fatalf("failed to drop legacy indexes: %v", err)
+	}
+
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,

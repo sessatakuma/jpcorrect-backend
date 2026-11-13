@@ -251,3 +251,45 @@ func TestRegisterUserPublicProfileIntegration(t *testing.T) {
 		assertNoExcludedProfileKeys(t, profiles[0])
 	}
 }
+
+// TestUserInitRejectsUnusableSubject is the real-PostgreSQL half of spec §2.1:
+// users/init answers 400 INVALID_REQUEST for a verified `sub` that is empty,
+// malformed or the nil UUID, and writes no row. Every user-resolving route keeps
+// answering 401 for the same tokens.
+func TestUserInitRejectsUnusableSubject(t *testing.T) {
+	router, _, signer, db := newRegisterIntegrationAPI(t)
+
+	cases := []struct{ name, subject string }{
+		{"missing subject", ""},
+		{"subject that is not a UUID", "not-a-uuid"},
+		{"nil UUID subject", uuid.Nil.String()},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			token := "Bearer " + signer.token(t, supabaseClaims{
+				Email:            "ghost@example.com",
+				RegisteredClaims: jwt.RegisteredClaims{Subject: tc.subject},
+			})
+
+			initReq := httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
+			initReq.Header.Set("Authorization", token)
+			initRec := httptest.NewRecorder()
+			router.ServeHTTP(initRec, initReq)
+
+			require.Equal(t, http.StatusBadRequest, initRec.Code, initRec.Body.String())
+			assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, initRec).Error.Code)
+
+			meReq := httptest.NewRequest(http.MethodGet, "/v1/users/me", nil)
+			meReq.Header.Set("Authorization", token)
+			meRec := httptest.NewRecorder()
+			router.ServeHTTP(meRec, meReq)
+
+			require.Equal(t, http.StatusUnauthorized, meRec.Code, meRec.Body.String())
+			assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, meRec).Error.Code)
+
+			assert.Equal(t, int64(0), countUsers(t, db, "email = ?", "ghost@example.com"),
+				"an unusable subject must not create a row")
+		})
+	}
+}
