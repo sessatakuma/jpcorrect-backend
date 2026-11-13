@@ -3479,7 +3479,7 @@
                     "type": "string"
                 },
                 "ttl_seconds": {
-                    "description": "TTLSeconds is a request-only option and is not a column. It is kept from\n#54 as an optional override of the default 7-day lifetime; the spec itself\nonly defines the 7 days.",
+                    "description": "TTLSeconds is a request-only option and is not a column. §2.2 keeps it as\nan optional override of the default 7-day lifetime, with the range 1 to\n31536000 (Appendix E row 28).",
                     "type": "integer"
                 }
             }
