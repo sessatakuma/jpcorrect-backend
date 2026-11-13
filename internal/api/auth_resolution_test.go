@@ -30,7 +30,7 @@ func newJWTTestAPI(t *testing.T, repo *mockUserRepo) (*API, *testSigner) {
 func TestCurrentUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	user := storedUser(t, "supabase-1", "me@example.com")
+	user := storedUser(t, uuid.New(), "me@example.com")
 
 	tests := []struct {
 		name     string
@@ -81,10 +81,8 @@ func TestCurrentUser(t *testing.T) {
 func TestAuthMiddlewareResolvesUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	const (
-		sub   = "6b1c1f0e-8b81-4a4d-9f0c-3f1d1c2b3a40"
-		email = "caller@example.com"
-	)
+	const email = "caller@example.com"
+	sub := uuid.MustParse("6b1c1f0e-8b81-4a4d-9f0c-3f1d1c2b3a40")
 
 	t.Run("valid token with a stored row sets currentUser", func(t *testing.T) {
 		stored := storedUser(t, sub, email)
@@ -107,7 +105,7 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 		token := signer.token(t, supabaseClaims{
 			Email: email,
 			RegisteredClaims: jwt.RegisteredClaims{
-				Subject: sub,
+				Subject: sub.String(),
 				// A role claim is not part of the contract; it must be ignored.
 				Audience: jwt.ClaimStrings{"role:admin"},
 			},
@@ -123,7 +121,7 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 		require.NotNil(t, seen)
 		assert.Equal(t, stored.ID, seen.ID)
 		assert.Equal(t, domain.UserRoleStaff, seen.Role, "authorization uses the stored row, not the token")
-		assert.Equal(t, []string{sub}, repo.getBySupabaseUserIDCalls)
+		assert.Equal(t, []uuid.UUID{sub}, repo.getBySupabaseUserIDCalls)
 		assert.Nil(t, legacyAny, `the retired "userID" key is never set`)
 	})
 
@@ -148,7 +146,7 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 
 		env := decodeEnvelope(t, rec)
 		assert.Equal(t, "USER_NOT_INITIALIZED", env.Error.Code)
-		assert.Equal(t, []string{sub}, repo.getBySupabaseUserIDCalls)
+		assert.Equal(t, []uuid.UUID{sub}, repo.getBySupabaseUserIDCalls)
 	})
 
 	t.Run("expired token → 401", func(t *testing.T) {
@@ -160,7 +158,7 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 		token := signer.token(t, supabaseClaims{
 			Email: email,
 			RegisteredClaims: jwt.RegisteredClaims{
-				Subject:   sub,
+				Subject:   sub.String(),
 				ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
 			},
 		})
@@ -199,12 +197,34 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 		r.GET("/protected", api.AuthMiddleware(), func(c *gin.Context) { c.Status(http.StatusOK) })
 
 		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
-		req.Header.Set("Authorization", "Bearer "+signer.userToken(t, "", email))
+		req.Header.Set("Authorization", "Bearer "+signer.userToken(t, uuid.Nil, email))
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 
 		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+	})
+
+	t.Run("subject that is not a UUID → 401 without a lookup", func(t *testing.T) {
+		repo := &mockUserRepo{}
+		api, signer := newJWTTestAPI(t, repo)
+
+		r := gin.New()
+		r.GET("/protected", api.AuthMiddleware(), func(c *gin.Context) { c.Status(http.StatusOK) })
+
+		token := signer.token(t, supabaseClaims{
+			Email:            email,
+			RegisteredClaims: jwt.RegisteredClaims{Subject: "not-a-uuid"},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+		assert.Empty(t, repo.getBySupabaseUserIDCalls, "a malformed subject must not reach the repository")
 	})
 
 	t.Run("identity header without a token → 401", func(t *testing.T) {
@@ -228,6 +248,8 @@ func TestAuthMiddlewareResolvesUser(t *testing.T) {
 func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	sub := uuid.MustParse("8f2d5c14-3a6b-4f7e-9b21-5c8e4a1d7f60")
+
 	newServer := func(t *testing.T, repo *mockUserRepo) (*gin.Engine, *testSigner) {
 		t.Helper()
 		api, signer := newJWTTestAPI(t, repo)
@@ -235,7 +257,7 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 		r.POST("/v1/users/init", api.AuthMiddleware(), func(c *gin.Context) {
 			auth := currentSupabaseAuth(c)
 			require.NotNil(t, auth)
-			assert.Equal(t, "supabase-1", auth.Subject)
+			assert.Equal(t, sub, auth.Subject, "the subject is parsed once at the auth boundary")
 			assert.Equal(t, "first@example.com", auth.Email)
 			assert.Nil(t, currentUser(c), "the exemption resolves no user")
 			c.Status(http.StatusOK)
@@ -248,7 +270,7 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 		r, signer := newServer(t, repo)
 
 		req := httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
-		req.Header.Set("Authorization", "Bearer "+signer.userToken(t, "supabase-1", "first@example.com"))
+		req.Header.Set("Authorization", "Bearer "+signer.userToken(t, sub, "first@example.com"))
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
 
@@ -269,7 +291,7 @@ func TestAuthMiddlewareUsersInitExemption(t *testing.T) {
 			{name: "expired token", authorizat: "Bearer " + signer.token(t, supabaseClaims{
 				Email: "first@example.com",
 				RegisteredClaims: jwt.RegisteredClaims{
-					Subject:   "supabase-1",
+					Subject:   sub.String(),
 					ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
 				},
 			})},

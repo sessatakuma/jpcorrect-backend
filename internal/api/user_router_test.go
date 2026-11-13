@@ -10,6 +10,7 @@ import (
 	"jpcorrect-backend/internal/domain"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ type userRouterFixture struct {
 	users   *mockUserRepo
 	signer  *testSigner
 	token   string
-	subject string
+	subject uuid.UUID
 }
 
 // newUserRouterFixture builds the real router with mock repositories and a test
@@ -44,7 +45,7 @@ func newUserRouterFixture(t *testing.T, caller *domain.User) userRouterFixture {
 	router := gin.New()
 	Register(router, api)
 
-	subject := uuid.NewString()
+	subject := uuid.New()
 	email := "caller@example.com"
 	if caller != nil && caller.SupabaseUserID != nil {
 		subject = *caller.SupabaseUserID
@@ -87,7 +88,7 @@ func TestRegisterUserRoutesAuthentication(t *testing.T) {
 	for _, mode := range []string{gin.DebugMode, gin.ReleaseMode} {
 		t.Run(mode, func(t *testing.T) {
 			gin.SetMode(mode)
-			caller := storedUser(t, uuid.NewString(), "caller@example.com")
+			caller := storedUser(t, uuid.New(), "caller@example.com")
 
 			// Every authenticated route answers 401 without credentials, and a
 			// bare identity header is never a credential.
@@ -124,7 +125,7 @@ func TestRegisterUserRoutesAuthentication(t *testing.T) {
 				var body domain.User
 				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 				assert.Equal(t, caller.ID, body.ID)
-				assert.Equal(t, []string{f.subject}, f.users.getBySupabaseUserIDCalls)
+				assert.Equal(t, []uuid.UUID{f.subject}, f.users.getBySupabaseUserIDCalls)
 			})
 
 			t.Run("valid token without a row → 401 USER_NOT_INITIALIZED", func(t *testing.T) {
@@ -151,8 +152,23 @@ func TestRegisterUserRoutesAuthentication(t *testing.T) {
 				assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 			})
 
+			t.Run("token whose subject is not a UUID → 401", func(t *testing.T) {
+				f := newUserRouterFixture(t, caller)
+
+				token := f.signer.token(t, supabaseClaims{
+					Email:            caller.Email,
+					RegisteredClaims: jwt.RegisteredClaims{Subject: "not-a-uuid"},
+				})
+
+				rec := f.do(http.MethodGet, "/v1/users/me", "", "Bearer "+token, "")
+				require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+				assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+				assert.Empty(t, f.users.getBySupabaseUserIDCalls,
+					"a malformed subject never reaches the user lookup")
+			})
+
 			t.Run("init with a valid token reaches the handler", func(t *testing.T) {
-				created := storedUser(t, uuid.NewString(), "first@example.com")
+				created := storedUser(t, uuid.New(), "first@example.com")
 				f := newUserRouterFixture(t, created)
 
 				rec := f.do(http.MethodPost, "/v1/users/init", `{}`, "Bearer "+f.token, "")

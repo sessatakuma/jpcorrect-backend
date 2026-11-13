@@ -56,7 +56,7 @@ func TestRegisterGuildCaller(t *testing.T) {
 			for _, route := range routes {
 				t.Run(route.name, func(t *testing.T) {
 					signer := newTestSigner(t)
-					sub := uuid.NewString()
+					sub := uuid.New()
 					api, gRepo, aRepo := newTestAPI()
 					users := &mockUserRepo{getBySupabaseUserIDResult: &domain.User{ID: callerID}}
 					api.userRepo = users
@@ -88,7 +88,7 @@ func TestRegisterGuildCaller(t *testing.T) {
 					}
 
 					require.Equal(t, route.wantStatus, rec.Code, rec.Body.String())
-					assert.Equal(t, []string{sub}, users.getBySupabaseUserIDCalls)
+					assert.Equal(t, []uuid.UUID{sub}, users.getBySupabaseUserIDCalls)
 					switch route.name {
 					case "create":
 						require.Len(t, gRepo.createdMasters, 1)

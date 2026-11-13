@@ -14,6 +14,7 @@ import (
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // InitializeJWKS initializes the JWKS keyfunc for token validation
@@ -117,9 +118,12 @@ const (
 	usersInitPath = "/v1/users/init"
 )
 
-// supabaseAuth is what AuthMiddleware keeps from a verified Supabase JWT.
+// supabaseAuth is what AuthMiddleware keeps from a verified Supabase JWT. The
+// subject is parsed into a uuid.UUID here, at the authentication boundary, so
+// handlers and repositories only ever see a validated identity; the raw claim
+// string does not travel further.
 type supabaseAuth struct {
-	Subject string
+	Subject uuid.UUID
 	Email   string
 }
 
@@ -247,10 +251,13 @@ func (a *API) verifyToken(c *gin.Context) (*supabaseAuth, error) {
 		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
 	// Without a subject the token identifies nobody, so it can neither resolve
-	// a User nor initialize one.
-	if claims.Subject == "" {
+	// a User nor initialize one. The internal mapping column is uuid, so a
+	// subject that does not parse as one cannot identify a row either; reject
+	// both here instead of passing an unusable identity down the stack.
+	subject, err := uuid.Parse(claims.Subject)
+	if err != nil {
 		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
 
-	return &supabaseAuth{Subject: claims.Subject, Email: claims.Email}, nil
+	return &supabaseAuth{Subject: subject, Email: claims.Email}, nil
 }

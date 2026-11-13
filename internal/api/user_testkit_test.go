@@ -23,7 +23,7 @@ type mockUserRepo struct {
 	getByNameResult []*domain.User
 	getByNameErr    error
 
-	getBySupabaseUserIDCalls  []string
+	getBySupabaseUserIDCalls  []uuid.UUID
 	getBySupabaseUserIDResult *domain.User
 	getBySupabaseUserIDErr    error
 
@@ -52,7 +52,7 @@ func (m *mockUserRepo) GetByName(_ context.Context, _ string) ([]*domain.User, e
 	return m.getByNameResult, m.getByNameErr
 }
 
-func (m *mockUserRepo) GetBySupabaseUserID(_ context.Context, supabaseUserID string) (*domain.User, error) {
+func (m *mockUserRepo) GetBySupabaseUserID(_ context.Context, supabaseUserID uuid.UUID) (*domain.User, error) {
 	m.getBySupabaseUserIDCalls = append(m.getBySupabaseUserIDCalls, supabaseUserID)
 	if m.getBySupabaseUserIDErr != nil {
 		return nil, m.getBySupabaseUserIDErr
@@ -75,7 +75,7 @@ func (m *mockUserRepo) Update(_ context.Context, user *domain.User) error {
 }
 
 // storedUser is the row every "already initialized" test resolves.
-func storedUser(t *testing.T, sub, email string) *domain.User {
+func storedUser(t *testing.T, sub uuid.UUID, email string) *domain.User {
 	t.Helper()
 
 	avatar := "https://example.com/avatar.png"

@@ -250,7 +250,7 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 // @Router /v1/users/init [post]
 func (a *API) UserInitHandler(c *gin.Context) {
 	auth := currentSupabaseAuth(c)
-	if auth == nil || auth.Subject == "" {
+	if auth == nil || auth.Subject == uuid.Nil {
 		writeError(c, domain.ErrUnauthorized)
 		return
 	}
