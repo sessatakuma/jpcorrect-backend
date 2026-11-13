@@ -4148,6 +4148,7 @@ const docTemplate = `{
         },
         "/v1/users": {
             "post": {
+                "description": "Legacy raw management route, restricted to a system admin (User.Role == admin). Account provisioning uses POST /v1/users/init.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4157,7 +4158,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create a user",
+                "summary": "Create a user (system admin only)",
                 "parameters": [
                     {
                         "description": "User data",
@@ -4178,6 +4179,24 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -4538,6 +4557,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Legacy raw management route, restricted to a system admin (User.Role == admin). Self-service edits use PUT /v1/users/me.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4547,7 +4567,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Update a user",
+                "summary": "Update a user (system admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -4575,6 +4595,24 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -4617,6 +4655,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Legacy raw management route, restricted to a system admin (User.Role == admin).",
                 "consumes": [
                     "application/json"
                 ],
@@ -4626,7 +4665,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Delete a user",
+                "summary": "Delete a user (system admin only)",
                 "parameters": [
                     {
                         "type": "string",
@@ -4642,6 +4681,24 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {

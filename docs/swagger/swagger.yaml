@@ -3555,6 +3555,8 @@ paths:
     post:
       consumes:
       - application/json
+      description: Legacy raw management route, restricted to a system admin (User.Role
+        == admin). Account provisioning uses POST /v1/users/init.
       parameters:
       - description: User data
         in: body
@@ -3575,6 +3577,18 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "409":
           description: Conflict
           schema:
@@ -3589,13 +3603,15 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Create a user
+      summary: Create a user (system admin only)
       tags:
       - users
   /v1/users/{id}:
     delete:
       consumes:
       - application/json
+      description: Legacy raw management route, restricted to a system admin (User.Role
+        == admin).
       parameters:
       - description: User ID
         in: path
@@ -3609,6 +3625,18 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
           schema:
             additionalProperties:
               type: string
@@ -3633,7 +3661,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Delete a user
+      summary: Delete a user (system admin only)
       tags:
       - users
     get:
@@ -3678,6 +3706,8 @@ paths:
     put:
       consumes:
       - application/json
+      description: Legacy raw management route, restricted to a system admin (User.Role
+        == admin). Self-service edits use PUT /v1/users/me.
       parameters:
       - description: User ID
         in: path
@@ -3703,6 +3733,18 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
         "404":
           description: Not Found
           schema:
@@ -3723,7 +3765,7 @@ paths:
             type: object
       security:
       - BearerAuth: []
-      summary: Update a user
+      summary: Update a user (system admin only)
       tags:
       - users
   /v1/users/email/{email}:

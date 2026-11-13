@@ -265,12 +265,18 @@ func Register(r *gin.Engine, api *API) {
 		// Users (excluding /users/init, mounted above)
 		users := authed.Group("/users")
 		{
-			users.POST("", api.UserCreateHandler)
+			// Raw user CRUD is a legacy management route. Issue #78 allows only a
+			// system admin, because these handlers bind the whole domain.User and
+			// would otherwise let any caller rewrite the server-owned identity
+			// mapping (supabase_user_id), email, role or status. Account
+			// provisioning and self-service edits go through /users/init and
+			// /users/me, which bind allowlisted DTOs.
+			users.POST("", api.RequireSystemAdmin(), api.UserCreateHandler)
 			users.GET("/me", api.UserMeHandler)
 			users.PUT("/me", api.UserMeUpdateHandler)
 			users.GET("/:id", api.UserGetHandler)
-			users.PUT("/:id", api.UserUpdateHandler)
-			users.DELETE("/:id", api.UserDeleteHandler)
+			users.PUT("/:id", api.RequireSystemAdmin(), api.UserUpdateHandler)
+			users.DELETE("/:id", api.RequireSystemAdmin(), api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
 			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}

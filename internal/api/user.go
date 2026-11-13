@@ -43,13 +43,16 @@ func (a *API) UserGetHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// @Summary Create a user
+// @Summary Create a user (system admin only)
+// @Description Legacy raw management route, restricted to a system admin (User.Role == admin). Account provisioning uses POST /v1/users/init.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param user body domain.User true "User data"
 // @Success 201 {object} domain.User
 // @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Security BearerAuth
@@ -73,7 +76,8 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// @Summary Update a user
+// @Summary Update a user (system admin only)
+// @Description Legacy raw management route, restricted to a system admin (User.Role == admin). Self-service edits use PUT /v1/users/me.
 // @Tags users
 // @Accept json
 // @Produce json
@@ -81,6 +85,8 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Param user body domain.User true "User data"
 // @Success 200 {object} domain.User
 // @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
@@ -129,13 +135,16 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// @Summary Delete a user
+// @Summary Delete a user (system admin only)
+// @Description Legacy raw management route, restricted to a system admin (User.Role == admin).
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
 // @Success 204
 // @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Failure 403 {object} map[string]string
 // @Failure 404 {object} map[string]string
 // @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string

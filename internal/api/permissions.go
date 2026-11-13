@@ -42,6 +42,30 @@ func requireCallerID(c *gin.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
+// RequireSystemAdmin allows only the trusted, server-resolved caller whose
+// stored User.Role is admin (epic #61, issue #78). It reads the caller that
+// RequireLocalUser resolved, or resolves it from the caller ID, and runs before
+// any handler reads a request body: a role in the body or a custom JWT claim
+// never grants access. It is deliberately separate from the product helpers
+// below and does not give any product route an admin bypass.
+func (a *API) RequireSystemAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := a.currentUser(c)
+		if !ok {
+			// currentUser already wrote the 401/500 response.
+			c.Abort()
+			return
+		}
+		if user.Role != domain.UserRoleAdmin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "system admin role required"})
+			return
+		}
+
+		c.Set("user", user)
+		c.Next()
+	}
+}
+
 func (a *API) RequireGuildMember(c *gin.Context, guildID uuid.UUID) error {
 	userID, ok := requireCallerID(c)
 	if !ok {
