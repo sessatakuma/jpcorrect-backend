@@ -165,3 +165,88 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 	assert.EqualValues(t, 2, total)
 	assert.EqualValues(t, 1, active)
 }
+
+// TestTransferLeaderRejectsLeaderOfAnotherGuild pins the locked leader quota on
+// the transfer path: the new leader may lead at most one guild (§3.3.1), so a
+// target that already leads a live guild keeps both roles unchanged.
+func TestTransferLeaderRejectsLeaderOfAnotherGuild(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	firstLeader := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "first leader"}
+	memberLeader := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "member leader"}
+	require.NoError(t, db.Create(&[]domain.User{firstLeader, memberLeader}).Error)
+
+	repo := NewGormGuildRepository(db)
+
+	firstGuild := domain.Guild{ID: uuid.New(), Name: "first guild"}
+	require.NoError(t, repo.CreateWithMaster(ctx, &firstGuild, &domain.GuildAttendee{
+		ID: uuid.New(), UserID: firstLeader.ID,
+	}))
+
+	// The target already leads a second guild.
+	secondGuild := domain.Guild{ID: uuid.New(), Name: "second guild"}
+	require.NoError(t, repo.CreateWithMaster(ctx, &secondGuild, &domain.GuildAttendee{
+		ID: uuid.New(), UserID: memberLeader.ID,
+	}))
+
+	attendeeRepo := NewGormGuildAttendeeRepository(db)
+	require.NoError(t, attendeeRepo.Create(ctx, &domain.GuildAttendee{
+		ID: uuid.New(), GuildID: firstGuild.ID, UserID: memberLeader.ID,
+		Role: domain.GuildAttendeeRoleMember,
+	}))
+
+	err := repo.TransferLeader(ctx, firstGuild.ID, firstLeader.ID, memberLeader.ID)
+	require.ErrorIs(t, err, domain.ErrGuildLimitReached)
+
+	first, err := attendeeRepo.GetByGuildAndUser(ctx, firstGuild.ID, firstLeader.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GuildAttendeeRoleMaster, first.Role, "the caller must stay master")
+
+	target, err := attendeeRepo.GetByGuildAndUser(ctx, firstGuild.ID, memberLeader.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GuildAttendeeRoleMember, target.Role, "the target must stay a member")
+}
+
+// TestGuildAttendeeWritesEnforceLeaderQuota covers the generic attendee writes:
+// promoting a row to an active master is subject to the same quota as guild
+// creation and leader transfer.
+func TestGuildAttendeeWritesEnforceLeaderQuota(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	leader := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "attendee quota leader"}
+	require.NoError(t, db.Create(&leader).Error)
+
+	guildRepo := NewGormGuildRepository(db)
+	ledGuild := domain.Guild{ID: uuid.New(), Name: "led guild"}
+	require.NoError(t, guildRepo.CreateWithMaster(ctx, &ledGuild, &domain.GuildAttendee{
+		ID: uuid.New(), UserID: leader.ID,
+	}))
+
+	otherGuild := domain.Guild{ID: uuid.New(), Name: "other guild"}
+	require.NoError(t, db.Create(&otherGuild).Error)
+
+	repo := NewGormGuildAttendeeRepository(db)
+
+	err := repo.Create(ctx, &domain.GuildAttendee{
+		ID: uuid.New(), GuildID: otherGuild.ID, UserID: leader.ID,
+		Role: domain.GuildAttendeeRoleMaster,
+	})
+	require.ErrorIs(t, err, domain.ErrGuildLimitReached, "a second active master row must be rejected")
+
+	// A member row is always allowed, and updating it to master is not.
+	member := domain.GuildAttendee{
+		ID: uuid.New(), GuildID: otherGuild.ID, UserID: leader.ID,
+		Role: domain.GuildAttendeeRoleMember,
+	}
+	require.NoError(t, repo.Create(ctx, &member))
+
+	member.Role = domain.GuildAttendeeRoleMaster
+	require.ErrorIs(t, repo.Update(ctx, &member), domain.ErrGuildLimitReached,
+		"promoting a member to master must be rejected")
+
+	stored, err := repo.GetByID(ctx, member.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.GuildAttendeeRoleMember, stored.Role, "the rejected update must not write")
+}

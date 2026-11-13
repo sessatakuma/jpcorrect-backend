@@ -29,6 +29,49 @@ func (r *gormGuildRepository) GetByID(ctx context.Context, guildID uuid.UUID) (*
 	return &guild, nil
 }
 
+// lockLeaderQuota enforces the leader quota of spec §3.3.1: a user may lead at
+// most one guild that still exists.
+//
+// The check must run inside the write transaction, after locking the user row:
+// the row lock serialises two concurrent requests for the same user, so the
+// second one counts the guild the first one committed. A plain SELECT COUNT
+// would let both callers through.
+//
+// Guild carries a soft delete, so the guild_attendee row of a leader whose guild
+// was deleted survives with role = 'master' and left_at IS NULL. The join skips
+// those rows, which is why the quota cannot be a partial unique index on
+// guild_attendee: an index sees the membership row, not the deleted guild.
+//
+// excludeAttendeeID skips one attendee row in the count. Callers that promote an
+// existing row pass its id, so the row cannot count itself.
+func lockLeaderQuota(tx *gorm.DB, userID uuid.UUID, excludeAttendeeID uuid.UUID) error {
+	var user domain.User
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Select("id").
+		Where("id = ?", userID).
+		First(&user).Error; err != nil {
+		return err
+	}
+
+	led := tx.Model(&domain.GuildAttendee{}).
+		Joins("JOIN guild ON guild.id = guild_attendee.guild_id AND guild.deleted_at IS NULL").
+		Where("guild_attendee.user_id = ?", userID).
+		Where("guild_attendee.role = ?", domain.GuildAttendeeRoleMaster).
+		Where("guild_attendee.left_at IS NULL")
+	if excludeAttendeeID != uuid.Nil {
+		led = led.Where("guild_attendee.id <> ?", excludeAttendeeID)
+	}
+
+	var count int64
+	if err := led.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return domain.ErrGuildLimitReached
+	}
+	return nil
+}
+
 func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domain.Guild, attendee *domain.GuildAttendee) error {
 	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if guild.ID == uuid.Nil {
@@ -36,6 +79,10 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 		}
 		if attendee.ID == uuid.Nil {
 			attendee.ID = uuid.New()
+		}
+
+		if err := lockLeaderQuota(tx, attendee.UserID, uuid.Nil); err != nil {
+			return err
 		}
 
 		if err := tx.Create(guild).Error; err != nil {
@@ -92,6 +139,12 @@ func (r *gormGuildRepository) TransferLeader(ctx context.Context, guildID uuid.U
 			First(&newMaster).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 			return domain.ErrNotGuildMember
 		} else if err != nil {
+			return err
+		}
+
+		// The new leader must not already lead another guild. The row lock and
+		// the count are the database half of the leader quota (§3.3.1).
+		if err := lockLeaderQuota(tx, newLeaderUserID, newMaster.ID); err != nil {
 			return err
 		}
 
@@ -245,13 +298,34 @@ func (r *gormGuildAttendeeRepository) Create(ctx context.Context, attendee *doma
 	if attendee.ID == uuid.Nil {
 		attendee.ID = uuid.New()
 	}
-	// Omit associations: see CreateWithMaster.
-	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Create(attendee).Error)
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if isActiveMaster(attendee) {
+			if err := lockLeaderQuota(tx, attendee.UserID, uuid.Nil); err != nil {
+				return err
+			}
+		}
+		// Omit associations: see CreateWithMaster.
+		return tx.Omit(clause.Associations).Create(attendee).Error
+	}))
 }
 
 func (r *gormGuildAttendeeRepository) Update(ctx context.Context, attendee *domain.GuildAttendee) error {
-	// Omit associations: see CreateWithMaster.
-	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Save(attendee).Error)
+	return MapGormError(r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if isActiveMaster(attendee) {
+			// Skip the row itself: it may already carry role = master.
+			if err := lockLeaderQuota(tx, attendee.UserID, attendee.ID); err != nil {
+				return err
+			}
+		}
+		// Omit associations: see CreateWithMaster.
+		return tx.Omit(clause.Associations).Save(attendee).Error
+	}))
+}
+
+// isActiveMaster reports whether attendee is, or is about to become, the active
+// leader of a guild. Only those writes are subject to the leader quota.
+func isActiveMaster(attendee *domain.GuildAttendee) bool {
+	return attendee.Role == domain.GuildAttendeeRoleMaster && attendee.LeftAt == nil
 }
 
 func (r *gormGuildAttendeeRepository) Delete(ctx context.Context, id uuid.UUID) error {
