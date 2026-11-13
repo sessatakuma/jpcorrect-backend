@@ -41,8 +41,12 @@ jobs:
       run-go-checks: true
       go-version: "1.25"
 
-  postgres-integration-test:
-    name: PostgreSQL integration tests
+  # Keep the historical job key and display name: this is the status context
+  # main has reported since #54, so an existing required check keeps matching
+  # even though the step now runs the whole PostgreSQL suite (repository and
+  # api packages).
+  guild-concurrency-test:
+    name: Guild master concurrency test
     runs-on: ubuntu-latest
     services:
       postgres:
