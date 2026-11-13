@@ -80,7 +80,13 @@ removed in #49).
   plain `*time.Time` on purpose: the retained metadata stays visible and the
   row is marked through `status`.
 - `/v1/practices` routes use the `Event` model (backward-compat naming).
-- `Transcript.Accent` is `datatypes.JSON` / `jsonb` — the only JSONB column.
+- JSONB columns are `datatypes.JSON` / `jsonb`:
+  `Transcript.Accent`, `Event.StepDurations`,
+  `AIAnalysisSubmission.RequestPayload` and `ResponsePayload`,
+  `NotificationOutbox.Payload`, `Notification.Payload`,
+  `PushSubscription.Keys`, `Topic.HintVocab` and `HintGrammar`,
+  `FeedPost.Metadata`, `ReviewRecord.Stage2Summary`, and
+  `RecordingAsset.TimelineMetadata`.
 - `GuildAttendeeRepository` lives in `gorm_guild.go`, not its own file.
 - Imports: stdlib → third-party → local.
 
