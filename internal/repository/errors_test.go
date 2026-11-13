@@ -43,14 +43,6 @@ func TestMapGormError(t *testing.T) {
 			expected: domain.ErrDuplicateEntry,
 		},
 		{
-			name: "active master unique violation returns domain.ErrGuildLimitReached",
-			input: &pgconn.PgError{
-				Code:           "23505",
-				ConstraintName: activeMasterIndex,
-			},
-			expected: domain.ErrGuildLimitReached,
-		},
-		{
 			name: "wrapped pgconn unique violation returns domain.ErrDuplicateEntry",
 			input: fmt.Errorf("wrap: %w", &pgconn.PgError{
 				Code:    "23505",
