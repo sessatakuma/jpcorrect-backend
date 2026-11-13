@@ -22,7 +22,7 @@ func TestCreateIfAbsentBySupabaseUserID(t *testing.T) {
 	repo := NewGormUserRepository(db)
 	ctx := context.Background()
 
-	sub := uuid.NewString()
+	sub := uuid.New()
 	first := domain.User{ID: uuid.New(), Email: "first@example.com", Name: "first", SupabaseUserID: &sub}
 	require.NoError(t, repo.CreateIfAbsentBySupabaseUserID(ctx, &first))
 
@@ -46,7 +46,7 @@ func TestCreateIfAbsentBySupabaseUserID(t *testing.T) {
 		"the discarded candidate is not inserted either")
 
 	// GetBySupabaseUserID answers ErrNotFound while the caller is unknown.
-	_, err = repo.GetBySupabaseUserID(ctx, "unknown-sub")
+	_, err = repo.GetBySupabaseUserID(ctx, uuid.New())
 	assert.True(t, errors.Is(err, domain.ErrNotFound))
 }
 
@@ -58,11 +58,11 @@ func TestCreateIfAbsentBySupabaseUserIDEmailCollision(t *testing.T) {
 	repo := NewGormUserRepository(db)
 	ctx := context.Background()
 
-	ownerSub := uuid.NewString()
+	ownerSub := uuid.New()
 	owner := domain.User{ID: uuid.New(), Email: "owner@example.com", SupabaseUserID: &ownerSub}
 	require.NoError(t, repo.Create(ctx, &owner))
 
-	newSub := uuid.NewString()
+	newSub := uuid.New()
 	claimant := domain.User{ID: uuid.New(), Email: "owner@example.com", SupabaseUserID: &newSub}
 
 	err := repo.CreateIfAbsentBySupabaseUserID(ctx, &claimant)
@@ -93,7 +93,7 @@ func TestCreateIfAbsentBySupabaseUserIDConcurrent(t *testing.T) {
 
 	repo := NewGormUserRepository(db)
 	ctx := context.Background()
-	sub := uuid.NewString()
+	sub := uuid.New()
 
 	const calls = 20
 	start := make(chan struct{})
@@ -139,7 +139,7 @@ func TestGetBySupabaseUserIDSkipsSoftDeleted(t *testing.T) {
 	repo := NewGormUserRepository(db)
 	ctx := context.Background()
 
-	sub := uuid.NewString()
+	sub := uuid.New()
 	user := domain.User{ID: uuid.New(), Email: "gone@example.com", SupabaseUserID: &sub}
 	require.NoError(t, repo.Create(ctx, &user))
 	require.NoError(t, repo.Delete(ctx, user.ID))

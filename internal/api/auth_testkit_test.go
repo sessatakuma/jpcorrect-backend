@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,12 +95,20 @@ func (s *testSigner) rawToken(t *testing.T, claims jwt.MapClaims) string {
 	return signed
 }
 
-// userToken mints the token a logged-in Supabase user would present.
-func (s *testSigner) userToken(t *testing.T, sub, email string) string {
+// userToken mints the token a logged-in Supabase user would present. The
+// subject goes on the wire as the UUID string Supabase issues; uuid.Nil leaves
+// it empty so a caller can test the missing-subject rejection.
+func (s *testSigner) userToken(t *testing.T, sub uuid.UUID, email string) string {
 	t.Helper()
+
+	subject := ""
+	if sub != uuid.Nil {
+		subject = sub.String()
+	}
+
 	return s.token(t, supabaseClaims{
 		Email:            email,
-		RegisteredClaims: jwt.RegisteredClaims{Subject: sub},
+		RegisteredClaims: jwt.RegisteredClaims{Subject: subject},
 	})
 }
 

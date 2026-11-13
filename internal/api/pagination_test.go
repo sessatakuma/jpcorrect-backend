@@ -317,6 +317,43 @@ func TestNewPageEmptyResult(t *testing.T) {
 	}
 }
 
+// TestNewPageNonPositiveLimit covers the defensive limit guard. Without it a
+// limit below 1 would truncate the rows to zero while has_more stayed true, and
+// the next_cursor would index items[-1] and panic. The guard falls back to
+// defaultPageLimit, so the page keeps the first 20 rows and a correct cursor
+// instead of crashing.
+func TestNewPageNonPositiveLimit(t *testing.T) {
+	posts := feedPosts(defaultPageLimit + 5) // more rows than one default page
+
+	tests := []struct {
+		name  string
+		limit int
+	}{
+		{name: "zero", limit: 0},
+		{name: "negative", limit: -10},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var page pageResponse[domain.FeedPost]
+			require.NotPanics(t, func() {
+				page = newPage(posts, test.limit, feedPostKey)
+			}, "a non-positive limit must not panic")
+
+			require.Len(t, page.Items, defaultPageLimit, "a non-positive limit falls back to the default page size")
+			assert.Equal(t, posts[0].ID, page.Items[0].ID)
+			assert.Equal(t, posts[defaultPageLimit-1].ID, page.Items[defaultPageLimit-1].ID)
+			assert.True(t, page.HasMore, "the remaining rows are a next page")
+
+			require.NotNil(t, page.NextCursor)
+			next, err := decodePageCursor(*page.NextCursor)
+			require.NoError(t, err)
+			assert.Equal(t, posts[defaultPageLimit-1].ID, next.ID, "the cursor is the last row kept")
+			assert.True(t, posts[defaultPageLimit-1].CreatedAt.Equal(next.CreatedAt))
+		})
+	}
+}
+
 // TestPageResponseJSONShape pins the response keys §1.6 fixes.
 func TestPageResponseJSONShape(t *testing.T) {
 	posts := feedPosts(3)

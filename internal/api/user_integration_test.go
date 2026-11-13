@@ -55,7 +55,7 @@ func countUsers(t *testing.T, db *gorm.DB, query string, args ...any) int64 {
 func TestUserInitConcurrentCalls(t *testing.T) {
 	router, _, signer, db := newRegisterIntegrationAPI(t)
 
-	sub := uuid.NewString()
+	sub := uuid.New()
 	const email = "concurrent@example.com"
 	token := "Bearer " + signer.userToken(t, sub, email)
 
@@ -123,11 +123,11 @@ func TestUserInitEmailCollision(t *testing.T) {
 	router, api, signer, db := newRegisterIntegrationAPI(t)
 
 	const email = "owner@example.com"
-	olderSub := uuid.NewString()
+	olderSub := uuid.New()
 	existing := domain.User{ID: uuid.New(), Email: email, Name: "owner", SupabaseUserID: &olderSub}
 	require.NoError(t, api.userRepo.Create(t.Context(), &existing))
 
-	newSub := uuid.NewString()
+	newSub := uuid.New()
 	req := httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
 	req.Header.Set("Authorization", "Bearer "+signer.userToken(t, newSub, email))
 	rec := httptest.NewRecorder()
@@ -154,13 +154,13 @@ func TestUserInitEmailCollision(t *testing.T) {
 func TestRegisterUserMeCannotSelfPromote(t *testing.T) {
 	router, api, signer, db := newRegisterIntegrationAPI(t)
 
-	sub := uuid.NewString()
+	sub := uuid.New()
 	stored := domain.User{ID: uuid.New(), Email: "self@example.com", Name: "before", SupabaseUserID: &sub}
 	require.NoError(t, api.userRepo.Create(t.Context(), &stored))
 
 	// The token claims a role; authorization must still use the stored row.
 	token := signer.rawToken(t, jwt.MapClaims{
-		"sub":   sub,
+		"sub":   sub.String(),
 		"email": "self@example.com",
 		"role":  "admin",
 	})
@@ -195,11 +195,11 @@ func TestRegisterUserMeCannotSelfPromote(t *testing.T) {
 func TestRegisterUserPublicProfileIntegration(t *testing.T) {
 	router, api, signer, _ := newRegisterIntegrationAPI(t)
 
-	callerSub := uuid.NewString()
+	callerSub := uuid.New()
 	caller := domain.User{ID: uuid.New(), Email: "caller@example.com", Name: "caller", SupabaseUserID: &callerSub}
 	require.NoError(t, api.userRepo.Create(t.Context(), &caller))
 
-	targetSub := uuid.NewString()
+	targetSub := uuid.New()
 	target := domain.User{
 		ID:              uuid.New(),
 		Email:           "target@example.com",

@@ -3820,7 +3820,7 @@
                     "$ref": "#/definitions/jpcorrect-backend_internal_domain.UserStatus"
                 },
                 "supabase_user_id": {
-                    "description": "SupabaseUserID is the Supabase Auth user UUID looked up from JWT.sub\n(spec §2.1). It is nullable: a row created before the mapping exists has\nno value yet. The unique index doubles as the lookup index.",
+                    "description": "SupabaseUserID is the Supabase Auth user UUID looked up from JWT.sub\n(spec §2.1). It is nullable: a row created before the mapping exists has\nno value yet. The unique index doubles as the lookup index. It is a UUID\ncolumn, not text, so PostgreSQL rejects a malformed identifier.",
                     "type": "string"
                 },
                 "timezone": {
