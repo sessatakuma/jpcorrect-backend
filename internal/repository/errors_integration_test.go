@@ -243,6 +243,85 @@ func TestGuildAttendeeForeignKeyViolationIsPostgresError(t *testing.T) {
 		"repository Create should return domain.ErrHasRelatedRecords, got %v", err)
 }
 
+// uniqueIndexRow is one row of the pg_index lookup in uniqueIndexOnColumn.
+type uniqueIndexRow struct {
+	IndexName string `gorm:"column:index_name"`
+}
+
+// uniqueIndexOnColumn returns the name of the single-column unique index that
+// PostgreSQL created for schema.table.column, e.g. the index behind the
+// duplicate-email violation. The lookup is scoped to current_schema() for the
+// same reason as listGuildAttendeeForeignKeys.
+func uniqueIndexOnColumn(t *testing.T, db *gorm.DB, table, column string) string {
+	t.Helper()
+
+	const query = `
+SELECT i.relname AS index_name
+FROM pg_index x
+JOIN pg_class c ON c.oid = x.indrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_class i ON i.oid = x.indexrelid
+JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = x.indkey[0]
+WHERE n.nspname = current_schema()
+  AND c.relname = ?
+  AND a.attname = ?
+  AND x.indisunique
+  AND x.indnkeyatts = 1`
+
+	var rows []uniqueIndexRow
+	require.NoError(t, db.WithContext(context.Background()).Raw(query, table, column).Scan(&rows).Error,
+		"query pg_index for unique indexes on %s.%s", table, column)
+	require.Len(t, rows, 1,
+		"expected exactly one single-column unique index on %s.%s, got %+v", table, column, rows)
+
+	return rows[0].IndexName
+}
+
+// TestUserEmailUniqueViolationIsPostgresError pins the other SQLSTATE the error
+// mapping claims: a duplicate user email must be rejected by the database's own
+// unique index, surface as domain.ErrDuplicateEntry through the repository, and
+// keep the raw 23505 *pgconn.PgError visible when GORM is used directly. No mock
+// or synthesized constraint is involved.
+func TestUserEmailUniqueViolationIsPostgresError(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	ctx := context.Background()
+
+	email := uuid.NewString() + "@example.com"
+	first := domain.User{ID: uuid.New(), Email: email, Name: "duplicate email test"}
+	require.NoError(t, NewGormUserRepository(db).Create(ctx, &first), "first insert must succeed")
+
+	emailIndex := uniqueIndexOnColumn(t, db, "user", "email")
+
+	// Repository path: production code maps the driver error to a sentinel.
+	duplicate := domain.User{ID: uuid.New(), Email: email, Name: "duplicate email test"}
+	err := NewGormUserRepository(db).Create(ctx, &duplicate)
+	require.Error(t, err, "repository Create accepted a duplicate email")
+	assert.ErrorIs(t, err, domain.ErrDuplicateEntry,
+		"duplicate email should map to domain.ErrDuplicateEntry, got %v", err)
+
+	// Raw GORM insert, bypassing the repository, to keep the driver error intact.
+	rawDuplicate := domain.User{ID: uuid.New(), Email: email, Name: "duplicate email test"}
+	rawErr := db.WithContext(ctx).Create(&rawDuplicate).Error
+	require.Error(t, rawErr, "raw insert with a duplicate email must be rejected")
+
+	var pgErr *pgconn.PgError
+	require.True(t, errors.As(rawErr, &pgErr), "want *pgconn.PgError, got %T: %v", rawErr, rawErr)
+	assert.Equal(t, "23505", pgErr.Code, "want unique_violation, got %s", pgErr.Code)
+	assert.Equal(t, emailIndex, pgErr.ConstraintName,
+		"violated constraint should be the unique index on user.email")
+	t.Logf("raw driver error: code=%s constraint=%s schema=%s table=%s detail=%s",
+		pgErr.Code, pgErr.ConstraintName, pgErr.SchemaName, pgErr.TableName, pgErr.Detail)
+
+	assert.ErrorIs(t, MapGormError(rawErr), domain.ErrDuplicateEntry,
+		"MapGormError must translate SQLSTATE 23505 to domain.ErrDuplicateEntry")
+
+	// Neither rejected insert may have replaced or duplicated the first row.
+	var stored []domain.User
+	require.NoError(t, db.WithContext(ctx).Where("email = ?", email).Find(&stored).Error)
+	require.Len(t, stored, 1, "a rejected duplicate insert must not create a second user")
+	assert.Equal(t, first.ID, stored[0].ID, "the original user must keep the email")
+}
+
 // TestGuildAttendeeBlocksHardDeleteOfUser pins the ON DELETE RESTRICT half of
 // the user_id foreign key: a hard delete of a referenced user must be refused
 // and must leave the row fully intact (not even soft-deleted).

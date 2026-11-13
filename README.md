@@ -166,6 +166,13 @@ docker run --rm -d --name jpcorrect-test-pg \
 Use the port you published (`5433` above) in `TEST_DATABASE_URL`; the
 loopback binding keeps the throwaway database off non-loopback interfaces.
 
+Scope of the current schema change (#69): the two `guild_attendee` foreign keys
+to `guild` and `user` are the only constraints added. This is not the complete
+#72 work, and the other six foreign keys are out of scope here. Applying it to
+a database that already holds orphan rows fails when the foreign key is
+created; nothing deletes or repairs data automatically, so those rows must be
+fixed first.
+
 ## Local Development and Deployment
 
 This repository uses two Docker Compose files, each named `compose.yml` (docker's
