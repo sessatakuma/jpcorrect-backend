@@ -530,8 +530,10 @@ func TestAdminRawWriteSemantics(t *testing.T) {
 		require.NoError(t, f.db.First(&created, "user_id = ?", f.target.ID).Error)
 		assert.Equal(t, domain.GuildAttendeeRoleMember, created.Role)
 
-		// The target leads another guild, so promoting it here must not leave it
-		// leading two: the active-master unique index still holds.
+		// The target leads another guild. #123 retired the partial unique index
+		// that rejected a second leadership, and issue #81 owns the replacement
+		// locked query, so this promotion succeeds for now. Turn this back into
+		// 409 GUILD_LIMIT_REACHED when #81 lands.
 		other := f.newGuild(t, "another guild led by the target")
 		require.NoError(t, f.db.Create(&domain.GuildAttendee{
 			ID: uuid.New(), GuildID: other.ID, UserID: f.target.ID,
@@ -541,7 +543,10 @@ func TestAdminRawWriteSemantics(t *testing.T) {
 		rec = f.do(t, router, http.MethodPut, "/v1/guild-attendees/"+created.ID.String(), authorization, fmt.Sprintf(
 			`{"guild_id":%q,"user_id":%q,"role":"master","joined_at":%q}`,
 			f.guild.ID.String(), f.target.ID.String(), joinedAt))
-		assertEnvelopeCode(t, rec, http.StatusConflict, "GUILD_LIMIT_REACHED")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.NoError(t, f.db.First(&created, "id = ?", created.ID).Error)
+		assert.Equal(t, domain.GuildAttendeeRoleMaster, created.Role,
+			"the raw update still stores the promoted role; only the quota is pending")
 
 		rec = f.do(t, router, http.MethodPut, "/v1/guild-attendees/"+created.ID.String(), authorization, fmt.Sprintf(
 			`{"guild_id":%q,"user_id":%q,"role":"member","joined_at":%q,"left_at":%q}`,
