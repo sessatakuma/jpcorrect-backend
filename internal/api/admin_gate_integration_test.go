@@ -680,3 +680,75 @@ func TestAdminHasNoProductBypass(t *testing.T) {
 	assert.Equal(t, domain.UserRoleAdmin, stored.Role, "the product DTO cannot change a role")
 	assert.Equal(t, "renamed", stored.Name)
 }
+
+// TestPracticeCreateRequiresActivityAndKind covers Appendix E row 40 and the
+// matching #78 acceptance criterion: the raw Event create must supply
+// activity_id and kind, and a body that omits either one answers 400
+// INVALID_REQUEST (§1.5) instead of a database NOT NULL violation.
+//
+// Each case also runs as a non-admin. The 400 proves an admin passes the gate
+// and reaches the handler's binding and validation; the 403 for the same body
+// proves the gate still decides before the handler runs, so nobody else ever
+// reaches that validation. No rejected request writes an Event.
+func TestPracticeCreateRequiresActivityAndKind(t *testing.T) {
+	previousMode := gin.Mode()
+	t.Cleanup(func() { gin.SetMode(previousMode) })
+
+	f := newAdminGateFixture(t)
+	router := f.routerFor(t, gin.TestMode)
+	admin := f.token(t, f.admin)
+
+	var before int64
+	require.NoError(t, f.db.Model(&domain.Event{}).Count(&before).Error)
+
+	startTime := time.Now().UTC().Format(time.RFC3339)
+	cases := []struct {
+		name        string
+		body        string
+		wantMessage string
+	}{
+		{
+			name:        "missing activity_id",
+			body:        fmt.Sprintf(`{"title":"no activity","start_time":%q,"kind":"practice","mode":"report"}`, startTime),
+			wantMessage: "activity_id is required",
+		},
+		{
+			name:        "zero activity_id",
+			body:        fmt.Sprintf(`{"title":"zero activity","start_time":%q,"activity_id":%q,"kind":"practice","mode":"report"}`, startTime, uuid.Nil.String()),
+			wantMessage: "activity_id is required",
+		},
+		{
+			name:        "missing kind",
+			body:        fmt.Sprintf(`{"title":"no kind","start_time":%q,"activity_id":%q,"mode":"report"}`, startTime, f.activity.ID.String()),
+			wantMessage: "kind is required",
+		},
+		{
+			name:        "empty kind",
+			body:        fmt.Sprintf(`{"title":"empty kind","start_time":%q,"activity_id":%q,"kind":"","mode":"report"}`, startTime, f.activity.ID.String()),
+			wantMessage: "kind is required",
+		},
+		{
+			// Binding rejects this one, so the handler's own check never runs.
+			name: "malformed activity_id",
+			body: fmt.Sprintf(`{"title":"bad activity","start_time":%q,"activity_id":"not-a-uuid","kind":"practice","mode":"report"}`, startTime),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := f.do(t, router, http.MethodPost, "/v1/practices", admin, tc.body)
+			assertEnvelopeCode(t, rec, http.StatusBadRequest, "INVALID_REQUEST")
+			if tc.wantMessage != "" {
+				assert.Equal(t, tc.wantMessage, decodeEnvelope(t, rec).Error.Message,
+					"the envelope names the field that is missing")
+			}
+
+			rec = f.do(t, router, http.MethodPost, "/v1/practices", f.token(t, f.owner), tc.body)
+			assertEnvelopeCode(t, rec, http.StatusForbidden, "FORBIDDEN")
+		})
+	}
+
+	var after int64
+	require.NoError(t, f.db.Model(&domain.Event{}).Count(&after).Error)
+	assert.Equal(t, before, after, "a rejected raw create writes no Event")
+}
