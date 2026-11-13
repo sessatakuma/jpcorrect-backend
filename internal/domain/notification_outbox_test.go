@@ -1,11 +1,19 @@
 package domain
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNotificationDedupKeyOneOffFormat(t *testing.T) {
@@ -111,6 +119,7 @@ func TestNotificationKindIsRecurring(t *testing.T) {
 	for _, kind := range []string{
 		NotificationKindActivityScheduled,
 		NotificationKindActivityAborted,
+		NotificationKindActivityPracticeStarted,
 		NotificationKindAnalysisStarted,
 		NotificationKindAnalysisCompleted,
 		NotificationKindYouTubeUploadCompleted,
@@ -148,6 +157,7 @@ func TestNotificationDedupKeyRejectsTheWrongBuilder(t *testing.T) {
 
 	for _, kind := range []string{
 		NotificationKindActivityScheduled,
+		NotificationKindActivityPracticeStarted,
 		NotificationKindMemberJoined,
 		NotificationKindFeedCommentPosted,
 		"not.a.known.kind",
@@ -158,4 +168,115 @@ func TestNotificationDedupKeyRejectsTheWrongBuilder(t *testing.T) {
 		assert.NotPanics(t, func() { NotificationDedupKey(kind, aggregateID, recipientUserID) },
 			"%s is one-off and must accept the one-off key", kind)
 	}
+}
+
+// notificationKindValues returns the value of every notification kind constant
+// declared in the non-test files of this package, so the catalog tests below
+// follow the real declarations instead of a list they carry themselves.
+func notificationKindValues(t *testing.T) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	var values []string
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		require.NoError(t, err)
+
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				valueSpec, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, ident := range valueSpec.Names {
+					if !strings.HasPrefix(ident.Name, "NotificationKind") || i >= len(valueSpec.Values) {
+						continue
+					}
+					lit, ok := valueSpec.Values[i].(*ast.BasicLit)
+					require.True(t, ok, "notification kind %s must be a string literal", ident.Name)
+					unquoted, err := strconv.Unquote(lit.Value)
+					require.NoError(t, err)
+					values = append(values, unquoted)
+				}
+			}
+		}
+	}
+	sort.Strings(values)
+	return values
+}
+
+// TestNotificationKindCatalogMatchesSpec pins the catalog to spec §5.4, which
+// lists 22 notification kinds. It fails when a kind is added, renamed or
+// dropped without the matching spec change, and when the same kind value is
+// declared twice.
+func TestNotificationKindCatalogMatchesSpec(t *testing.T) {
+	assert.Equal(t, []string{
+		"activity.aborted",
+		"activity.practice_started",
+		"activity.scheduled",
+		"activity.starting_soon",
+		"activity.stuck_warning",
+		"activity.updated",
+		"analysis.completed",
+		"analysis.started",
+		"application.approved",
+		"application.rejected",
+		"application.submitted",
+		"feed.announcement_posted",
+		"feed.comment_posted",
+		"feedback.deadline_approaching",
+		"feedback.deadline_passed",
+		"inactivity.invite_link_expiring",
+		"inactivity.no_member_joined",
+		"inactivity.no_next_activity",
+		"inactivity.not_joined_guild",
+		"member.joined",
+		"member.removed",
+		"youtube.upload_completed",
+	}, notificationKindValues(t), "spec §5.4 has exactly these 22 kinds")
+}
+
+// TestNotificationKindCatalogHasOneValidBuilder pins that every §5.4 kind
+// belongs to exactly one class: a kind must not accept both dedup key builders
+// (an ambiguous classification) and must not reject both (no key at all).
+func TestNotificationKindCatalogHasOneValidBuilder(t *testing.T) {
+	aggregateID := uuid.New()
+	recipientUserID := uuid.New()
+	occurrence := time.Date(2026, 11, 8, 9, 0, 0, 0, time.UTC)
+
+	for _, kind := range notificationKindValues(t) {
+		oneOffAccepts := !didPanic(func() {
+			NotificationDedupKey(kind, aggregateID, recipientUserID)
+		})
+		recurringAccepts := !didPanic(func() {
+			NotificationDedupKeyWithOccurrence(kind, aggregateID, occurrence, recipientUserID)
+		})
+
+		assert.True(t, oneOffAccepts != recurringAccepts,
+			"%s must accept exactly one dedup key builder", kind)
+		assert.Equal(t, NotificationKindIsRecurring(kind), recurringAccepts,
+			"the builders and NotificationKindIsRecurring disagree about %s", kind)
+	}
+}
+
+// didPanic reports whether call panicked, without recording a test failure.
+func didPanic(call func()) (panicked bool) {
+	defer func() {
+		if recover() != nil {
+			panicked = true
+		}
+	}()
+	call()
+	return false
 }

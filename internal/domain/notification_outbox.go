@@ -16,6 +16,7 @@ const (
 	NotificationKindActivityAborted              = "activity.aborted"
 	NotificationKindActivityStuckWarning         = "activity.stuck_warning"
 	NotificationKindActivityStartingSoon         = "activity.starting_soon"
+	NotificationKindActivityPracticeStarted      = "activity.practice_started"
 	NotificationKindAnalysisStarted              = "analysis.started"
 	NotificationKindAnalysisCompleted            = "analysis.completed"
 	NotificationKindYouTubeUploadCompleted       = "youtube.upload_completed"
@@ -47,6 +48,9 @@ const (
 // reminder bucket for the inactivity scans, the update time (or the new
 // schedule) for activity.updated — so a changed instant yields a new key
 // instead of being suppressed by the old one.
+//
+// activity.practice_started is not in this set: it reports the single
+// transition of one activity into progress, so it takes the one-off key.
 var recurringNotificationKinds = map[string]struct{}{
 	NotificationKindActivityUpdated:              {},
 	NotificationKindActivityStuckWarning:         {},
