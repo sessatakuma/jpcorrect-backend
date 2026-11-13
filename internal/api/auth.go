@@ -255,5 +255,9 @@ func (a *API) validateToken(c *gin.Context) error {
 	c.Set(ContextKeySupabaseID, supabaseID)
 	c.Set(ContextKeyEmail, claims.Email)
 
+	// The guild handlers still read the caller from "userID" as a string, so
+	// keep setting it; removing it makes every guild request return 401.
+	c.Set("userID", claims.Subject)
+
 	return nil
 }
