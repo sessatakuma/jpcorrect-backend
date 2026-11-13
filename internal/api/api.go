@@ -60,6 +60,9 @@ func NewAPI(url string, clientAPIKey string, internalAPIKey string, transport *h
 
 	// 配置 WebSocket upgrader 的來源驗證
 	upgrader := websocket.Upgrader{
+		// Error replaces the plain-text handshake rejection gorilla writes
+		// before Upgrade returns, so /ws stays on the §1.5 envelope.
+		Error: writeHandshakeError,
 		CheckOrigin: func(r *http.Request) bool {
 			if len(allowedOrigins) == 0 {
 				// 開發模式：允許所有來源
