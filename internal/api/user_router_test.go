@@ -152,20 +152,25 @@ func TestRegisterUserRoutesAuthentication(t *testing.T) {
 				assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 			})
 
-			t.Run("token whose subject is not a UUID → 401", func(t *testing.T) {
-				f := newUserRouterFixture(t, caller)
-
-				token := f.signer.token(t, supabaseClaims{
-					Email:            caller.Email,
-					RegisteredClaims: jwt.RegisteredClaims{Subject: "not-a-uuid"},
+			for _, subject := range []string{"not-a-uuid", uuid.Nil.String()} {
+				t.Run("invalid subject "+subject+" → 401 without lookup", func(t *testing.T) {
+					f := newUserRouterFixture(t, caller)
+					token := f.signer.token(t, supabaseClaims{
+						Email:            caller.Email,
+						RegisteredClaims: jwt.RegisteredClaims{Subject: subject},
+					})
+					for _, route := range []struct{ method, path string }{
+						{http.MethodGet, "/v1/users/me"},
+						{http.MethodPost, "/v1/users/init"},
+					} {
+						rec := f.do(route.method, route.path, `{}`, "Bearer "+token, "")
+						require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+						assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
+					}
+					assert.Empty(t, f.users.getBySupabaseUserIDCalls)
+					assert.Empty(t, f.users.createIfAbsentCalls)
 				})
-
-				rec := f.do(http.MethodGet, "/v1/users/me", "", "Bearer "+token, "")
-				require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
-				assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
-				assert.Empty(t, f.users.getBySupabaseUserIDCalls,
-					"a malformed subject never reaches the user lookup")
-			})
+			}
 
 			t.Run("init with a valid token reaches the handler", func(t *testing.T) {
 				created := storedUser(t, uuid.New(), "first@example.com")

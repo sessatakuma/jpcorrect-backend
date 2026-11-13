@@ -255,7 +255,7 @@ func (a *API) verifyToken(c *gin.Context) (*supabaseAuth, error) {
 	// subject that does not parse as one cannot identify a row either; reject
 	// both here instead of passing an unusable identity down the stack.
 	subject, err := uuid.Parse(claims.Subject)
-	if err != nil {
+	if err != nil || subject == uuid.Nil {
 		return nil, errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
 
