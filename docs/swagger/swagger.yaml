@@ -507,9 +507,9 @@ definitions:
         type: string
       ttl_seconds:
         description: |-
-          TTLSeconds is a request-only option and is not a column. It is kept from
-          #54 as an optional override of the default 7-day lifetime; the spec itself
-          only defines the 7 days.
+          TTLSeconds is a request-only option and is not a column. §2.2 keeps it as
+          an optional override of the default 7-day lifetime, with the range 1 to
+          31536000 (Appendix E row 28).
         type: integer
     type: object
   jpcorrect-backend_internal_domain.Mistake:

@@ -293,7 +293,7 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 const defaultInviteTTL = 7 * 24 * time.Hour
 
 // GuildInviteResponse is the invite link as returned by the GET endpoint. The
-// JSON key `token` (formerly `code`) is our own choice; see domain.InviteLink.
+// JSON key `token` (formerly `code`) follows §2.2 and Appendix E row 28.
 type GuildInviteResponse struct {
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
