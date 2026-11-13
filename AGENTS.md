@@ -82,11 +82,9 @@ removed in #49).
   singular snake_case model name. AutoMigrate never drops an index after its
   tag is removed: add the drop to `database.DropLegacyIndexes`, which
   `internal/cmd/api.go` calls right after `AutoMigrate`.
-- **Leader quota**: a user may lead one guild (§3.3.1). The check is
-  `lockLeaderQuota` in `gorm_guild.go`: a row lock on the user plus a count of
-  active master rows joined to live guilds. It is not a partial unique index,
-  because an index on `guild_attendee` also counts the row of a soft-deleted
-  guild, and the quota must not.
+- **Leader quota**: issue #81 owns the locked query that counts active master
+  memberships joined to live guilds (§3.3.1). The retired partial unique
+  index must not be recreated: it also counts soft-deleted guilds.
 - **Foreign keys**: declare the relation as a belongs-to association field
   (`Guild *Guild` with `foreignKey:GuildID` and
   `constraint:OnUpdate:CASCADE,OnDelete:RESTRICT`, JSON and Swagger ignored),
