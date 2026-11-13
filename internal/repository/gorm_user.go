@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"jpcorrect-backend/internal/domain"
 )
@@ -21,6 +22,15 @@ func NewGormUserRepository(db *gorm.DB) domain.UserRepository {
 func (r *gormUserRepository) GetByID(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
 	var user domain.User
 	err := r.db.WithContext(ctx).First(&user, "id = ?", userID).Error
+	if err != nil {
+		return nil, MapGormError(err)
+	}
+	return &user, nil
+}
+
+func (r *gormUserRepository) GetBySupabaseUserID(ctx context.Context, supabaseUserID uuid.UUID) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("supabase_user_id = ?", supabaseUserID).First(&user).Error
 	if err != nil {
 		return nil, MapGormError(err)
 	}
@@ -59,4 +69,22 @@ func (r *gormUserRepository) Update(ctx context.Context, user *domain.User) erro
 func (r *gormUserRepository) Delete(ctx context.Context, userID uuid.UUID) error {
 	// GORM soft delete
 	return MapGormError(r.db.WithContext(ctx).Delete(&domain.User{}, "id = ?", userID).Error)
+}
+
+// CreateIfAbsentBySupabaseUserID is the idempotent first-login insert: a single
+// `INSERT … ON CONFLICT (supabase_user_id) DO NOTHING`. Only a conflict on
+// supabase_user_id is ignored, so a concurrent retry for the same subject
+// writes nothing and every caller reads the same row afterwards. Any other
+// unique violation, in particular the email index, still fails and reaches the
+// caller as domain.ErrDuplicateEntry, which keeps accounts unlinked.
+func (r *gormUserRepository) CreateIfAbsentBySupabaseUserID(ctx context.Context, user *domain.User) error {
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
+	}
+	return MapGormError(r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "supabase_user_id"}},
+			DoNothing: true,
+		}).
+		Create(user).Error)
 }

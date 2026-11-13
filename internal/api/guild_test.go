@@ -96,8 +96,8 @@ func newTestAPI() (*API, *mockGuildRepo, *mockAttendeeRepo) {
 // invokeHandler mounts handler on a fresh gin engine. The UUID segment of path
 // is converted to the :id route param (the handlers read c.Param("id")). When
 // userID is non-nil it is injected into the gin context as a string, exactly
-// like AuthMiddleware does (c.Set("userID", claims.Subject)); when nil, no
-// value is set so c.Get("userID") returns (nil, false) → 401.
+// like AuthMiddleware publishes the internal user ID (c.Set("userID", user.ID));
+// when nil, no value is set so c.Get("userID") returns (nil, false) → 401.
 //
 // The HTTP method is inferred: POST when a body is provided (even an empty
 // one), GET otherwise — matching the handlers under test.
