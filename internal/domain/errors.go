@@ -35,9 +35,9 @@ var (
 	ErrNotGuildMember = errors.New("user is not a member of this guild")
 	ErrNotGuildMaster = errors.New("user is not the master of this guild")
 
-	// Generic status sentinels. §1.5 leaves the code strings for statuses
-	// outside the catalog to the implementer; the chosen set is documented
-	// next to the mapping table in internal/api/errors.go.
+	// Generic status sentinels. §1.5 fixes these code strings (Appendix E row 31);
+	// the mapping for each one is documented next to the table in
+	// internal/api/errors.go.
 
 	ErrInvalidRequest      = errors.New("invalid request")
 	ErrUnauthorized        = errors.New("authentication required")

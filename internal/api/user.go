@@ -235,14 +235,17 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 // @Description with a Supabase JWT; the middleware skips the user lookup for this
 // @Description path only and the handler creates the row from the token's sub and
 // @Description email. Idempotent: a retried or concurrent call returns the same
-// @Description profile. A new account is named after the email prefix until
-// @Description PUT /v1/users/me sets a name. If another account already owns the
-// @Description email, the request answers 409 and no row is created or linked.
+// @Description profile. A new account is named after the email prefix, capped at
+// @Description 100 runes, until PUT /v1/users/me sets a name. A `sub` that is not
+// @Description a UUID, or a token with no email address, answers 400
+// @Description INVALID_REQUEST and writes nothing. If another account already
+// @Description owns the email, the request answers 409 and no row is created or
+// @Description linked.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.User "The caller's profile, created or already existing"
-// @Failure 400 {object} api.ErrorResponse "The token carries no email address"
+// @Failure 400 {object} api.ErrorResponse "The token carries no email address or a subject that is not a UUID"
 // @Failure 401 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse "The email belongs to another account"
 // @Failure 500 {object} api.ErrorResponse
@@ -250,8 +253,17 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 // @Router /v1/users/init [post]
 func (a *API) UserInitHandler(c *gin.Context) {
 	auth := currentSupabaseAuth(c)
-	if auth == nil || auth.Subject == uuid.Nil {
+	if auth == nil {
 		writeError(c, domain.ErrUnauthorized)
+		return
+	}
+
+	// spec §2.1: a verified token whose `sub` is empty, malformed or the nil UUID
+	// is a bad request on this endpoint, not a 401. Reject it before any repo
+	// call, so an unusable subject can neither read nor write a row.
+	sub, err := parseSubject(auth.Subject)
+	if err != nil {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, err.Error()))
 		return
 	}
 
@@ -262,7 +274,6 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	sub := auth.Subject
 	candidate := domain.User{
 		ID:             uuid.New(),
 		Name:           defaultDisplayName(email),
