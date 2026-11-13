@@ -15,9 +15,8 @@ import (
 // guild_attendee(user_id) WHERE role = 'master' AND left_at IS NULL. It
 // enforced the one-guild-per-leader quota (§3.3.1) in the database, but it also
 // counted the membership row of a soft-deleted guild, so a leader whose guild
-// was deleted could never create another one. The quota now lives in the
-// repository (lockLeaderQuota in internal/repository/gorm_guild.go), which joins
-// guild and skips the deleted rows.
+// was deleted could never create another one. Issue #81 owns the replacement
+// locked query, which joins guild and skips deleted rows.
 var legacyIndexes = []string{
 	"idx_guild_attendee_active_master",
 }
