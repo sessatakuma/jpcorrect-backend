@@ -1180,7 +1180,7 @@ const docTemplate = `{
                 ]
             },
             "post": {
-                "description": "Creates a new active invite link for a guild and expires any existing active links within a single transaction.",
+                "description": "Creates a new active invite link for a guild and expires any existing active links within a single transaction. The link expires 7 days after creation unless ` + "`" + `ttl_seconds` + "`" + ` asks for another lifetime.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1212,7 +1212,7 @@ const docTemplate = `{
                         "name": "request",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.InviteLink"
                         }
                     }
                 ],
@@ -1220,7 +1220,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.GuildInvite"
+                            "$ref": "#/definitions/jpcorrect-backend_internal_domain.InviteLink"
                         }
                     },
                     "400": {
@@ -3225,13 +3225,13 @@ const docTemplate = `{
         "internal_api.GuildInviteResponse": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "string"
-                },
                 "created_at": {
                     "type": "string"
                 },
                 "expires_at": {
+                    "type": "string"
+                },
+                "token": {
                     "type": "string"
                 }
             }
@@ -3799,13 +3799,13 @@ const docTemplate = `{
                 "GuildAttendeeRoleMaster"
             ]
         },
-        "jpcorrect-backend_internal_domain.GuildInvite": {
+        "jpcorrect-backend_internal_domain.InviteLink": {
             "type": "object",
             "properties": {
-                "code": {
+                "created_at": {
                     "type": "string"
                 },
-                "created_at": {
+                "created_by_user_id": {
                     "type": "string"
                 },
                 "expires_at": {
@@ -3817,7 +3817,11 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "token": {
+                    "type": "string"
+                },
                 "ttl_seconds": {
+                    "description": "TTLSeconds is a request-only option and is not a column. §2.2 keeps it as\nan optional override of the default 7-day lifetime, with the range 1 to\n31536000 (Appendix E row 28).",
                     "type": "integer"
                 }
             }
