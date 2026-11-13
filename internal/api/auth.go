@@ -90,7 +90,7 @@ func debugCallerMiddleware() gin.HandlerFunc {
 				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
 				return
 			}
-			c.Set("userID", userID.String())
+			c.Set("userID", userID)
 		}
 		c.Next()
 	}
@@ -228,8 +228,13 @@ func (a *API) validateToken(c *gin.Context) error {
 		)
 	}
 
-	// Store the user ID (subject) in the context for downstream handlers
-	c.Set("userID", claims.Subject)
+	userID, err := uuid.Parse(claims.Subject)
+	if err != nil {
+		return domain.NewAuthError(http.StatusUnauthorized, "invalid token subject", "")
+	}
+
+	// Store the parsed user ID for downstream handlers.
+	c.Set("userID", userID)
 
 	return nil
 }
