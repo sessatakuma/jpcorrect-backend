@@ -58,7 +58,18 @@ removed in #49).
   schema tool. `migrationModels()` holds the full spec §2.3 list in
   foreign-key order; add a new domain model there and to
   `testutil.BaselineModels()` (`TestMigrationModelsMatchTestBaseline` catches
-  drift).
+  drift). `main` has eight models (User, Guild, GuildAttendee, GuildInvite,
+  Event, EventAttendee, Transcript, Mistake); #120 replaces `GuildInvite` with
+  `InviteLink`, so the spec list is those eight minus `GuildInvite` plus the 20
+  §2.2 tables. The naming strategy is `SingularTable`, so every table is the
+  singular snake_case model name. AutoMigrate never drops an index after its
+  tag is removed: add the drop to `database.DropLegacyIndexes`, which
+  `internal/cmd/api.go` calls right after `AutoMigrate`.
+- **Leader quota**: a user may lead one guild (§3.3.1). The check is
+  `lockLeaderQuota` in `gorm_guild.go`: a row lock on the user plus a count of
+  active master rows joined to live guilds. It is not a partial unique index,
+  because an index on `guild_attendee` also counts the row of a soft-deleted
+  guild, and the quota must not.
 - **Foreign keys**: declare the relation as a belongs-to association field
   (`Guild *Guild` with `foreignKey:GuildID` and
   `constraint:OnUpdate:CASCADE,OnDelete:RESTRICT`, JSON and Swagger ignored),
@@ -76,9 +87,12 @@ removed in #49).
   is a generic 500 that never echoes its text.
 - **Soft delete**: `User`, `Guild`, `Event`, `Activity`, `Topic`, `FeedPost`
   and `FeedComment` carry `gorm.DeletedAt` (use `Unscoped()` for a hard
-  delete); the other models hard-delete. `RecordingAsset.deleted_at` is a
-  plain `*time.Time` on purpose: the retained metadata stays visible and the
-  row is marked through `status`.
+  delete); every other model hard-deletes. On the `main` baseline that is five
+  of the eight models (GuildAttendee, GuildInvite, EventAttendee, Transcript,
+  Mistake); #120 replaces `GuildInvite` with `InviteLink`, which also
+  hard-deletes, so `Guild` is the only soft-deleting guild table.
+  `RecordingAsset.deleted_at` is a plain `*time.Time` on purpose: the retained
+  metadata stays visible and the row is marked through `status`.
 - `/v1/practices` routes use the `Event` model (backward-compat naming).
 - JSONB columns are `datatypes.JSON` / `jsonb`:
   `Transcript.Accent`, `Event.StepDurations`,
