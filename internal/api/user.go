@@ -193,13 +193,14 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 }
 
 // @Summary Initialize current user
-// @Description Create or link the local User row for the JWT supabase_user_id (idempotent)
+// @Description Create the local User row for the JWT supabase_user_id (idempotent). An email that already belongs to another row is never linked automatically: the request answers 409 and both rows stay unchanged.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.User
 // @Failure 400 {object} map[string]string
 // @Failure 401 {object} map[string]string
+// @Failure 409 {object} map[string]string
 // @Failure 500 {object} map[string]string
 // @Router /v1/users/init [post]
 // @Security BearerAuth
@@ -247,21 +248,25 @@ func (a *API) UserInitHandler(c *gin.Context) {
 		return
 	}
 
-	// Rows created before supabase_user_id existed are linked by email so
-	// existing accounts keep their data instead of colliding on the unique email.
-	legacy, legacyErr := a.userRepo.GetByEmail(ctx, email)
+	// A row that already owns this email is never adopted automatically. The
+	// email and email_verified claims are not proof of ownership, so linking a
+	// legacy row to a Supabase subject stays an explicit maintainer/backfill
+	// action (see docs/database-design.md). Returning 409 also keeps this path
+	// free of a read-then-write race: no row is ever claimed here.
+	owner, legacyErr := a.userRepo.GetByEmail(ctx, email)
 	switch {
 	case legacyErr == nil:
-		if legacy.SupabaseUserID != "" {
-			c.JSON(http.StatusConflict, gin.H{"error": "email is linked to another account"})
+		// A concurrent init for this same subject may have committed between the
+		// subject lookup above and this read. That row is the caller's own, so
+		// return it instead of reporting a conflict.
+		if owner.SupabaseUserID == supabaseUserID {
+			c.JSON(http.StatusOK, owner)
 			return
 		}
-		legacy.SupabaseUserID = supabaseUserID
-		if err := a.userRepo.Update(ctx, legacy); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link user"})
-			return
-		}
-		c.JSON(http.StatusOK, legacy)
+		c.JSON(http.StatusConflict, gin.H{
+			"error":   "email is linked to another account",
+			"details": "an existing account owns this email; linking it to the caller is an explicit maintainer action",
+		})
 		return
 	case !errors.Is(legacyErr, domain.ErrNotFound):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
@@ -281,12 +286,17 @@ func (a *API) UserInitHandler(c *gin.Context) {
 	}
 	if err := a.userRepo.Create(ctx, newUser); err != nil {
 		if errors.Is(err, domain.ErrDuplicateEntry) {
-			// Another request provisioned the same account first; return it.
+			// Another request provisioned this subject first; return that row.
 			if existing, lookupErr := a.userRepo.GetBySupabaseUserID(ctx, supabaseUserID); lookupErr == nil {
 				c.JSON(http.StatusOK, existing)
 				return
 			}
-			c.JSON(http.StatusConflict, gin.H{"error": "user already exists"})
+			// Another request claimed the email for a different subject at the
+			// same time. Never adopt it; report the same conflict as above.
+			c.JSON(http.StatusConflict, gin.H{
+				"error":   "email is linked to another account",
+				"details": "an existing account owns this email; linking it to the caller is an explicit maintainer action",
+			})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})

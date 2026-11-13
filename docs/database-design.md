@@ -139,6 +139,29 @@ erDiagram
 | points | Int  | Default: `0` | 該使用者總積分(跨公會) |
 | level | Int  | Default: `0` | 使用者的等級 |
 
+#### Account identity and account linking
+
+`supabase_user_id` is the only link between a Supabase Auth subject and a
+local User row. `POST /v1/users/init` creates that row for a subject it has
+not seen before.
+
+The endpoint never links an existing row by email:
+
+- If a row already owns the email in the token, the request answers `409` with
+  `email is linked to another account`. The existing row keeps its
+  `supabase_user_id`, its other fields are unchanged, and no new row is
+  created.
+- The `email_verified` claim is not consulted for linking. A signed token, with
+  or without a verified email, does not prove that the caller owns a legacy
+  account.
+- Two concurrent calls cannot claim the same row. The unique email index
+  rejects the loser, and it receives the same `409`.
+
+Linking a row that predates Supabase to its owner is an explicit maintainer or
+backfill action: confirm ownership out of band, then set `supabase_user_id` on
+that row (or migrate the row) before the owner signs in. The API does not offer
+a self-service path for it.
+
 ### Event
 
 | Field | Type | Attribute | Note |

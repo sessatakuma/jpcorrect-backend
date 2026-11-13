@@ -123,7 +123,7 @@ func TestRequireLocalUser(t *testing.T) {
 func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	call := func(api *API, subject, email string) *httptest.ResponseRecorder {
+	call := func(api *API, subject, email string, emailVerified *bool) *httptest.ResponseRecorder {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/users/init", nil)
@@ -133,6 +133,9 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 		if email != "" {
 			c.Set("supabaseEmail", email)
 		}
+		if emailVerified != nil {
+			c.Set("supabaseEmailVerified", *emailVerified)
+		}
 		api.UserInitHandler(c)
 		return w
 	}
@@ -141,7 +144,7 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 		repo := newMockUserRepo()
 		api := &API{userRepo: repo}
 
-		w := call(api, "supabase-new", "new@example.com")
+		w := call(api, "supabase-new", "new@example.com", nil)
 
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.Len(t, repo.created, 1)
@@ -155,24 +158,41 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 		repo := newMockUserRepo(existing)
 		api := &API{userRepo: repo}
 
-		w := call(api, "supabase-1", "member@example.com")
+		w := call(api, "supabase-1", "member@example.com", nil)
 
 		require.Equal(t, http.StatusOK, w.Code)
 		assert.Empty(t, repo.created)
 		assert.Empty(t, repo.updated)
 	})
 
-	t.Run("links a legacy row by email", func(t *testing.T) {
-		legacy := &domain.User{ID: uuid.New(), Email: "legacy@example.com"}
+	t.Run("refuses a legacy row with an unverified email claim", func(t *testing.T) {
+		legacy := &domain.User{ID: uuid.New(), Email: "legacy@example.com", Name: "unchanged"}
 		repo := newMockUserRepo(legacy)
 		api := &API{userRepo: repo}
+		verified := false
 
-		w := call(api, "supabase-legacy", "legacy@example.com")
+		w := call(api, "supabase-legacy", "legacy@example.com", &verified)
 
-		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
+		assert.Contains(t, w.Body.String(), "email is linked to another account")
+		assert.Empty(t, repo.created, "a conflict must not create a second row")
+		assert.Empty(t, repo.updated, "a conflict must not touch the legacy row")
+		assert.Empty(t, legacy.SupabaseUserID, "the legacy row must stay unlinked")
+		assert.Equal(t, "unchanged", legacy.Name)
+	})
+
+	t.Run("does not trust a verified email claim either", func(t *testing.T) {
+		legacy := &domain.User{ID: uuid.New(), Email: "verified@example.com"}
+		repo := newMockUserRepo(legacy)
+		api := &API{userRepo: repo}
+		verified := true
+
+		w := call(api, "supabase-verified", "verified@example.com", &verified)
+
+		require.Equal(t, http.StatusConflict, w.Code, w.Body.String())
 		assert.Empty(t, repo.created)
-		require.Len(t, repo.updated, 1)
-		assert.Equal(t, "supabase-legacy", repo.updated[0].SupabaseUserID)
+		assert.Empty(t, repo.updated)
+		assert.Empty(t, legacy.SupabaseUserID)
 	})
 
 	t.Run("does not steal an email already linked to another subject", func(t *testing.T) {
@@ -180,17 +200,18 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 		repo := newMockUserRepo(other)
 		api := &API{userRepo: repo}
 
-		w := call(api, "supabase-new", "taken@example.com")
+		w := call(api, "supabase-new", "taken@example.com", nil)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Empty(t, repo.updated)
 		assert.Empty(t, repo.created)
+		assert.Equal(t, "supabase-other", other.SupabaseUserID, "the owning row must keep its subject")
 	})
 
 	t.Run("rejects a token without subject", func(t *testing.T) {
 		api := &API{userRepo: newMockUserRepo()}
 
-		w := call(api, "", "")
+		w := call(api, "", "", nil)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
@@ -198,7 +219,7 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 	t.Run("rejects a token without email", func(t *testing.T) {
 		api := &API{userRepo: newMockUserRepo()}
 
-		w := call(api, "supabase-new", "")
+		w := call(api, "supabase-new", "", nil)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -208,7 +229,7 @@ func TestUserInitHandlerProvisionsOrLinksUser(t *testing.T) {
 		repo.createErr = errors.New("db down")
 		api := &API{userRepo: repo}
 
-		w := call(api, "supabase-new", "new@example.com")
+		w := call(api, "supabase-new", "new@example.com", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 	})

@@ -3764,8 +3764,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create or link the local User row for the JWT supabase_user_id
-        (idempotent)
+      description: 'Create the local User row for the JWT supabase_user_id (idempotent).
+        An email that already belongs to another row is never linked automatically:
+        the request answers 409 and both rows stay unchanged.'
       produces:
       - application/json
       responses:
@@ -3781,6 +3782,12 @@ paths:
             type: object
         "401":
           description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Conflict
           schema:
             additionalProperties:
               type: string
