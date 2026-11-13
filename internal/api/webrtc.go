@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -208,6 +209,33 @@ func defaultValidateUserName(name string) (bool, string) {
 	return true, name
 }
 
+// writeHandshakeError is the upgrader's Error callback. gorilla/websocket writes
+// its own plain-text rejection (400 for a malformed handshake, 403 for a
+// refused Origin) before Upgrade returns, so this callback is the only place
+// that can keep the /ws endpoint on the §1.5 envelope.
+func writeHandshakeError(w http.ResponseWriter, _ *http.Request, status int, _ error) {
+	// gorilla sets this header on every rejection, not only the version
+	// mismatch, so the client-visible headers stay the same as its default.
+	w.Header().Set("Sec-Websocket-Version", "13")
+	writeErrorRaw(w, handshakeSentinel(status))
+}
+
+// handshakeSentinel maps the status the upgrader would have written onto a
+// catalog sentinel, so the rejection keeps its status wherever §1.5 names one.
+// The upgrader's 405 has no §1.5 code and shares INVALID_REQUEST: gin routes
+// /ws as GET only, so a non-GET request is answered 404 by the router and never
+// reaches the upgrader.
+func handshakeSentinel(status int) error {
+	switch status {
+	case http.StatusBadRequest, http.StatusMethodNotAllowed:
+		return domain.ErrInvalidRequest
+	case http.StatusForbidden:
+		return domain.ErrForbidden
+	default:
+		return domain.ErrInternal
+	}
+}
+
 func (api *API) ServeWebSocket(c *gin.Context) {
 	// Rate limit new connections per IP
 	ip, _, _ := net.SplitHostPort(c.Request.RemoteAddr)
@@ -224,6 +252,8 @@ func (api *API) ServeWebSocket(c *gin.Context) {
 
 	conn, err := api.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
+		// A handshake rejection is already on the wire: the upgrader wrote it
+		// through its Error callback (writeHandshakeError). Only log here.
 		log.Println("websocket upgrade error:", err)
 		return
 	}

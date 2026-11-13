@@ -114,7 +114,15 @@ func parsePageQuery(c *gin.Context) (pageQuery, error) {
 //
 // keyOf extracts the (created_at, id) pair of a row; it is the caller's because
 // the helper is model-agnostic.
+//
+// A limit below 1 is treated as defaultPageLimit instead of panicking on
+// items[limit-1]. parsePageQuery already rejects such a limit as malformed, so
+// the guard only protects future adopters that call the helper directly.
 func newPage[T any](rows []T, limit int, keyOf func(T) repository.PageCursor) pageResponse[T] {
+	if limit < 1 {
+		limit = defaultPageLimit
+	}
+
 	items := rows
 	hasMore := false
 
