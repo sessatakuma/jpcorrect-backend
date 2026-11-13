@@ -324,7 +324,7 @@ func (a *API) validateToken(c *gin.Context) error {
 
 	// The JWT subject is the Supabase user UUID.
 	supabaseID, err := uuid.Parse(claims.Subject)
-	if err != nil {
+	if err != nil || supabaseID == uuid.Nil {
 		return domain.NewAuthError(
 			http.StatusUnauthorized,
 			"invalid subject claim",

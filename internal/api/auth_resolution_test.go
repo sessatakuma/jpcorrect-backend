@@ -177,11 +177,21 @@ func TestAuthMiddlewareRejectsUninitializedGuildCaller(t *testing.T) {
 }
 
 func TestAuthMiddlewareRejectsInvalidSubject(t *testing.T) {
-	router, users, _, signer := newIdentityRouter(t)
-
-	rec := router.do(http.MethodGet, "/v1/users/me", signer.userToken(t, "not-a-uuid", "x@example.com"), nil)
-	require.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Equal(t, 0, users.lookupCalls, "an unusable subject is rejected before the lookup")
+	for _, subject := range []string{"not-a-uuid", uuid.Nil.String()} {
+		t.Run(subject, func(t *testing.T) {
+			for _, route := range []struct{ method, path string }{
+				{http.MethodGet, "/v1/users/me"},
+				{http.MethodPost, "/v1/users/init"},
+			} {
+				router, users, _, signer := newIdentityRouter(t)
+				rec := router.do(route.method, route.path, signer.userToken(t, subject, "x@example.com"), nil)
+				require.Equal(t, http.StatusUnauthorized, rec.Code)
+				assert.Equal(t, 0, users.lookupCalls)
+				assert.Equal(t, 0, users.createCalls)
+				assert.False(t, router.initReached)
+			}
+		})
+	}
 }
 
 func TestAuthMiddlewareRejectsMissingToken(t *testing.T) {
