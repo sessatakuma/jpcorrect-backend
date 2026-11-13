@@ -49,7 +49,9 @@ func (r *gormGuildRepository) CreateWithMaster(ctx context.Context, guild *domai
 			attendee.JoinedAt = &now
 		}
 
-		if err := tx.Create(attendee).Error; err != nil {
+		// Omit associations: GuildAttendee.Guild/User exist only to emit the
+		// foreign keys and must never make a write touch the parent tables.
+		if err := tx.Omit(clause.Associations).Create(attendee).Error; err != nil {
 			return err
 		}
 
@@ -241,11 +243,13 @@ func (r *gormGuildAttendeeRepository) Create(ctx context.Context, attendee *doma
 	if attendee.ID == uuid.Nil {
 		attendee.ID = uuid.New()
 	}
-	return MapGormError(r.db.WithContext(ctx).Create(attendee).Error)
+	// Omit associations: see CreateWithMaster.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Create(attendee).Error)
 }
 
 func (r *gormGuildAttendeeRepository) Update(ctx context.Context, attendee *domain.GuildAttendee) error {
-	return MapGormError(r.db.WithContext(ctx).Save(attendee).Error)
+	// Omit associations: see CreateWithMaster.
+	return MapGormError(r.db.WithContext(ctx).Omit(clause.Associations).Save(attendee).Error)
 }
 
 func (r *gormGuildAttendeeRepository) Delete(ctx context.Context, id uuid.UUID) error {

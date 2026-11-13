@@ -56,11 +56,24 @@ type GuildRepository interface {
 // Maps to jpcorrect.guild_attendee table.
 type GuildAttendee struct {
 	ID       uuid.UUID         `gorm:"type:uuid;primaryKey" json:"guild_attendee_id"`
-	GuildID  uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:1;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"guild_id"`
-	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2;uniqueIndex:idx_guild_attendee_active_master,where:role = 'master' AND left_at IS NULL;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"user_id"`
+	GuildID  uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:1" json:"guild_id"`
+	UserID   uuid.UUID         `gorm:"type:uuid;uniqueIndex:idx_guild_attendee_guild_user,priority:2;uniqueIndex:idx_guild_attendee_active_master,where:role = 'master' AND left_at IS NULL" json:"user_id"`
 	Role     GuildAttendeeRole `gorm:"default:member" json:"role"`
 	JoinedAt *time.Time        `json:"joined_at"`
 	LeftAt   *time.Time        `json:"left_at"`
+
+	// Guild and User are belongs-to associations only: the scalar GuildID and
+	// UserID columns above stay the single source of truth, and the relations
+	// are what make GORM's AutoMigrate emit the foreign key constraints. The
+	// `constraint` tag has to live on the association, not on the scalar
+	// columns, or no constraint is created at all.
+	//
+	// They are never serialised, so the HTTP/Swagger contract is unchanged.
+	// The attendee repositories write with Omit(clause.Associations), so even a
+	// Go caller that populates them cannot make a write upsert the guild or user
+	// rows or overwrite GuildID / UserID.
+	Guild *Guild `gorm:"foreignKey:GuildID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-" swaggerignore:"true"`
+	User  *User  `gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT" json:"-" swaggerignore:"true"`
 }
 
 type GuildAttendeeRepository interface {
