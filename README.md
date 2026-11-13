@@ -107,6 +107,72 @@ Common annotations:
 | `@Router` | Route: `{path} [{method}]` |
 | `@Security` | Security definition to apply (e.g., `BearerAuth`) |
 
+## Testing
+
+Without a database, the full suite runs with both connection variables
+cleared:
+
+```bash
+env -u DATABASE_URL -u TEST_DATABASE_URL go test ./...
+```
+
+Everything that needs PostgreSQL then skips itself; see below.
+
+### Integration tests
+
+The repository integration tests (`internal/repository`,
+`internal/testutil`) run against a real PostgreSQL server. They connect with
+`TEST_DATABASE_URL` and nothing else.
+
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | the `cmd/jpcorrect` server | database the API reads and writes |
+| `DATABASE_URL` (in tests) | `internal/database` connection smoke test | existing test, not migrated; skips when unset |
+| `TEST_DATABASE_URL` | repository integration tests | throwaway database the tests may create and drop schemas in |
+
+The no-fallback rule applies to the repository integration tests only: the
+older `internal/database` connection smoke test (`TestNewGormDB`) still reads
+`DATABASE_URL` and skips when it is unset. Point `TEST_DATABASE_URL` at a
+dedicated throwaway database whose role may `CREATE SCHEMA` and `DROP SCHEMA`,
+never at the production or deploy database. When it is unset, `go test` still
+passes: every repository integration test skips itself instead of guessing a
+connection string.
+
+```bash
+export TEST_DATABASE_URL='postgres://user:pass@127.0.0.1:5432/jpcorrect_test?sslmode=disable'
+go test -race -count=1 -shuffle=on -v ./internal/repository/...
+```
+
+Each test gets a randomly named schema migrated with the same eight models as
+the production `AutoMigrate` list in `internal/cmd/api.go`, and the search path
+is pinned in the DSN so every pooled connection resolves unqualified names in
+that schema. Cleanup drops only the schema this test created. Keep
+`testutil.BaselineModels` in sync with the production model list.
+
+CI runs the same command in the `guild-concurrency-test` job, which starts a
+PostgreSQL service and always sets `TEST_DATABASE_URL`; with the database
+reachable no repository test is skipped.
+
+An optional local PostgreSQL, if you do not already have one (the root
+`compose.yml` already provides one on `127.0.0.1:5432`; do not modify it for
+testing):
+
+```bash
+docker run --rm -d --name jpcorrect-test-pg \
+  -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test \
+  -p 127.0.0.1:5433:5432 postgres:15-alpine
+```
+
+Use the port you published (`5433` above) in `TEST_DATABASE_URL`; the
+loopback binding keeps the throwaway database off non-loopback interfaces.
+
+Scope of the current schema change (#69): the two `guild_attendee` foreign keys
+to `guild` and `user` are the only constraints added. This is not the complete
+#72 work, and the other six foreign keys are out of scope here. Applying it to
+a database that already holds orphan rows fails when the foreign key is
+created; nothing deletes or repairs data automatically, so those rows must be
+fixed first.
+
 ## Local Development and Deployment
 
 This repository uses two Docker Compose files, each named `compose.yml` (docker's

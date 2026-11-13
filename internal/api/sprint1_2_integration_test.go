@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -14,35 +13,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"jpcorrect-backend/internal/database"
 	"jpcorrect-backend/internal/domain"
+	"jpcorrect-backend/internal/testutil"
 )
 
-// newIntegrationAPI connects to DATABASE_URL and migrates every model the
-// handlers touch. The test is skipped when no PostgreSQL instance is available.
+// newIntegrationAPI returns an API backed by a fresh PostgreSQL schema with the
+// production baseline schema. The test is skipped when TEST_DATABASE_URL is
+// unset, so it can never touch a runtime database.
 func newIntegrationAPI(t *testing.T) *API {
 	t.Helper()
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("DATABASE_URL not set, skipping PostgreSQL integration test")
-	}
-	db, err := database.NewGormDB(databaseURL)
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(
-		&domain.User{},
-		&domain.Guild{},
-		&domain.GuildAttendee{},
-		&domain.GuildDefaultSlot{},
-		&domain.JoinRequest{},
-		&domain.Topic{},
-		&domain.ReportThemeSuggestion{},
-		&domain.Activity{},
-		&domain.Event{},
-		&domain.EventAttendee{},
-		&domain.Transcript{},
-		&domain.Mistake{},
-		&domain.GuildInvite{},
-	))
+	db := testutil.NewPostgresDB(t)
 	return NewAPI("", "", &http.Transport{}, db, "", nil)
 }
 

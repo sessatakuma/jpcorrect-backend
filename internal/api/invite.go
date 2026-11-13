@@ -28,7 +28,7 @@ func (a *API) InviteInfoHandler(c *gin.Context) {
 		return
 	}
 
-	invite, err := a.guildRepo.GetInviteByCode(c.Request.Context(), token)
+	invite, err := a.guildRepo.GetInviteByToken(c.Request.Context(), token)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -48,7 +48,7 @@ func (a *API) InviteInfoHandler(c *gin.Context) {
 		return
 	}
 
-	isExpired := invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt)
+	isExpired := time.Now().After(invite.ExpiresAt)
 
 	c.JSON(http.StatusOK, gin.H{
 		"guild": gin.H{
@@ -85,7 +85,7 @@ func (a *API) InviteAcceptHandler(c *gin.Context) {
 		return
 	}
 
-	invite, err := a.guildRepo.GetInviteByCode(c.Request.Context(), token)
+	invite, err := a.guildRepo.GetInviteByToken(c.Request.Context(), token)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -94,7 +94,7 @@ func (a *API) InviteAcceptHandler(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "invite not found"})
 		return
 	}
-	if invite.ExpiresAt != nil && time.Now().After(*invite.ExpiresAt) {
+	if time.Now().After(invite.ExpiresAt) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "invite expired"})
 		return
 	}

@@ -38,7 +38,7 @@ func Execute() {
 		&domain.EventAttendee{},
 		&domain.Transcript{},
 		&domain.Mistake{},
-		&domain.GuildInvite{},
+		&domain.InviteLink{},
 	); err != nil {
 		log.Fatalf("failed to run auto migrate: %v", err)
 	}

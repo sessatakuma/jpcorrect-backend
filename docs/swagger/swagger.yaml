@@ -87,11 +87,11 @@ definitions:
     type: object
   internal_api.GuildInviteResponse:
     properties:
-      code:
-        type: string
       created_at:
         type: string
       expires_at:
+        type: string
+      token:
         type: string
     type: object
   internal_api.HeadWord:
@@ -622,11 +622,11 @@ definitions:
       updated_at:
         type: string
     type: object
-  jpcorrect-backend_internal_domain.GuildInvite:
+  jpcorrect-backend_internal_domain.InviteLink:
     properties:
-      code:
-        type: string
       created_at:
+        type: string
+      created_by_user_id:
         type: string
       expires_at:
         type: string
@@ -634,7 +634,13 @@ definitions:
         type: string
       id:
         type: string
+      token:
+        type: string
       ttl_seconds:
+        description: |-
+          TTLSeconds is a request-only option and is not a column. It is kept from
+          #54 as an optional override of the default 7-day lifetime; the spec itself
+          only defines the 7 days.
         type: integer
     type: object
   jpcorrect-backend_internal_domain.JoinRequest:
@@ -2135,7 +2141,8 @@ paths:
       consumes:
       - application/json
       description: Creates a new active invite link for a guild and expires any existing
-        active links within a single transaction.
+        active links within a single transaction. The link expires 7 days after creation
+        unless `ttl_seconds` asks for another lifetime.
       parameters:
       - description: 'Debug only: caller user UUID; ignored in release'
         format: uuid
@@ -2152,14 +2159,14 @@ paths:
         in: body
         name: request
         schema:
-          $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
+          $ref: '#/definitions/jpcorrect-backend_internal_domain.InviteLink'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/jpcorrect-backend_internal_domain.GuildInvite'
+            $ref: '#/definitions/jpcorrect-backend_internal_domain.InviteLink'
         "400":
           description: Invalid Guild ID or Request Body
           schema:

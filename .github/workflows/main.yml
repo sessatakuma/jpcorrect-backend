@@ -41,8 +41,8 @@ jobs:
       run-go-checks: true
       go-version: "1.25"
 
-  guild-concurrency-test:
-    name: Guild master concurrency test
+  postgres-integration-test:
+    name: PostgreSQL integration tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -59,7 +59,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgres://test:test@localhost/test?sslmode=disable
+      # Integration tests connect with TEST_DATABASE_URL only; the helpers
+      # never fall back to DATABASE_URL.
+      TEST_DATABASE_URL: >-
+        postgres://test:test@localhost/test?sslmode=disable
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -69,7 +72,7 @@ jobs:
         with:
           go-version: "1.25"
 
-      - name: Test concurrent guild creation
+      - name: Test PostgreSQL integration suite
         run: >-
-          go test -race ./internal/repository
-          -run '^TestCreateWithMasterConcurrentLimit$'
+          go test -race -count=1 -shuffle=on -v
+          ./internal/repository/... ./internal/api/...

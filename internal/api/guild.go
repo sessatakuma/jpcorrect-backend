@@ -286,10 +286,16 @@ func (a *API) GuildTransferLeaderHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "leader transferred successfully"})
 }
 
+// defaultInviteTTL is the lifetime of a new invite link when the caller does
+// not ask for another one: the spec's "7 days after creation" (§2.2).
+const defaultInviteTTL = 7 * 24 * time.Hour
+
+// GuildInviteResponse is the invite link as returned by the GET endpoint. The
+// JSON key `token` (formerly `code`) is our own choice; see domain.InviteLink.
 type GuildInviteResponse struct {
-	Code      string     `json:"code"`
-	ExpiresAt *time.Time `json:"expires_at"`
-	CreatedAt time.Time  `json:"created_at"`
+	Token     string    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // @Summary Get active guild invite link
@@ -344,7 +350,7 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 
 	// Convert to Response format or return the invite directly.
 	resp := GuildInviteResponse{
-		Code:      invite.Code,
+		Token:     invite.Token,
 		ExpiresAt: invite.ExpiresAt,
 		CreatedAt: invite.CreatedAt,
 	}
@@ -353,14 +359,14 @@ func (a *API) GuildInviteLinkGetHandler(c *gin.Context) {
 }
 
 // @Summary Create a new guild invite link
-// @Description Creates a new active invite link for a guild and expires any existing active links within a single transaction.
+// @Description Creates a new active invite link for a guild and expires any existing active links within a single transaction. The link expires 7 days after creation unless `ttl_seconds` asks for another lifetime.
 // @Tags guilds
 // @Accept json
 // @Produce json
 // @Param X-Debug-User-ID header string false "Debug only: caller user UUID; ignored in release" format(uuid)
 // @Param id path string true "Guild ID" format(uuid)
-// @Param request body domain.GuildInvite false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
-// @Success 200 {object} domain.GuildInvite
+// @Param request body domain.InviteLink false "Invite Link Options (e.g. {"ttl_seconds": 86400})"
+// @Success 200 {object} domain.InviteLink
 // @Failure 400 {object} map[string]string "Invalid Guild ID or Request Body"
 // @Failure 500 {object} map[string]string "Internal Server Error"
 // @Security BearerAuth
@@ -392,7 +398,7 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 		return
 	}
 
-	var input domain.GuildInvite
+	var input domain.InviteLink
 	if err := c.ShouldBindJSON(&input); err != nil && !errors.Is(err, io.EOF) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
@@ -400,24 +406,24 @@ func (a *API) GuildInviteLinkCreateHandler(c *gin.Context) {
 
 	now := time.Now()
 	const maxTTLSeconds int64 = 31536000 // 1 year
-	var expiresAt *time.Time
+	ttl := defaultInviteTTL
 	if input.TTLSeconds != nil {
-		ttl := *input.TTLSeconds
-		if ttl <= 0 || ttl > maxTTLSeconds {
+		ttlSeconds := *input.TTLSeconds
+		if ttlSeconds <= 0 || ttlSeconds > maxTTLSeconds {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ttl_seconds must be between 1 and 31536000"})
 			return
 		}
-		t := now.Add(time.Duration(ttl) * time.Second)
-		expiresAt = &t
+		ttl = time.Duration(ttlSeconds) * time.Second
 	}
 
 	// Generate a new invitation link
-	newInvite := &domain.GuildInvite{
-		ID:        uuid.New(),
-		GuildID:   guildID,
-		Code:      strings.ReplaceAll(uuid.New().String(), "-", ""),
-		ExpiresAt: expiresAt,
-		CreatedAt: now,
+	newInvite := &domain.InviteLink{
+		ID:              uuid.New(),
+		GuildID:         guildID,
+		Token:           strings.ReplaceAll(uuid.New().String(), "-", ""),
+		ExpiresAt:       now.Add(ttl),
+		CreatedByUserID: callerID,
+		CreatedAt:       now,
 	}
 
 	// In the Transaction: expire old links + create new link
