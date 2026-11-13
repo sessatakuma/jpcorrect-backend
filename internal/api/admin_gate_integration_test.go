@@ -152,7 +152,7 @@ func newAdminGateFixture(t *testing.T) *adminGateFixture {
 func (f *adminGateFixture) newUser(t *testing.T, role domain.UserRole) *domain.User {
 	t.Helper()
 
-	sub := uuid.NewString()
+	sub := uuid.New()
 	user := &domain.User{
 		ID:             uuid.New(),
 		Email:          uuid.NewString() + "@example.com",
