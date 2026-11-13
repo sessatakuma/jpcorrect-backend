@@ -24,7 +24,7 @@ func newWebSocketAPI(t *testing.T, allowedOrigins []string) *API {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	api := NewAPI("", "", http.DefaultTransport.(*http.Transport).Clone(), nil, "", allowedOrigins)
+	api := NewAPI("", "", "", http.DefaultTransport.(*http.Transport).Clone(), nil, "", allowedOrigins)
 	t.Cleanup(api.Close)
 
 	return api
