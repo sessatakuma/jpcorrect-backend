@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -98,6 +99,53 @@ func TestActivityCreateGeneratesIDs(t *testing.T) {
 	var storedEvents []domain.Event
 	require.NoError(t, api.db.WithContext(ctx).Where("activity_id = ?", stored.ID).Find(&storedEvents).Error)
 	assert.Len(t, storedEvents, 2)
+}
+
+// TestGuildApplicationRejectRespondsWithOneJSONDocument pins that a successful
+// rejection writes exactly one JSON object. The handler used to write its 200
+// body twice, so clients received two concatenated objects that no JSON parser
+// accepts as one document.
+func TestGuildApplicationRejectRespondsWithOneJSONDocument(t *testing.T) {
+	api := newIntegrationAPI(t)
+	ctx := t.Context()
+
+	master := &domain.User{Email: uuid.NewString() + "@example.com", Name: "reject master"}
+	applicant := &domain.User{Email: uuid.NewString() + "@example.com", Name: "reject applicant"}
+	require.NoError(t, api.userRepo.Create(ctx, master))
+	require.NoError(t, api.userRepo.Create(ctx, applicant))
+
+	guild := &domain.Guild{Name: "reject guild"}
+	require.NoError(t, api.guildRepo.Create(ctx, guild))
+	require.NoError(t, api.guildAttendeeRepo.Create(ctx, &domain.GuildAttendee{
+		GuildID: guild.ID, UserID: master.ID, Role: domain.GuildAttendeeRoleMaster,
+	}))
+
+	t.Cleanup(func() {
+		api.db.WithContext(ctx).Unscoped().Where("guild_id = ?", guild.ID).Delete(&domain.JoinRequest{})
+		api.db.WithContext(ctx).Unscoped().Where("guild_id = ?", guild.ID).Delete(&domain.GuildAttendee{})
+		api.db.WithContext(ctx).Unscoped().Delete(&domain.Guild{}, "id = ?", guild.ID)
+		api.db.WithContext(ctx).Unscoped().Delete(&domain.User{}, "id IN ?", []uuid.UUID{master.ID, applicant.ID})
+	})
+
+	request := &domain.JoinRequest{GuildID: guild.ID, UserID: applicant.ID, Status: domain.JoinRequestStatusPending}
+	require.NoError(t, api.joinRequestRepo.Create(ctx, request))
+
+	w := callHandler(t, api.GuildApplicationRejectHandler, http.MethodPost,
+		"/v1/guilds/"+guild.ID.String()+"/applications/"+request.ID.String()+"/reject", nil,
+		gin.Params{{Key: "id", Value: guild.ID.String()}, {Key: "app_id", Value: request.ID.String()}}, &master.ID)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	decoder := json.NewDecoder(bytes.NewReader(w.Body.Bytes()))
+	var body map[string]string
+	require.NoError(t, decoder.Decode(&body), "the response must be one JSON object: %q", w.Body.String())
+	assert.Equal(t, "application rejected", body["message"])
+	var extra json.RawMessage
+	assert.ErrorIs(t, decoder.Decode(&extra), io.EOF,
+		"the response must hold exactly one JSON document: %q", w.Body.String())
+
+	stored, err := api.joinRequestRepo.GetByID(ctx, request.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.JoinRequestStatusRejected, stored.Status)
 }
 
 func TestGuildApplicationApproveRejectsCrossGuildAndRepeat(t *testing.T) {

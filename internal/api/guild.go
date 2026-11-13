@@ -981,9 +981,6 @@ func (a *API) GuildApplicationRejectHandler(c *gin.Context) {
 
 	// TODO: trigger notification
 	c.JSON(http.StatusOK, gin.H{"message": "application rejected"})
-
-	// TODO: trigger notification
-	c.JSON(http.StatusOK, gin.H{"message": "application rejected"})
 }
 
 // @Summary Get guild default slot
