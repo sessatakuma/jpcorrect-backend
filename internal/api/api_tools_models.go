@@ -14,13 +14,6 @@ type APIToolsError struct {
 	Message string `json:"message" example:" "`
 }
 
-// ProxyErrorResponse is what the reverse proxy writes when it cannot reach the
-// upstream api-tools service (502 Bad Gateway). Upstream-originated errors are
-// passed through unchanged and follow APIToolsError instead.
-type ProxyErrorResponse struct {
-	Error string `json:"error" example:"Failed to contact external API" description:"Human-readable reason the upstream call failed"`
-}
-
 // --- Mark Accent Models ---
 
 // MarkAccentRequest is the request body for the mark-accent endpoints.

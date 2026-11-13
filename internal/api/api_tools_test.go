@@ -148,7 +148,8 @@ func TestProxyTo_PreservesNonAuthHeaders(t *testing.T) {
 }
 
 // TestProxyTo_InvalidTarget exercises the url.Parse failure branch. The proxy
-// must respond 500 with a JSON error rather than panicking or forwarding.
+// must respond 500 with the §1.5 envelope rather than panicking or forwarding,
+// and it must not echo the configured target (which may be an internal URL).
 func TestProxyTo_InvalidTarget(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	// A space inside the scheme makes net/url reject the string outright.
@@ -167,8 +168,56 @@ func TestProxyTo_InvalidTarget(t *testing.T) {
 	if got, want := resp.StatusCode, http.StatusInternalServerError; got != want {
 		t.Errorf("status = %d, want %d", got, want)
 	}
-	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "Invalid target URL") {
-		t.Errorf("expected JSON error message, got %q", string(body))
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var env errorEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("decode envelope %q: %v", body, err)
+	}
+	if env.Error.Code != "INTERNAL_ERROR" {
+		t.Errorf("error.code = %q, want INTERNAL_ERROR", env.Error.Code)
+	}
+	if strings.Contains(string(body), "bad url") {
+		t.Errorf("the response leaks the configured target: %q", body)
+	}
+}
+
+// TestProxyTo_UpstreamUnavailable pins the 502 body written by the reverse
+// proxy's ErrorHandler: it is generated locally, so it uses the envelope.
+func TestProxyTo_UpstreamUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Grab a port, then close it: connections to it are refused quickly.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := srv.URL
+	srv.Close()
+
+	api := newProxyAPI(deadURL)
+	proxy := newProxyServer(api, "/", deadURL+"/api/DictQuery/")
+	t.Cleanup(proxy.Close)
+
+	resp, err := http.Post(proxy.URL+"/", "application/json", strings.NewReader("{}"))
+	if err != nil {
+		t.Fatalf("proxy call: %v", err)
+	}
+	defer closeResponseBody(t, resp.Body)
+
+	if got, want := resp.StatusCode, http.StatusBadGateway; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	var env errorEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("decode envelope %q: %v", body, err)
+	}
+	if env.Error.Code != "UPSTREAM_UNAVAILABLE" {
+		t.Errorf("error.code = %q, want UPSTREAM_UNAVAILABLE", env.Error.Code)
 	}
 }

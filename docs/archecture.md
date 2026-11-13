@@ -75,7 +75,7 @@ flowchart TB
         WEBRTC["WebRTC Domain<br/>(Client, WebRTCRepository)"]
         ENUMS["Enums<br/>(EventMode, MistakeType,<br/>EventAttendeeRole)"]
         REPOS["Repository Interfaces<br/>(Data Access Contracts)"]
-        ERRORS["Domain Errors<br/>(ErrNotFound, ErrDuplicateEntry,<br/>AuthError)"]
+        ERRORS["Domain Errors<br/>(ErrNotFound, ErrDuplicateEntry,<br/>ErrHasRelatedRecords)"]
     end
 
     subgraph RepoLayer["💾 Repository Layer (internal/repository/)"]
