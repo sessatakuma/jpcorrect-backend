@@ -38,7 +38,8 @@ func NewGormNotificationOutboxRepository(db *gorm.DB) domain.NotificationOutboxR
 //     the dispatcher skips (completed, dead) or delays (future retry).
 //
 // The reset is written back to the caller's intents, together with the
-// generated primary key, so the in-memory rows match the stored ones.
+// generated primary key. A dedup conflict leaves the existing database row
+// unchanged; the caller object is not refreshed from that row.
 func (r *gormNotificationOutboxRepository) CreateIntents(ctx context.Context, intents []*domain.NotificationOutbox) error {
 	if len(intents) == 0 {
 		return nil
