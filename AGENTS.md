@@ -122,6 +122,14 @@ removed in #49).
   `FeedPost.Metadata`, `ReviewRecord.Stage2Summary`, and
   `RecordingAsset.TimelineMetadata`.
 - `GuildAttendeeRepository` lives in `gorm_guild.go`, not its own file.
+- **Notification intents**: `internal/domain/notification_outbox.go` is the
+  only spec §5.4 kind catalog (22 kinds, pinned by
+  `TestNotificationKindCatalogMatchesSpec`). Key a one-off kind with
+  `NotificationDedupKey` and a recurring one with
+  `NotificationDedupKeyWithOccurrence`; each builder panics on the wrong
+  class, and the occurrence is rendered in UTC at PostgreSQL's microsecond
+  precision (spec §6.5). Write intents through the `Store.Tx` RepoSet of the
+  state change they describe and dispatch nothing inside that transaction.
 - Imports: stdlib → third-party → local.
 
 ## Deployment

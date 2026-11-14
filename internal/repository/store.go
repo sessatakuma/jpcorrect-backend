@@ -37,6 +37,8 @@ type RepoSet struct {
 	EventAttendeeRepo domain.EventAttendeeRepository
 	TranscriptRepo    domain.TranscriptRepository
 	MistakeRepo       domain.MistakeRepository
+
+	NotificationOutboxRepo domain.NotificationOutboxRepository
 }
 
 // Store is the unit-of-work entry point for the backend. It owns the root
@@ -100,5 +102,7 @@ func newRepoSet(tx *gorm.DB) RepoSet {
 		EventAttendeeRepo: NewGormEventAttendeeRepository(tx),
 		TranscriptRepo:    NewGormTranscriptRepository(tx),
 		MistakeRepo:       NewGormMistakeRepository(tx),
+
+		NotificationOutboxRepo: NewGormNotificationOutboxRepository(tx),
 	}
 }
