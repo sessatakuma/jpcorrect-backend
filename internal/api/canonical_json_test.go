@@ -58,6 +58,77 @@ var canonicalVectors = []struct {
 		digest:    "75cbb8b1d961a7c996bbf914f5d3c8d0793cb116be763162684a3d026951471b",
 	},
 	{
+		// encoding/json escapes U+2028 even with SetEscapeHTML(false), so the
+		// helper has to undo that escape itself.
+		name:      "U+2028 in a value stays raw UTF-8",
+		input:     `{"text":"a\u2028b"}`,
+		canonical: "{\"text\":\"a\u2028b\"}",
+		digest:    "f5af203d76b9dcf362e27d91b153730ad104c6d7c1d65055d2dd6eb4b6f4a71b",
+	},
+	{
+		name:      "U+2029 in a value stays raw UTF-8",
+		input:     `{"text":"a\u2029b"}`,
+		canonical: "{\"text\":\"a\u2029b\"}",
+		digest:    "301cad906ca16f2e195e6f488a2181c2e39924027141465fbfb85645a1774d7c",
+	},
+	{
+		name:      "U+2028 alone in a string stays raw UTF-8",
+		input:     `{"a":"\u2028"}`,
+		canonical: "{\"a\":\"\u2028\"}",
+		digest:    "c0f545e4a8a9c4d8ab310c65a4e2c3ec788c89d5bf91845869f66fb4aa396e8a",
+	},
+	{
+		name:      "U+2028 and U+2029 in object keys stay raw UTF-8",
+		input:     `{"a\u2028b":1,"c\u2029d":2}`,
+		canonical: "{\"a\u2028b\":1,\"c\u2029d\":2}",
+		digest:    "195fdb24635c6920d61b7c9680e53b329dcafc71620ee560f7417a3f225f7a33",
+	},
+	{
+		name:      "U+2029 alone as an object key stays raw UTF-8",
+		input:     `{"\u2029":1}`,
+		canonical: "{\"\u2029\":1}",
+		digest:    "b4ae263b6b81aae8f74a155b7c832379a0d1de281a4406c15235aaac6e20d867",
+	},
+	{
+		// The data here is the six characters backslash u 2 0 2 8, not a line
+		// separator. The encoder writes that backslash as \\, and the rewrite
+		// must leave it alone.
+		name:      "literal backslash-u2028 text is not rewritten",
+		input:     `{"text":"\\u2028"}`,
+		canonical: `{"text":"\\u2028"}`,
+		digest:    "d22b23d64e970d9ab4eea2e87ae4dc7d5cdab56f6eb761e80f018dee5ecf509a",
+	},
+	{
+		// Two escaped backslashes in the data come back as four, so the text
+		// after them is never read as a separator escape.
+		name:      "escaped backslash pairs before u2028 are not rewritten",
+		input:     `{"text":"\\\\u2028"}`,
+		canonical: `{"text":"\\\\u2028"}`,
+		digest:    "07ca776fb3b1343d87bbdac7545d6bec5bcb0af778b2234b7fcbcb84f06634c8",
+	},
+	{
+		// A raw separator next to the literal text: the rewrite has to fire on
+		// the first and stay off on the second.
+		name:      "raw U+2028 before literal backslash-u2028 text",
+		input:     `{"text":"\u2028\\u2028"}`,
+		canonical: "{\"text\":\"\u2028\\\\u2028\"}",
+		digest:    "67b3ceea6dfa36d8a5ffd2858842e52fa09643d5e298d3d8519af4c8b13c39fd",
+	},
+	{
+		name:      "literal backslash-u2028 text in a key is not rewritten",
+		input:     `{"\\u2028":1}`,
+		canonical: `{"\\u2028":1}`,
+		digest:    "0890874a9104e6d7b8699c4c4c7327f822f6122abdb3fd152465a4e2859be216",
+	},
+	{
+		// The separator rewrite runs on encoder output, so the float shortening
+		// and the duplicate-key rule still decide the bytes it sees.
+		name:      "duplicate key and float rules still apply around U+2028",
+		input:     `{"a":1.50,"a":2.0,"s":"\u2028"}`,
+		canonical: "{\"a\":2,\"s\":\"\u2028\"}",
+		digest:    "3e8ab90e33af870f40ec7b8898d0362b536dbda06d0586f6c2e0267dcd3192f5",
+	},
+	{
 		name:      "floats use shortest round-trip form",
 		input:     `{"one":1.0,"oneAndHalf":1.50,"tenth":0.1,"hundred":1e2}`,
 		canonical: `{"hundred":100,"one":1,"oneAndHalf":1.5,"tenth":0.1}`,
@@ -147,6 +218,81 @@ func TestCanonicalJSONEquivalentInputsShareADigest(t *testing.T) {
 	_, literalDigest, err := CanonicalJSON([]byte(`{"a":2}`))
 	require.NoError(t, err)
 	assert.Equal(t, literalDigest, duplicateDigest)
+}
+
+// TestCanonicalJSONLineSeparatorInputFormsShareADigest pins the point of the
+// separator rewrite: the \u2028 escape in the input and the raw UTF-8 character
+// in the input are the same string, so both forms must produce the same
+// canonical bytes and the same digest.
+func TestCanonicalJSONLineSeparatorInputFormsShareADigest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		escaped   string // separator written as the six characters \u2028 or \u2029
+		raw       string // separator written as raw UTF-8
+		canonical string
+		digest    string
+	}{
+		{
+			name:      "value U+2028",
+			escaped:   `{"text":"a\u2028b"}`,
+			raw:       "{\"text\":\"a\u2028b\"}",
+			canonical: "{\"text\":\"a\u2028b\"}",
+			digest:    "f5af203d76b9dcf362e27d91b153730ad104c6d7c1d65055d2dd6eb4b6f4a71b",
+		},
+		{
+			name:      "value U+2029",
+			escaped:   `{"text":"a\u2029b"}`,
+			raw:       "{\"text\":\"a\u2029b\"}",
+			canonical: "{\"text\":\"a\u2029b\"}",
+			digest:    "301cad906ca16f2e195e6f488a2181c2e39924027141465fbfb85645a1774d7c",
+		},
+		{
+			name:      "keys U+2028 and U+2029",
+			escaped:   `{"a\u2028b":1,"c\u2029d":2}`,
+			raw:       "{\"a\u2028b\":1,\"c\u2029d\":2}",
+			canonical: "{\"a\u2028b\":1,\"c\u2029d\":2}",
+			digest:    "195fdb24635c6920d61b7c9680e53b329dcafc71620ee560f7417a3f225f7a33",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			escapedBytes, escapedDigest, err := CanonicalJSON([]byte(tc.escaped))
+			require.NoError(t, err, "escaped input")
+			rawBytes, rawDigest, err := CanonicalJSON([]byte(tc.raw))
+			require.NoError(t, err, "raw input")
+
+			assert.Equal(t, tc.canonical, string(escapedBytes), "escaped input")
+			assert.Equal(t, tc.canonical, string(rawBytes), "raw input")
+			assert.Equal(t, tc.digest, escapedDigest, "escaped input")
+			assert.Equal(t, tc.digest, rawDigest, "raw input")
+		})
+	}
+}
+
+// TestCanonicalJSONLineSeparatorsStayDistinctFromLiteralText covers the other
+// side of the rewrite: unfolding the separator escape must not merge it with
+// text that only looks like that escape, and it must not touch the other
+// characters in the neighbourhood.
+func TestCanonicalJSONLineSeparatorsStayDistinctFromLiteralText(t *testing.T) {
+	digests := make(map[string]string)
+	for name, input := range map[string]string{
+		"raw U+2028":              "{\"text\":\"a\u2028b\"}",
+		"raw U+2029":              "{\"text\":\"a\u2029b\"}",
+		"literal backslash-u2028": `{"text":"a\\u2028b"}`,
+		"two escaped backslashes": `{"text":"a\\\\u2028b"}`,
+		"newline":                 `{"text":"a\nb"}`,
+		"raw U+2028 key":          `{"a\u2028b":1}`,
+		"literal u2028 key":       `{"a\\u2028b":1}`,
+	} {
+		_, digest, err := CanonicalJSON([]byte(input))
+		require.NoError(t, err, name)
+		digests[name] = digest
+	}
+
+	assert.NotEqual(t, digests["raw U+2028"], digests["literal backslash-u2028"])
+	assert.NotEqual(t, digests["literal backslash-u2028"], digests["two escaped backslashes"])
+	assert.NotEqual(t, digests["raw U+2028"], digests["raw U+2029"])
+	assert.NotEqual(t, digests["raw U+2028"], digests["newline"])
+	assert.NotEqual(t, digests["raw U+2028 key"], digests["literal u2028 key"])
 }
 
 func TestCanonicalJSONDifferentPayloadsDifferentDigests(t *testing.T) {

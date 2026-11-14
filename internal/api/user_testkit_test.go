@@ -32,6 +32,24 @@ type mockUserRepo struct {
 
 	updateCalls []*domain.User
 	updateErr   error
+
+	createCalls []*domain.User
+	createErr   error
+
+	deleteCalls []uuid.UUID
+	deleteErr   error
+
+	profileUpdates      []profileUpdateCall
+	profileUpdateErr    error
+	profileUpdateResult *domain.User
+}
+
+// profileUpdateCall records one UpdateProfile call: the row it targeted and the
+// two optional columns it asked the repository to write.
+type profileUpdateCall struct {
+	userID    uuid.UUID
+	name      *string
+	avatarURL *string
 }
 
 func (m *mockUserRepo) GetByID(_ context.Context, userID uuid.UUID) (*domain.User, error) {
@@ -72,6 +90,49 @@ func (m *mockUserRepo) CreateIfAbsentBySupabaseUserID(_ context.Context, user *d
 func (m *mockUserRepo) Update(_ context.Context, user *domain.User) error {
 	m.updateCalls = append(m.updateCalls, user)
 	return m.updateErr
+}
+
+func (m *mockUserRepo) Create(_ context.Context, user *domain.User) error {
+	m.createCalls = append(m.createCalls, user)
+	if m.createErr != nil {
+		return m.createErr
+	}
+	if user.ID == uuid.Nil {
+		user.ID = uuid.New()
+	}
+	return nil
+}
+
+func (m *mockUserRepo) Delete(_ context.Context, userID uuid.UUID) error {
+	m.deleteCalls = append(m.deleteCalls, userID)
+	return m.deleteErr
+}
+
+// UpdateProfile records the requested columns and answers the way the GORM
+// repository does: the stored row with exactly those columns applied, or
+// ErrNotFound when the mock holds no row with this id.
+func (m *mockUserRepo) UpdateProfile(_ context.Context, userID uuid.UUID, name *string, avatarURL *string) (*domain.User, error) {
+	m.profileUpdates = append(m.profileUpdates, profileUpdateCall{userID: userID, name: name, avatarURL: avatarURL})
+
+	if m.profileUpdateErr != nil {
+		return nil, m.profileUpdateErr
+	}
+	if m.profileUpdateResult != nil {
+		copied := *m.profileUpdateResult
+		return &copied, nil
+	}
+	if m.getByIDResult == nil || m.getByIDResult.ID != userID {
+		return nil, domain.ErrNotFound
+	}
+
+	updated := *m.getByIDResult
+	if name != nil {
+		updated.Name = *name
+	}
+	if avatarURL != nil {
+		updated.AvatarURL = avatarURL
+	}
+	return &updated, nil
 }
 
 // storedUser is the row every "already initialized" test resolves.

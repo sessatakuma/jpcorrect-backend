@@ -2397,6 +2397,7 @@ const docTemplate = `{
         },
         "/v1/users": {
             "post": {
+                "description": "Raw management write (§3.15). It binds a whole domain.User,\nincluding role, status, points and supabase_user_id, so it is\nopen to system administrators only. New accounts are created\nthrough POST /v1/users/init and edited by their owner through\nPUT /v1/users/me.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2406,7 +2407,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Create a user",
+                "summary": "Create a user (system administration)",
                 "parameters": [
                     {
                         "description": "User data",
@@ -2427,6 +2428,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -2543,7 +2556,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
-                "description": "Updates the allowlisted fields of the caller's own profile: name\nand avatar_url. Any other field in the body, including role,\nstatus and points, is ignored.",
+                "description": "Updates the allowlisted fields of the caller's own profile: name\nand avatar_url. Any other field in the body, including role,\nstatus, points and email, is ignored. A field the body omits is\nleft untouched; an empty body writes nothing.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2584,8 +2597,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
-                    "409": {
-                        "description": "Conflict",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
@@ -2717,6 +2730,7 @@ const docTemplate = `{
                 ]
             },
             "put": {
+                "description": "Raw management write (§3.15). It replaces every column of the\nrow it binds, including role, status, points and\nsupabase_user_id, so it is open to system administrators only.\nOwners edit their own name and avatar_url through PUT\n/v1/users/me.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2726,7 +2740,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Update a user",
+                "summary": "Update a user (system administration)",
                 "parameters": [
                     {
                         "type": "string",
@@ -2758,6 +2772,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
@@ -2784,6 +2810,7 @@ const docTemplate = `{
                 ]
             },
             "delete": {
+                "description": "Raw management write (§3.15), open to system administrators only.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2793,7 +2820,7 @@ const docTemplate = `{
                 "tags": [
                     "users"
                 ],
-                "summary": "Delete a user",
+                "summary": "Delete a user (system administration)",
                 "parameters": [
                     {
                         "type": "string",
@@ -2809,6 +2836,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/internal_api.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/internal_api.ErrorResponse"
                         }

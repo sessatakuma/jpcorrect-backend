@@ -16,6 +16,9 @@ import (
 //     float64, and for a duplicate object key the later value wins);
 //   - object keys are sorted by byte order and the output is compact;
 //   - HTML escaping is disabled and non-ASCII text stays raw UTF-8;
+//   - U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR stay raw UTF-8 too,
+//     in values and in object keys, although encoding/json escapes them even
+//     with HTML escaping disabled (see rawLineSeparators);
 //   - floats use the shortest round-trip form (1.0 -> 1, 1.50 -> 1.5,
 //     1e2 -> 100);
 //   - no trailing newline is part of the hashed bytes;
@@ -41,7 +44,71 @@ func CanonicalJSON(input []byte) (canonical []byte, digest string, err error) {
 
 	// Encoder.Encode terminates the document with a newline; the hash covers
 	// only the document itself.
-	canonical = bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+	canonical = rawLineSeparators(bytes.TrimSuffix(buf.Bytes(), []byte("\n")))
 	sum := sha256.Sum256(canonical)
 	return canonical, hex.EncodeToString(sum[:]), nil
+}
+
+// rawLineSeparators rewrites the two escapes that encoding/json always writes,
+// even with HTML escaping disabled, into the raw UTF-8 bytes they stand for:
+//
+//	\u2028 -> U+2028 LINE SEPARATOR      (e2 80 a8)
+//	\u2029 -> U+2029 PARAGRAPH SEPARATOR (e2 80 a9)
+//
+// encoding/json escapes both unconditionally because they break JSONP
+// (https://en.wikipedia.org/wiki/JSON#Safety); the canonical form this package
+// promises keeps non-ASCII text as raw UTF-8, so it must undo them.
+//
+// The rewrite is escape aware. Text that literally contains the six characters
+// \u2028 reaches the encoder as a backslash, so the encoder writes it as
+// \\u2028. Replacing the byte sequence \u2028 blindly would match the tail of
+// \\u2028 and corrupt that text, so this function copies every escape sequence
+// as a unit and only rewrites an escape whose backslash starts the sequence.
+// Runs of escaped backslashes before u2028 follow the same rule: each \\ pair is
+// copied whole, so the part after it is never read as a separator escape.
+//
+// encoded must be the compact output of a json.Encoder with HTML escaping
+// disabled: the only four-digit escapes such an encoder writes inside a string
+// are \u00XX for control characters, \ufffd for invalid UTF-8, and the two
+// separators rewritten here. Strings are the only place where a backslash
+// occurs, so the scan tracks string boundaries and copies every byte outside a
+// string unchanged.
+func rawLineSeparators(encoded []byte) []byte {
+	out := make([]byte, 0, len(encoded))
+	inString := false
+	for i := 0; i < len(encoded); {
+		c := encoded[i]
+		switch {
+		case c == '"':
+			inString = !inString
+			out = append(out, c)
+			i++
+		case !inString || c != '\\':
+			out = append(out, c)
+			i++
+		case isLineSeparatorEscape(encoded[i:]):
+			if encoded[i+5] == '8' {
+				out = append(out, "\u2028"...)
+			} else {
+				out = append(out, "\u2029"...)
+			}
+			i += 6
+		default:
+			// Another escape: copy the backslash and its introducer together,
+			// so an escaped backslash never starts a separator match.
+			n := min(2, len(encoded)-i)
+			out = append(out, encoded[i:i+n]...)
+			i += n
+		}
+	}
+	return out
+}
+
+// isLineSeparatorEscape reports whether rest starts with the six bytes of the
+// \u2028 or \u2029 escape.
+func isLineSeparatorEscape(rest []byte) bool {
+	return len(rest) >= 6 &&
+		rest[0] == '\\' && rest[1] == 'u' &&
+		rest[2] == '2' && rest[3] == '0' && rest[4] == '2' &&
+		(rest[5] == '8' || rest[5] == '9')
 }

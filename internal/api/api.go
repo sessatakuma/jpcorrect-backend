@@ -215,16 +215,20 @@ func Register(r *gin.Engine, api *API) {
 			eventAttendees.GET("/user/:user_id", api.EventAttendeeGetByUserHandler)
 		}
 
-		// Users
+		// Users. The product routes (init/me/public profile) follow §3.1 and carry
+		// AuthMiddleware only. The three raw management writes bind a whole
+		// domain.User, including role, status, points and supabase_user_id, so
+		// they are system-administration routes (§1.3, §3.15) and carry the gate
+		// that stops a non-admin from writing a user row or its identity mapping.
 		users := v1.Group("/users")
 		{
 			users.POST("/init", api.UserInitHandler)
 			users.GET("/me", api.UserMeHandler)
 			users.PUT("/me", api.UserMeUpdateHandler)
-			users.POST("", api.UserCreateHandler)
+			users.POST("", api.RequireSystemAdmin(), api.UserCreateHandler)
 			users.GET("/:id", api.UserGetHandler)
-			users.PUT("/:id", api.UserUpdateHandler)
-			users.DELETE("/:id", api.UserDeleteHandler)
+			users.PUT("/:id", api.RequireSystemAdmin(), api.UserUpdateHandler)
+			users.DELETE("/:id", api.RequireSystemAdmin(), api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
 		}
 	}
