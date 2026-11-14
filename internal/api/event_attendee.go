@@ -17,6 +17,8 @@ import (
 // @Param id path string true "EventAttendee ID"
 // @Success 200 {object} domain.EventAttendee
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -49,6 +51,8 @@ func (a *API) EventAttendeeGetHandler(c *gin.Context) {
 // @Param attendee body domain.EventAttendee true "EventAttendee data"
 // @Success 201 {object} domain.EventAttendee
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -80,6 +84,8 @@ func (a *API) EventAttendeeCreateHandler(c *gin.Context) {
 // @Param attendee body domain.EventAttendee true "EventAttendee data"
 // @Success 200 {object} domain.EventAttendee
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -135,6 +141,8 @@ func (a *API) EventAttendeeUpdateHandler(c *gin.Context) {
 // @Param id path string true "EventAttendee ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -177,6 +185,8 @@ func (a *API) EventAttendeeDeleteHandler(c *gin.Context) {
 // @Param event_id path string true "Event ID"
 // @Success 200 {array} domain.EventAttendee
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/event-attendees/event/{event_id} [get]
@@ -204,6 +214,8 @@ func (a *API) EventAttendeeGetByEventHandler(c *gin.Context) {
 // @Param user_id path string true "User ID"
 // @Success 200 {array} domain.EventAttendee
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/event-attendees/user/{user_id} [get]

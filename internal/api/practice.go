@@ -17,6 +17,8 @@ import (
 // @Param id path string true "Practice ID"
 // @Success 200 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -43,12 +45,15 @@ func (a *API) PracticeGetHandler(c *gin.Context) {
 }
 
 // @Summary Create a practice
+// @Description Raw admin management of the deprecated /v1/practices routes (§3.4.3). event.activity_id and event.kind are NOT NULL, so a body that omits either one is rejected with 400 INVALID_REQUEST (Appendix E row 40).
 // @Tags practices
 // @Accept json
 // @Produce json
 // @Param practice body domain.Event true "Practice data"
 // @Success 201 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -57,6 +62,20 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 	var practice domain.Event
 	if err := c.ShouldBindJSON(&practice); err != nil {
 		writeError(c, errorWithMessage(domain.ErrInvalidRequest, err.Error()))
+		return
+	}
+
+	// event.activity_id and event.kind are NOT NULL (spec §2.2). Require both
+	// here so a raw create that omits one answers the §1.5 400 INVALID_REQUEST
+	// (Appendix E row 40); the insert would otherwise fail on a bare NOT NULL
+	// violation (SQLSTATE 23502), which has no §1.5 mapping. An unparsable
+	// activity_id never reaches this point: binding already rejected it.
+	if practice.ActivityID == uuid.Nil {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "activity_id is required"))
+		return
+	}
+	if practice.Kind == "" {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "kind is required"))
 		return
 	}
 
@@ -80,6 +99,8 @@ func (a *API) PracticeCreateHandler(c *gin.Context) {
 // @Param practice body domain.Event true "Practice data"
 // @Success 200 {object} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -137,6 +158,8 @@ func (a *API) PracticeUpdateHandler(c *gin.Context) {
 // @Param id path string true "Practice ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -180,6 +203,8 @@ func (a *API) PracticeDeleteHandler(c *gin.Context) {
 // @Param user_id path string true "User ID"
 // @Success 200 {array} domain.Event
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/practices/user/{user_id} [get]

@@ -246,6 +246,20 @@ A valid token for a user who never called `users/init` answers 401
 `UNAUTHORIZED`. Debug mode only skips the `X-API-Key` check of the api-tools
 proxy routes.
 
+The retained legacy raw CRUD routes are admin-only management routes:
+`/v1/{mistakes,practices,guild-attendees,transcripts,event-attendees}/*`, raw
+`POST`/`PUT`/`DELETE /v1/users*` and `DELETE /v1/guilds/{id}` answer 403
+`FORBIDDEN` unless the caller's stored `user.role` is `admin`. A guild master
+and a `staff` user are not admins. For local work, give your own account that
+role directly in the database (no endpoint changes roles):
+
+```sql
+UPDATE "user" SET role = 'admin' WHERE email = 'you@example.com';
+```
+
+The product routes (`/v1/users/me`, the public profiles, `/v1/guilds/*`) are
+unaffected: they never grant an admin bypass.
+
 The local `.env.example` is configured for this workflow with host-reachable values such as:
 
 ```text
