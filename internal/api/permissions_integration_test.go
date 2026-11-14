@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"jpcorrect-backend/internal/domain"
-	"jpcorrect-backend/internal/testutil"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+
+	"jpcorrect-backend/internal/domain"
+	"jpcorrect-backend/internal/testutil"
 )
 
 // This file covers the §1.3 permission helpers against real PostgreSQL rows
