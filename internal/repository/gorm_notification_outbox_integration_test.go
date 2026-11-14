@@ -351,3 +351,181 @@ func TestNotificationOutboxCreateIntentsRejectsUnknownRecipient(t *testing.T) {
 	assert.Zero(t, countOutboxRows(t, db, goodKey), "the failed batch is atomic: no recipient gets an intent")
 	assert.Zero(t, countOutboxRows(t, db, badKey))
 }
+
+// TestNotificationOutboxCreateIntentsIgnoresPopulatedRecipientAssociation
+// proves that a RecipientUser set on the intent never reaches the User table
+// and never replaces the scalar RecipientUserID. The association exists only to
+// declare the foreign key; without Omit(clause.Associations) GORM upserts the
+// user and rewrites the recipient from the association's primary key.
+func TestNotificationOutboxCreateIntentsIgnoresPopulatedRecipientAssociation(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("association to a new user", func(t *testing.T) {
+		db := testutil.NewPostgresDB(t)
+		store := NewStore(db)
+
+		recipient := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "scalar recipient"}
+		require.NoError(t, db.Create(&recipient).Error)
+		ghost := &domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "ghost recipient"}
+
+		aggregateID := uuid.New()
+		intent := testOutboxIntent(
+			domain.NotificationKindMemberJoined, "guild", aggregateID, recipient.ID,
+			domain.NotificationDedupKey(domain.NotificationKindMemberJoined, aggregateID, recipient.ID),
+		)
+		intent.RecipientUser = ghost
+
+		require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+			return r.NotificationOutboxRepo.CreateIntents(ctx, []*domain.NotificationOutbox{intent})
+		}))
+
+		assert.Zero(t, countRows(t, db, &domain.User{}, "id = ?", ghost.ID),
+			"a populated RecipientUser must not insert a User row")
+		assert.Equal(t, recipient.ID, intent.RecipientUserID, "the scalar recipient keeps its value")
+
+		var stored domain.NotificationOutbox
+		require.NoError(t, db.First(&stored, "id = ?", intent.ID).Error)
+		assert.Equal(t, recipient.ID, stored.RecipientUserID,
+			"the stored row points at the scalar recipient, not the association")
+	})
+
+	t.Run("association to another existing user", func(t *testing.T) {
+		db := testutil.NewPostgresDB(t)
+		store := NewStore(db)
+
+		recipient := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "scalar recipient"}
+		other := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "other recipient"}
+		require.NoError(t, db.Create(&recipient).Error)
+		require.NoError(t, db.Create(&other).Error)
+
+		// A full save of this association would update other's name.
+		association := other
+		association.Name = "rewritten by the association"
+
+		aggregateID := uuid.New()
+		intent := testOutboxIntent(
+			domain.NotificationKindMemberJoined, "guild", aggregateID, recipient.ID,
+			domain.NotificationDedupKey(domain.NotificationKindMemberJoined, aggregateID, recipient.ID),
+		)
+		intent.RecipientUser = &association
+
+		require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+			return r.NotificationOutboxRepo.CreateIntents(ctx, []*domain.NotificationOutbox{intent})
+		}))
+
+		var storedOther domain.User
+		require.NoError(t, db.First(&storedOther, "id = ?", other.ID).Error)
+		assert.Equal(t, other.Name, storedOther.Name, "the association's User row must not be updated")
+
+		var stored domain.NotificationOutbox
+		require.NoError(t, db.First(&stored, "id = ?", intent.ID).Error)
+		assert.Equal(t, recipient.ID, stored.RecipientUserID,
+			"the scalar recipient wins over the association's primary key")
+	})
+}
+
+// TestNotificationOutboxCreateIntentsForcesInitialDispatchState proves that
+// dispatcher-managed fields supplied by the caller are discarded: every new row
+// starts pending with no attempts and no retry or error metadata. Otherwise a
+// completed or dead intent would never be sent, and a future retry time would
+// delay it.
+func TestNotificationOutboxCreateIntentsForcesInitialDispatchState(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+
+	recipient := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "outbox dispatch user"}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	future := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Microsecond)
+	dispatchError := "smtp timeout"
+	analysisID := uuid.New()
+	memberID := uuid.New()
+	intents := []*domain.NotificationOutbox{
+		testOutboxIntent(
+			domain.NotificationKindAnalysisCompleted, "activity", analysisID, recipient.ID,
+			domain.NotificationDedupKey(domain.NotificationKindAnalysisCompleted, analysisID, recipient.ID),
+		),
+		testOutboxIntent(
+			domain.NotificationKindMemberJoined, "guild", memberID, recipient.ID,
+			domain.NotificationDedupKey(domain.NotificationKindMemberJoined, memberID, recipient.ID),
+		),
+	}
+	intents[0].Status = domain.NotificationOutboxStatusCompleted
+	intents[1].Status = domain.NotificationOutboxStatusDead
+	for _, intent := range intents {
+		intent.AttemptCount = 3
+		intent.NextAttemptAt = &future
+		intent.LastError = &dispatchError
+	}
+
+	require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+		return r.NotificationOutboxRepo.CreateIntents(ctx, intents)
+	}))
+
+	for i, intent := range intents {
+		assert.Equal(t, domain.NotificationOutboxStatusPending, intent.Status,
+			"the reset is visible to the caller, intent %d", i)
+		assert.Zero(t, intent.AttemptCount)
+		assert.Nil(t, intent.NextAttemptAt)
+		assert.Nil(t, intent.LastError)
+
+		var stored domain.NotificationOutbox
+		require.NoError(t, db.First(&stored, "id = ?", intent.ID).Error)
+		assert.Equal(t, domain.NotificationOutboxStatusPending, stored.Status, "intent %d", i)
+		assert.Zero(t, stored.AttemptCount, "intent %d", i)
+		assert.Nil(t, stored.NextAttemptAt, "intent %d", i)
+		assert.Nil(t, stored.LastError, "intent %d", i)
+	}
+}
+
+// TestNotificationOutboxDuplicateDedupKeyKeepsExistingState proves that the
+// dedup no-op leaves an existing row untouched, including its dispatcher state
+// and payload. Resetting a stored completed row to pending would send the same
+// notification twice.
+func TestNotificationOutboxDuplicateDedupKeyKeepsExistingState(t *testing.T) {
+	db := testutil.NewPostgresDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+
+	recipient := domain.User{ID: uuid.New(), Email: uuid.NewString() + "@example.com", Name: "outbox duplicate state user"}
+	require.NoError(t, db.Create(&recipient).Error)
+
+	aggregateID := uuid.New()
+	dedupKey := domain.NotificationDedupKey(domain.NotificationKindMemberJoined, aggregateID, recipient.ID)
+	first := testOutboxIntent(domain.NotificationKindMemberJoined, "guild", aggregateID, recipient.ID, dedupKey)
+	require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+		return r.NotificationOutboxRepo.CreateIntents(ctx, []*domain.NotificationOutbox{first})
+	}))
+
+	// Mark the stored row as already dispatched.
+	future := time.Now().Add(time.Hour).UTC().Truncate(time.Microsecond)
+	dispatchError := "smtp timeout"
+	require.NoError(t, db.Model(&domain.NotificationOutbox{}).Where("id = ?", first.ID).Updates(map[string]any{
+		"status":          domain.NotificationOutboxStatusCompleted,
+		"attempt_count":   2,
+		"next_attempt_at": future,
+		"last_error":      dispatchError,
+	}).Error)
+
+	// A duplicate key with different content and dispatch fields must not
+	// overwrite or reset anything.
+	duplicate := testOutboxIntent(domain.NotificationKindMemberJoined, "guild", aggregateID, recipient.ID, dedupKey)
+	duplicate.Payload = datatypes.JSON([]byte(`{"deeplink":"/v1/duplicate"}`))
+	duplicate.Status = domain.NotificationOutboxStatusProcessing
+	duplicate.AttemptCount = 5
+	require.NoError(t, store.Tx(ctx, func(r RepoSet) error {
+		return r.NotificationOutboxRepo.CreateIntents(ctx, []*domain.NotificationOutbox{duplicate})
+	}))
+
+	var stored domain.NotificationOutbox
+	require.NoError(t, db.First(&stored, "id = ?", first.ID).Error)
+	assert.Equal(t, domain.NotificationOutboxStatusCompleted, stored.Status, "a duplicate must not reset the stored status")
+	assert.EqualValues(t, 2, stored.AttemptCount, "a duplicate must not reset the stored attempt count")
+	require.NotNil(t, stored.NextAttemptAt)
+	assert.True(t, future.Equal(*stored.NextAttemptAt), "a duplicate must not clear the stored retry time")
+	require.NotNil(t, stored.LastError)
+	assert.Equal(t, dispatchError, *stored.LastError, "a duplicate must not clear the stored error")
+	assert.JSONEq(t, string(first.Payload), string(stored.Payload), "a duplicate must not overwrite the stored payload")
+	assert.EqualValues(t, 1, countOutboxRows(t, db, dedupKey))
+}
