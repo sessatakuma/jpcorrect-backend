@@ -37,7 +37,7 @@ func newReleaseIntegrationAPI(t *testing.T) (*gin.Engine, *API, *testSigner, *go
 
 	db := testutil.NewPostgresDB(t)
 
-	api := NewAPI("", "", http.DefaultTransport.(*http.Transport).Clone(), db, "", nil)
+	api := NewAPI("", "", "", http.DefaultTransport.(*http.Transport).Clone(), db, "", nil)
 	t.Cleanup(api.Close)
 
 	signer := newTestSigner(t)

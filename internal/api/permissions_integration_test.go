@@ -63,7 +63,7 @@ func newPermissionFixture(t *testing.T) *permissionFixture {
 	t.Helper()
 
 	db := testutil.NewPostgresDB(t)
-	api := NewAPI("", "", &http.Transport{}, db, "", nil)
+	api := NewAPI("", "", "", &http.Transport{}, db, "", nil)
 	t.Cleanup(api.Close)
 
 	f := &permissionFixture{db: db, api: api, hub: newFakeHostHub()}

@@ -33,6 +33,7 @@ cp .env.example .env
 | `GIN_MODE` | `debug` exposes Swagger UI and **skips APIKeyMiddleware on the api-tools `/v1` routes only**. JWT authentication runs on every user route in every mode |
 | `API_TOOLS_URL` | API-tools service URL. `http://127.0.0.1:8000` locally; `http://jpcorrect-api-tools-{prod,dev}:8000` in the stack. The backend → api-tools call needs no key |
 | `CLIENT_API_KEY` | Inbound `X-API-Key` for the 7 api-tools proxy routes, release mode only (JWT not accepted). Empty ⇒ those routes always 401 |
+| `INTERNAL_API_KEY` | Inbound `X-API-Key` for `/internal/*` routes. Always enforced, including `GIN_MODE=debug`; empty ⇒ every internal request 401. Separate from `CLIENT_API_KEY` |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
 | `PORT` | Server port (default `8080`) |
 | `API_CERT_PATH` / `API_KEY_PATH` | TLS certificate/key paths (default `./certs/{cert,key}.pem`); HTTPS only when both exist, otherwise HTTP with a warning |

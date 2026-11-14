@@ -25,6 +25,7 @@ type API struct {
 	db                *gorm.DB
 	apiToolsURL       string
 	clientAPIKey      string
+	internalAPIKey    string
 	proxyTransport    *http.Transport
 	jwksURL           string
 	jwksCache         keyfunc.Keyfunc
@@ -45,7 +46,7 @@ type API struct {
 	upgrader          websocket.Upgrader
 }
 
-func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
+func NewAPI(url string, clientAPIKey string, internalAPIKey string, transport *http.Transport, db *gorm.DB, jwksURL string, allowedOrigins []string) *API {
 	userRepo := repository.NewGormUserRepository(db)
 	guildRepo := repository.NewGormGuildRepository(db)
 	guildAttendeeRepo := repository.NewGormGuildAttendeeRepository(db)
@@ -85,6 +86,7 @@ func NewAPI(url string, clientAPIKey string, transport *http.Transport, db *gorm
 		db:                db,
 		apiToolsURL:       url,
 		clientAPIKey:      clientAPIKey,
+		internalAPIKey:    internalAPIKey,
 		proxyTransport:    transport,
 		jwksURL:           jwksURL,
 		store:             store,
@@ -230,4 +232,8 @@ func Register(r *gin.Engine, api *API) {
 			users.GET("/name/:name", api.UserGetByNameHandler)
 		}
 	}
+
+	// Internal service routes: a separate X-API-Key contract, always enforced
+	// in every GIN_MODE and never a substitute for a user JWT (§3.9.1).
+	api.internalRoutes(r)
 }
