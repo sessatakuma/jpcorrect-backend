@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"jpcorrect-backend/internal/domain"
@@ -292,4 +294,101 @@ func TestUserInitRejectsUnusableSubject(t *testing.T) {
 				"an unusable subject must not create a row")
 		})
 	}
+}
+
+// racingUserRepo commits a server-owned change in the exact window a
+// read-modify-save handler leaves open.
+//
+// The handler under test must reach its write with at most these repository
+// calls; whichever one comes first triggers the concurrent commit once, from a
+// separate statement, the way an admin action or a points job would. GetByID
+// commits after the read returns, which is where a load-and-save handler would
+// pick up its stale snapshot; UpdateProfile commits before the write.
+type racingUserRepo struct {
+	domain.UserRepository
+
+	commit  func()
+	once    sync.Once
+	commits atomic.Int32
+}
+
+func (r *racingUserRepo) commitOnce() {
+	r.once.Do(func() {
+		r.commit()
+		r.commits.Add(1)
+	})
+}
+
+func (r *racingUserRepo) GetByID(ctx context.Context, userID uuid.UUID) (*domain.User, error) {
+	user, err := r.UserRepository.GetByID(ctx, userID)
+	r.commitOnce()
+	return user, err
+}
+
+func (r *racingUserRepo) UpdateProfile(ctx context.Context, userID uuid.UUID, name *string, avatarURL *string) (*domain.User, error) {
+	r.commitOnce()
+	return r.UserRepository.UpdateProfile(ctx, userID, name, avatarURL)
+}
+
+// TestRegisterUserMeKeepsConcurrentServerWrites is the users/me regression: the
+// request writes name and avatar_url and nothing else, so a promotion, a
+// suspension, a points award and an email change that another request committed
+// between the read and the write are all still there afterwards. A
+// read-modify-save would restore its snapshot of those columns and undo them.
+func TestRegisterUserMeKeepsConcurrentServerWrites(t *testing.T) {
+	router, api, signer, db := newRegisterIntegrationAPI(t)
+
+	sub := uuid.New()
+	stored := domain.User{
+		ID:             uuid.New(),
+		Email:          "owner@example.com",
+		Name:           "before",
+		SupabaseUserID: &sub,
+		Points:         10,
+	}
+	require.NoError(t, api.userRepo.Create(t.Context(), &stored))
+
+	racing := &racingUserRepo{UserRepository: api.userRepo}
+	racing.commit = func() {
+		require.NoError(t, db.Model(&domain.User{}).Where("id = ?", stored.ID).Updates(map[string]any{
+			"role":   domain.UserRoleStaff,
+			"status": domain.UserStatusSuspended,
+			"points": 777,
+			"email":  "moved@example.com",
+		}).Error)
+	}
+	api.userRepo = racing
+
+	body := `{"name":"renamed","avatar_url":"https://example.com/new.png","role":"admin","points":9999}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/users/me", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+signer.userToken(t, sub, stored.Email))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, int32(1), racing.commits.Load(),
+		"the concurrent commit must happen inside the request, or the test proves nothing")
+
+	// The stored row carries the requested profile fields and every value the
+	// concurrent writer committed.
+	row, err := repository.NewGormUserRepository(db).GetByID(t.Context(), stored.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "renamed", row.Name)
+	require.NotNil(t, row.AvatarURL)
+	assert.Equal(t, "https://example.com/new.png", *row.AvatarURL)
+	assert.Equal(t, domain.UserRoleStaff, row.Role, "the promotion is not undone by the profile write")
+	assert.Equal(t, domain.UserStatusSuspended, row.Status, "the suspension is not undone")
+	assert.Equal(t, 777, row.Points, "the points award is not undone")
+	assert.Equal(t, "moved@example.com", row.Email, "the email change is not undone")
+	require.NotNil(t, row.SupabaseUserID)
+	assert.Equal(t, sub, *row.SupabaseUserID, "the identity mapping is never rewritten")
+
+	// The response is the committed row, not this request's snapshot.
+	var response domain.User
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	assert.Equal(t, "renamed", response.Name)
+	assert.Equal(t, domain.UserRoleStaff, response.Role, "the response shows the stored role")
+	assert.Equal(t, 777, response.Points)
+	assert.Equal(t, "moved@example.com", response.Email)
 }
