@@ -96,9 +96,9 @@ services:
             - env/dev
         expose:
             - "8080"
-        # Same runtime hardening as backend-prod — dev skips the app-level
-        # middlewares, so the container-level guarantees matter more here, not
-        # less.
+        # Same runtime hardening as backend-prod — dev runs in debug mode behind
+        # a weaker edge policy, so the container-level guarantees matter more
+        # here, not less.
         read_only: true
         tmpfs:
             - /tmp

@@ -3,6 +3,8 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
+	"time"
 
 	"jpcorrect-backend/internal/domain"
 
@@ -11,12 +13,17 @@ import (
 )
 
 // @Summary Get a user by ID
+// @Description Public profile of another user. Only the allowlisted
+// @Description PublicUserProfile fields are returned: email, status, role,
+// @Description is_email_verified, supabase_user_id, password_hash, points and
+// @Description deleted_at never leave the server.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
-// @Success 200 {object} domain.User
+// @Success 200 {object} api.PublicUserProfile
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -39,16 +46,48 @@ func (a *API) UserGetHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user)
+	c.JSON(http.StatusOK, newPublicUserProfile(user))
 }
 
-// @Summary Create a user
+// PublicUserProfile is the allowlisted view of another user (spec §3.1.2). The
+// set is intentionally minimal: identity, display name, avatar and level are
+// what a guild or activity page needs, and everything else on domain.User is
+// either private or internal bookkeeping.
+type PublicUserProfile struct {
+	UserID    uuid.UUID `json:"user_id"`
+	Name      string    `json:"name"`
+	AvatarURL *string   `json:"avatar_url"`
+	Level     int       `json:"level"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// newPublicUserProfile projects the allowlisted fields out of a stored user.
+// Add a field here only after checking that it is safe for other members to
+// read.
+func newPublicUserProfile(user *domain.User) PublicUserProfile {
+	return PublicUserProfile{
+		UserID:    user.ID,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+		Level:     user.Level,
+		CreatedAt: user.CreatedAt,
+	}
+}
+
+// @Summary Create a user (system administration)
+// @Description Raw management write (§3.15). It binds a whole domain.User,
+// @Description including role, status, points and supabase_user_id, so it is
+// @Description open to system administrators only. New accounts are created
+// @Description through POST /v1/users/init and edited by their owner through
+// @Description PUT /v1/users/me.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param user body domain.User true "User data"
 // @Success 201 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -72,7 +111,12 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// @Summary Update a user
+// @Summary Update a user (system administration)
+// @Description Raw management write (§3.15). It replaces every column of the
+// @Description row it binds, including role, status, points and
+// @Description supabase_user_id, so it is open to system administrators only.
+// @Description Owners edit their own name and avatar_url through PUT
+// @Description /v1/users/me.
 // @Tags users
 // @Accept json
 // @Produce json
@@ -80,6 +124,8 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Param user body domain.User true "User data"
 // @Success 200 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -128,13 +174,16 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// @Summary Delete a user
+// @Summary Delete a user (system administration)
+// @Description Raw management write (§3.15), open to system administrators only.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -171,11 +220,13 @@ func (a *API) UserDeleteHandler(c *gin.Context) {
 }
 
 // @Summary Get users by name
+// @Description Public profiles of every user with this display name.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param name path string true "User name"
-// @Success 200 {array} domain.User
+// @Success 200 {array} api.PublicUserProfile
+// @Failure 401 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/users/name/{name} [get]
@@ -188,23 +239,156 @@ func (a *API) UserGetByNameHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, users)
+	profiles := make([]PublicUserProfile, 0, len(users))
+	for _, user := range users {
+		profiles = append(profiles, newPublicUserProfile(user))
+	}
+
+	c.JSON(http.StatusOK, profiles)
 }
 
-// @Summary Get a user by email
+// @Summary Initialize the caller's account
+// @Description First-login endpoint (spec §3.1.1, §6.3). The caller authenticates
+// @Description with a Supabase JWT; the middleware skips the user lookup for this
+// @Description path only and the handler creates the row from the token's sub and
+// @Description email. Idempotent: a retried or concurrent call returns the same
+// @Description profile. A new account is named after the email prefix, capped at
+// @Description 100 runes, until PUT /v1/users/me sets a name. A `sub` that is not
+// @Description a UUID, or a token with no email address, answers 400
+// @Description INVALID_REQUEST and writes nothing. If another account already
+// @Description owns the email, the request answers 409 and no row is created or
+// @Description linked.
 // @Tags users
 // @Accept json
 // @Produce json
-// @Param email path string true "User email"
+// @Success 200 {object} domain.User "The caller's profile, created or already existing"
+// @Failure 400 {object} api.ErrorResponse "The token carries no email address or a subject that is not a UUID"
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 409 {object} api.ErrorResponse "The email belongs to another account"
+// @Failure 500 {object} api.ErrorResponse
+// @Security BearerAuth
+// @Router /v1/users/init [post]
+func (a *API) UserInitHandler(c *gin.Context) {
+	auth := currentSupabaseAuth(c)
+	if auth == nil {
+		writeError(c, domain.ErrUnauthorized)
+		return
+	}
+
+	// spec §2.1: a verified token whose `sub` is empty, malformed or the nil UUID
+	// is a bad request on this endpoint, not a 401. Reject it before any repo
+	// call, so an unusable subject can neither read nor write a row.
+	sub, err := parseSubject(auth.Subject)
+	if err != nil {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, err.Error()))
+		return
+	}
+
+	email := strings.TrimSpace(auth.Email)
+	if email == "" {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, "the access token carries no email address"))
+		return
+	}
+
+	ctx := c.Request.Context()
+	candidate := domain.User{
+		ID:             uuid.New(),
+		Name:           defaultDisplayName(email),
+		Email:          email,
+		SupabaseUserID: &sub,
+	}
+
+	if err := a.userRepo.CreateIfAbsentBySupabaseUserID(ctx, &candidate); err != nil {
+		if errors.Is(err, domain.ErrDuplicateEntry) {
+			// A different row already holds this email. Accounts are never
+			// linked or merged automatically (issue #73 engineering default).
+			writeError(c, errorWithMessage(domain.ErrDuplicateEntry, "email is already in use by another account"))
+			return
+		}
+		writeError(c, err)
+		return
+	}
+
+	user, err := a.userRepo.GetBySupabaseUserID(ctx, sub)
+	if err != nil {
+		// The idempotent insert left no visible row: a soft-deleted account with
+		// this sub blocks the insert and is not usable.
+		if errors.Is(err, domain.ErrNotFound) {
+			writeError(c, errorWithMessage(domain.ErrUserNotInitialized, "this account is not available"))
+			return
+		}
+		writeError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Get the caller's own profile
+// @Description Returns the authenticated caller's full profile, resolved from the
+// @Description JWT.
+// @Tags users
+// @Accept json
+// @Produce json
 // @Success 200 {object} domain.User
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 500 {object} api.ErrorResponse
+// @Security BearerAuth
+// @Router /v1/users/me [get]
+func (a *API) UserMeHandler(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		writeError(c, domain.ErrUnauthorized)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// UpdateMeRequest is the allowlisted body of PUT /v1/users/me: the caller may
+// change the display name and the avatar URL and nothing else. Email, role,
+// status, points and supabase_user_id are server-owned, so a client that sends
+// them anyway is simply ignored (issue #73 clarification).
+type UpdateMeRequest struct {
+	Name      *string `json:"name" binding:"omitempty,min=1,max=100"`
+	AvatarURL *string `json:"avatar_url" binding:"omitempty,max=2048"`
+}
+
+// @Summary Update the caller's own profile
+// @Description Updates the allowlisted fields of the caller's own profile: name
+// @Description and avatar_url. Any other field in the body, including role,
+// @Description status, points and email, is ignored. A field the body omits is
+// @Description left untouched; an empty body writes nothing.
+// @Tags users
+// @Accept json
+// @Produce json
+// @Param user body UpdateMeRequest true "Fields to update"
+// @Success 200 {object} domain.User
+// @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
-// @Router /v1/users/email/{email} [get]
-func (a *API) UserGetByEmailHandler(c *gin.Context) {
-	email := c.Param("email")
+// @Router /v1/users/me [put]
+func (a *API) UserMeUpdateHandler(c *gin.Context) {
+	caller := currentUser(c)
+	if caller == nil {
+		writeError(c, domain.ErrUnauthorized)
+		return
+	}
 
-	user, err := a.userRepo.GetByEmail(c.Request.Context(), email)
+	var req UpdateMeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, errorWithMessage(domain.ErrInvalidRequest, err.Error()))
+		return
+	}
+
+	// Write the two allowlisted columns instead of loading the row and saving it
+	// back: a snapshot loaded here would restore its own copy of email, role,
+	// status, points and supabase_user_id, and undo whatever another request
+	// committed in between. The repository returns the committed row, so the
+	// response is what the database holds now, not what this request assumed.
+	user, err := a.userRepo.UpdateProfile(c.Request.Context(), caller.ID, req.Name, req.AvatarURL)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeError(c, errorWithMessage(domain.ErrNotFound, "User not found"))
@@ -215,4 +399,24 @@ func (a *API) UserGetByEmailHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+// maxDisplayNameRunes is the longest name PUT /v1/users/me accepts.
+const maxDisplayNameRunes = 100
+
+// defaultDisplayName is the name a new account gets until its owner picks one
+// with PUT /v1/users/me: the part of the email before the "@", cut to the length
+// limit that endpoint applies. An address without a local part keeps the whole
+// address, so the name is never empty.
+func defaultDisplayName(email string) string {
+	name := email
+	if at := strings.LastIndex(email, "@"); at > 0 {
+		name = email[:at]
+	}
+
+	if runes := []rune(name); len(runes) > maxDisplayNameRunes {
+		name = string(runes[:maxDisplayNameRunes])
+	}
+
+	return name
 }

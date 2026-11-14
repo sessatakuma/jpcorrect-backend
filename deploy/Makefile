@@ -27,8 +27,8 @@ pull-prod:
 	docker compose pull backend-prod api-tools-prod
 	docker compose up -d backend-prod api-tools-prod
 
-# Dev env: api-dev.sessatakuma.dev — Cloudflare Access at edge, app middlewares
-# skipped (GIN_MODE=debug), Swagger visible.
+# Dev env: api-dev.sessatakuma.dev — Cloudflare Access at edge, GIN_MODE=debug
+# (api-tools X-API-Key check skipped, JWT still required), Swagger visible.
 up-dev:
 	docker compose up -d postgres-dev backend-dev api-tools-dev
 

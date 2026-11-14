@@ -54,10 +54,32 @@ type User struct {
 
 type UserRepository interface {
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
-	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByName(ctx context.Context, name string) ([]*User, error)
 
+	// GetBySupabaseUserID resolves the internal row from the verified JWT `sub`
+	// (spec §1.2). supabaseUserID is the subject parsed once at the auth
+	// boundary; the column is uuid, so a raw claim string never gets here. It
+	// returns ErrNotFound while the caller is not initialized.
+	GetBySupabaseUserID(ctx context.Context, supabaseUserID uuid.UUID) (*User, error)
+
 	Create(ctx context.Context, user *User) error
+	// CreateIfAbsentBySupabaseUserID inserts user only when no row already
+	// carries the same supabase_user_id (spec §6.3). Concurrent first logins
+	// all end up on the single existing row; the caller reads it back with
+	// GetBySupabaseUserID.
+	CreateIfAbsentBySupabaseUserID(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
+
+	// UpdateProfile writes only the account fields the owner may change (spec
+	// §3.1.2: name, avatar_url) of the live row userID, and returns that row as
+	// PostgreSQL stored it.
+	//
+	// A nil pointer leaves its column untouched; a non-nil pointer writes
+	// exactly that value, so an empty avatar_url clears the column to the empty
+	// string. No other column is read, written or restored, which is what keeps
+	// a value another writer committed (email, role, status, points,
+	// supabase_user_id) from being overwritten with a stale snapshot. It returns
+	// ErrNotFound when no live row carries userID, and writes nothing.
+	UpdateProfile(ctx context.Context, userID uuid.UUID, name *string, avatarURL *string) (*User, error)
 	Delete(ctx context.Context, userID uuid.UUID) error
 }

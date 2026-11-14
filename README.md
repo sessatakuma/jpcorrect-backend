@@ -29,8 +29,8 @@ cp .env.example .env
 | Variable | Description |
 | --- | --- |
 | `DATABASE_URL` | **Required.** PostgreSQL connection string. `127.0.0.1:5432` locally; `postgres-prod:5432` / `postgres-dev:5432` in the deploy stack |
-| `JWKS_URL` | **Required in release** — the app fatals on an empty value unless `GIN_MODE=debug` |
-| `GIN_MODE` | `debug` **skips APIKeyMiddleware + AuthMiddleware on all `/v1` routes** and exposes Swagger UI. Only safe behind an edge gateway |
+| `JWKS_URL` | **Required in every mode** — the app fatals on an empty or unreachable value. Authentication runs on user routes in debug as well as release |
+| `GIN_MODE` | `debug` exposes Swagger UI and **skips APIKeyMiddleware on the api-tools `/v1` routes only**. JWT authentication runs on every user route in every mode |
 | `API_TOOLS_URL` | API-tools service URL. `http://127.0.0.1:8000` locally; `http://jpcorrect-api-tools-{prod,dev}:8000` in the stack. The backend → api-tools call needs no key |
 | `CLIENT_API_KEY` | Inbound `X-API-Key` for the 7 api-tools proxy routes, release mode only (JWT not accepted). Empty ⇒ those routes always 401 |
 | `ALLOWED_ORIGINS` | Comma-separated CORS origins. Empty = reject all in release, allow all in debug |
@@ -216,22 +216,34 @@ In this workflow:
 - `api-tools` runs on your host machine through `uv run`
 - PostgreSQL runs in Docker via `compose.yml`
 
-With `GIN_MODE=debug`, select the caller for guild creation, leadership
-transfer, and invite-link GET/POST using the `X-Debug-User-ID` request header.
-Use an existing user's UUID; the usual membership and master-role checks
-still apply. For example:
+`GIN_MODE` no longer changes authentication on user routes: every `/v1` user
+route (including `POST /v1/users/init`, which only skips the database lookup)
+requires a real Supabase JWT in debug and in release. Local development
+therefore needs real Supabase accounts and tokens, and `JWKS_URL` must point at
+the project's JWKS document. There is no `X-Debug-User-ID` header and no fake
+caller: use the Swagger UI "Authorize" button with a real token, or send it
+yourself.
 
 ```bash
+# 1. Sign in through Supabase Auth and obtain an access token
+# 2. Create the internal account on first login (idempotent)
+curl -X POST http://127.0.0.1:8080/v1/users/init \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 3. Use the resolved profile for subsequent calls
+curl http://127.0.0.1:8080/v1/users/me \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
 curl -X POST http://127.0.0.1:8080/v1/guilds \
   -H 'Content-Type: application/json' \
-  -H 'X-Debug-User-ID: <existing-user-uuid>' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
   -d '{"name":"Local guild"}'
 ```
 
-The header is also available in Swagger UI for these operations. Missing
-caller identity returns 401; a malformed or nil UUID returns 400. Debug mode
-does not validate JWTs or derive a caller from `Authorization`. Release mode
-ignores `X-Debug-User-ID` and requires a JWT through `Authorization`.
+A valid token for a user who never called `users/init` answers 401
+`USER_NOT_INITIALIZED`; a missing or invalid token answers 401
+`UNAUTHORIZED`. Debug mode only skips the `X-API-Key` check of the api-tools
+proxy routes.
 
 The local `.env.example` is configured for this workflow with host-reachable values such as:
 
@@ -247,14 +259,15 @@ runs **two backend instances** on one host behind a single Cloudflare Tunnel:
 
 - **prod** (`backend-prod` → `api.sessatakuma.dev`) — `GIN_MODE=release`, full
   auth, image `:stable` (pushed on `v*.*.*` git tags).
-- **dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`, app
-  middlewares skipped (gated at the edge by Cloudflare Access), image `:dev`
+- **dev** (`backend-dev` → `api-dev.sessatakuma.dev`) — `GIN_MODE=debug`, same
+  JWT authentication as prod (only the api-tools `X-API-Key` check and the
+  Swagger UI differ) and gated at the edge by Cloudflare Access, image `:dev`
   (every main merge).
 
 ```bash
 cp deploy/.env.example     deploy/.env      # POSTGRES_PROD_PASSWORD + POSTGRES_DEV_PASSWORD
 cp deploy/env/prod.example deploy/env/prod   # fill in prod CLIENT_API_KEY, JWKS_URL, etc.
-cp deploy/env/dev.example  deploy/env/dev    # dev: leave CLIENT_API_KEY / JWKS_URL empty
+cp deploy/env/dev.example  deploy/env/dev    # dev: fill in JWKS_URL, leave CLIENT_API_KEY empty
 # deploy/.env is the compose interpolation source (env/prod and env/dev are
 # service env_files, which compose never reads during interpolation). Give each
 # env a unique random password and mirror it, URL-encoded, into that env's

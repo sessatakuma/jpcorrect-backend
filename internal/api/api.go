@@ -119,14 +119,14 @@ func Register(r *gin.Engine, api *API) {
 	// WebRTC WebSocket endpoint
 	r.GET("/ws", api.ServeWebSocket)
 
-	// In debug mode (GIN_MODE=debug), APIKeyMiddleware + AuthMiddleware are
-	// skipped so the dev / internal deployment can be gated solely by an edge
-	// gateway like Cloudflare Access. Production (GIN_MODE=release) enforces
-	// both middlewares as usual.
+	// In debug mode (GIN_MODE=debug), APIKeyMiddleware is skipped on the
+	// api-tools group so the dev / internal deployment can be gated solely by an
+	// edge gateway like Cloudflare Access. Production (GIN_MODE=release)
+	// enforces it as usual. The user product and admin routes below always run
+	// AuthMiddleware, in every mode (spec §1.2 item 6).
 	debug := gin.IsDebugging()
 	if debug {
-		log.Println("⚠️  GIN_MODE=debug — APIKeyMiddleware and AuthMiddleware are DISABLED on /v1 routes. An edge gateway (e.g. Cloudflare Access) must protect any non-localhost exposure of this build.")
-		log.Println("GIN_MODE=debug — use X-Debug-User-ID to select a caller for user-specific operations.")
+		log.Println("⚠️  GIN_MODE=debug — APIKeyMiddleware is DISABLED on the api-tools /v1 routes. JWT authentication is enforced on every user route in every mode.")
 	}
 
 	// API Tools — non-user-specific service access, X-API-Key only (release only)
@@ -145,11 +145,7 @@ func Register(r *gin.Engine, api *API) {
 	}
 
 	v1 := r.Group("/v1")
-	if debug {
-		v1.Use(debugCallerMiddleware())
-	} else {
-		v1.Use(api.AuthMiddleware())
-	}
+	v1.Use(api.AuthMiddleware())
 	{
 		// Mistakes
 		mistakes := v1.Group("/mistakes")
@@ -217,15 +213,21 @@ func Register(r *gin.Engine, api *API) {
 			eventAttendees.GET("/user/:user_id", api.EventAttendeeGetByUserHandler)
 		}
 
-		// Users
+		// Users. The product routes (init/me/public profile) follow §3.1 and carry
+		// AuthMiddleware only. The three raw management writes bind a whole
+		// domain.User, including role, status, points and supabase_user_id, so
+		// they are system-administration routes (§1.3, §3.15) and carry the gate
+		// that stops a non-admin from writing a user row or its identity mapping.
 		users := v1.Group("/users")
 		{
-			users.POST("", api.UserCreateHandler)
+			users.POST("/init", api.UserInitHandler)
+			users.GET("/me", api.UserMeHandler)
+			users.PUT("/me", api.UserMeUpdateHandler)
+			users.POST("", api.RequireSystemAdmin(), api.UserCreateHandler)
 			users.GET("/:id", api.UserGetHandler)
-			users.PUT("/:id", api.UserUpdateHandler)
-			users.DELETE("/:id", api.UserDeleteHandler)
+			users.PUT("/:id", api.RequireSystemAdmin(), api.UserUpdateHandler)
+			users.DELETE("/:id", api.RequireSystemAdmin(), api.UserDeleteHandler)
 			users.GET("/name/:name", api.UserGetByNameHandler)
-			users.GET("/email/:email", api.UserGetByEmailHandler)
 		}
 	}
 }
