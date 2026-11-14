@@ -227,8 +227,11 @@ func Register(r *gin.Engine, api *API) {
 		}
 
 		// Users. The product routes (init/me/public profile) follow §3.1 and
-		// carry AuthMiddleware only; the raw management routes are admin-only
-		// (§3.15), which is what stops a non-admin from writing users or roles.
+		// carry AuthMiddleware only. The three raw management writes bind a
+		// whole domain.User, including role, status, points and
+		// supabase_user_id, so they are system-administration routes (§1.3,
+		// §3.15) and carry the gate that stops a non-admin from writing a user
+		// row or its identity mapping.
 		users := v1.Group("/users")
 		{
 			users.POST("/init", api.UserInitHandler)

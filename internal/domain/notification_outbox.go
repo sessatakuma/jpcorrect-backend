@@ -90,8 +90,18 @@ const notificationOccurrenceLayout = "2006-01-02T15:04:05.000000Z"
 // could not undo them. Sending belongs after Store.Tx has returned nil.
 type NotificationOutboxRepository interface {
 	// CreateIntents inserts one NotificationOutbox row per intent, in the
-	// order given, with the database defaults status=pending and
-	// attempt_count=0.
+	// order given, with the initial dispatcher state status=pending,
+	// attempt_count=0, next_attempt_at=NULL and last_error=NULL.
+	//
+	// The initial state is forced, not taken from the caller: a nonzero
+	// status, attempt count, retry time or error on an intent is reset before
+	// the insert, so a caller cannot create a row that the dispatcher skips
+	// or delays. The reset and the generated primary key are written back to
+	// the caller's intents.
+	//
+	// Only the intent row is written. A populated RecipientUser association
+	// is ignored: it never inserts or updates a User row and never replaces
+	// the scalar RecipientUserID.
 	//
 	// The insert is INSERT … ON CONFLICT (dedup_key) DO NOTHING: an intent
 	// whose dedup key is already stored — because an earlier transaction,

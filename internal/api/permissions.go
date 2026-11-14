@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"jpcorrect-backend/internal/domain"
-	"jpcorrect-backend/internal/repository"
-
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"jpcorrect-backend/internal/domain"
+	"jpcorrect-backend/internal/repository"
 )
 
 // This file centralizes the spec §1.3 permission checks. Every endpoint and
