@@ -2257,6 +2257,12 @@ paths:
     post:
       consumes:
       - application/json
+      description: |-
+        Raw management write (§3.15). It binds a whole domain.User,
+        including role, status, points and supabase_user_id, so it is
+        open to system administrators only. New accounts are created
+        through POST /v1/users/init and edited by their owner through
+        PUT /v1/users/me.
       parameters:
       - description: User data
         in: body
@@ -2275,6 +2281,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "409":
           description: Conflict
           schema:
@@ -2285,13 +2299,14 @@ paths:
             $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Create a user
+      summary: Create a user (system administration)
       tags:
       - users
   /v1/users/{id}:
     delete:
       consumes:
       - application/json
+      description: Raw management write (§3.15), open to system administrators only.
       parameters:
       - description: User ID
         in: path
@@ -2305,6 +2320,14 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
@@ -2321,7 +2344,7 @@ paths:
             $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Delete a user
+      summary: Delete a user (system administration)
       tags:
       - users
     get:
@@ -2369,6 +2392,12 @@ paths:
     put:
       consumes:
       - application/json
+      description: |-
+        Raw management write (§3.15). It replaces every column of the
+        row it binds, including role, status, points and
+        supabase_user_id, so it is open to system administrators only.
+        Owners edit their own name and avatar_url through PUT
+        /v1/users/me.
       parameters:
       - description: User ID
         in: path
@@ -2392,6 +2421,14 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/internal_api.ErrorResponse'
         "404":
           description: Not Found
           schema:
@@ -2406,7 +2443,7 @@ paths:
             $ref: '#/definitions/internal_api.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Update a user
+      summary: Update a user (system administration)
       tags:
       - users
   /v1/users/init:
@@ -2486,7 +2523,8 @@ paths:
       description: |-
         Updates the allowlisted fields of the caller's own profile: name
         and avatar_url. Any other field in the body, including role,
-        status and points, is ignored.
+        status, points and email, is ignored. A field the body omits is
+        left untouched; an empty body writes nothing.
       parameters:
       - description: Fields to update
         in: body
@@ -2509,8 +2547,8 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
-        "409":
-          description: Conflict
+        "404":
+          description: Not Found
           schema:
             $ref: '#/definitions/internal_api.ErrorResponse'
         "500":

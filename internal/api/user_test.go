@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -102,6 +103,7 @@ func TestUserMeUpdateHandler(t *testing.T) {
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 		assert.Empty(t, repo.updateCalls)
+		assert.Empty(t, repo.profileUpdates)
 	})
 
 	t.Run("updates name and avatar only", func(t *testing.T) {
@@ -113,17 +115,37 @@ func TestUserMeUpdateHandler(t *testing.T) {
 			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, body)
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		require.Len(t, repo.updateCalls, 1)
+		require.Len(t, repo.profileUpdates, 1)
 
-		updated := repo.updateCalls[0]
-		assert.Equal(t, "renamed", updated.Name)
-		assert.Equal(t, "https://example.com/new.png", *updated.AvatarURL)
-		// Server-owned fields survive untouched.
-		assert.Equal(t, caller.Email, updated.Email)
-		assert.Equal(t, caller.Role, updated.Role)
-		assert.Equal(t, caller.Status, updated.Status)
-		assert.Equal(t, caller.Points, updated.Points)
-		assert.Equal(t, caller.SupabaseUserID, updated.SupabaseUserID)
+		written := repo.profileUpdates[0]
+		assert.Equal(t, caller.ID, written.userID)
+		require.NotNil(t, written.name)
+		assert.Equal(t, "renamed", *written.name)
+		require.NotNil(t, written.avatarURL)
+		assert.Equal(t, "https://example.com/new.png", *written.avatarURL)
+
+		// Saving the whole row would write this request's copy of every
+		// server-owned column back over whatever is stored now.
+		assert.Empty(t, repo.updateCalls, "the profile write must not save the whole row")
+
+		// Server-owned fields survive untouched in the stored row, and the
+		// response carries the committed row.
+		assert.Equal(t, "stored name", caller.Name, "the handler must not mutate the row it was handed")
+		assert.Equal(t, "me@example.com", caller.Email)
+		assert.Equal(t, domain.UserRoleUser, caller.Role)
+		assert.Equal(t, domain.UserStatusActive, caller.Status)
+		assert.Equal(t, 42, caller.Points)
+		require.NotNil(t, caller.SupabaseUserID)
+
+		var response domain.User
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+		assert.Equal(t, "renamed", response.Name)
+		assert.Equal(t, "me@example.com", response.Email)
+		assert.Equal(t, domain.UserRoleUser, response.Role)
+		assert.Equal(t, domain.UserStatusActive, response.Status)
+		assert.Equal(t, 42, response.Points)
+		require.NotNil(t, response.SupabaseUserID)
+		assert.Equal(t, *caller.SupabaseUserID, *response.SupabaseUserID)
 	})
 
 	t.Run("server-owned fields in the body are ignored", func(t *testing.T) {
@@ -136,16 +158,72 @@ func TestUserMeUpdateHandler(t *testing.T) {
 			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, body)
 
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		require.Len(t, repo.updateCalls, 1)
+		require.Len(t, repo.profileUpdates, 1)
 
-		updated := repo.updateCalls[0]
-		assert.Equal(t, "renamed", updated.Name)
-		assert.Equal(t, caller.Email, updated.Email, "email is server-owned")
-		assert.Equal(t, domain.UserRoleUser, updated.Role, "a user cannot promote itself")
-		assert.Equal(t, domain.UserStatusActive, updated.Status)
-		assert.Equal(t, caller.Points, updated.Points)
-		assert.Equal(t, caller.SupabaseUserID, updated.SupabaseUserID)
-		assert.True(t, updated.IsEmailVerified)
+		written := repo.profileUpdates[0]
+		require.NotNil(t, written.name)
+		assert.Equal(t, "renamed", *written.name)
+		assert.Nil(t, written.avatarURL, "an omitted avatar_url is not rewritten")
+		assert.Empty(t, repo.updateCalls)
+
+		var response domain.User
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+		assert.Equal(t, "me@example.com", response.Email, "email is server-owned")
+		assert.Equal(t, domain.UserRoleUser, response.Role, "a user cannot promote itself")
+		assert.Equal(t, domain.UserStatusActive, response.Status)
+		assert.Equal(t, 42, response.Points)
+		assert.Equal(t, caller.SupabaseUserID, response.SupabaseUserID)
+		assert.True(t, response.IsEmailVerified)
+	})
+
+	t.Run("empty avatar_url clears the column", func(t *testing.T) {
+		caller := storedUser(t, uuid.New(), "me@example.com")
+		repo := &mockUserRepo{getByIDResult: caller}
+
+		rec := invokeUserHandler(t, newUserTestAPI(repo),
+			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, []byte(`{"avatar_url":""}`))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Len(t, repo.profileUpdates, 1)
+		require.NotNil(t, repo.profileUpdates[0].avatarURL, "an empty avatar_url is a write, not an omission")
+		assert.Empty(t, *repo.profileUpdates[0].avatarURL)
+		assert.Nil(t, repo.profileUpdates[0].name)
+	})
+
+	t.Run("empty body writes no column", func(t *testing.T) {
+		caller := storedUser(t, uuid.New(), "me@example.com")
+		repo := &mockUserRepo{getByIDResult: caller}
+
+		rec := invokeUserHandler(t, newUserTestAPI(repo),
+			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, []byte(`{}`))
+
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		require.Len(t, repo.profileUpdates, 1)
+		assert.Nil(t, repo.profileUpdates[0].name)
+		assert.Nil(t, repo.profileUpdates[0].avatarURL)
+		assert.Empty(t, repo.updateCalls)
+	})
+
+	t.Run("row that no longer exists → 404", func(t *testing.T) {
+		caller := storedUser(t, uuid.New(), "me@example.com")
+		repo := &mockUserRepo{profileUpdateErr: domain.ErrNotFound}
+
+		rec := invokeUserHandler(t, newUserTestAPI(repo),
+			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, []byte(`{"name":"renamed"}`))
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Equal(t, "NOT_FOUND", decodeEnvelope(t, rec).Error.Code)
+	})
+
+	t.Run("repository failure → 500", func(t *testing.T) {
+		caller := storedUser(t, uuid.New(), "me@example.com")
+		repo := &mockUserRepo{profileUpdateErr: errors.New("connection reset")}
+
+		rec := invokeUserHandler(t, newUserTestAPI(repo),
+			http.MethodPut, "/v1/users/me", "/v1/users/me", caller, nil, []byte(`{"name":"renamed"}`))
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.Equal(t, "INTERNAL_ERROR", decodeEnvelope(t, rec).Error.Code)
 	})
 
 	t.Run("empty name is rejected", func(t *testing.T) {
@@ -158,6 +236,7 @@ func TestUserMeUpdateHandler(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
 		assert.Empty(t, repo.updateCalls)
+		assert.Empty(t, repo.profileUpdates)
 	})
 }
 

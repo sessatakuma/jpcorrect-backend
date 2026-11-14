@@ -74,13 +74,20 @@ func newPublicUserProfile(user *domain.User) PublicUserProfile {
 	}
 }
 
-// @Summary Create a user
+// @Summary Create a user (system administration)
+// @Description Raw management write (§3.15). It binds a whole domain.User,
+// @Description including role, status, points and supabase_user_id, so it is
+// @Description open to system administrators only. New accounts are created
+// @Description through POST /v1/users/init and edited by their owner through
+// @Description PUT /v1/users/me.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param user body domain.User true "User data"
 // @Success 201 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
@@ -104,7 +111,12 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// @Summary Update a user
+// @Summary Update a user (system administration)
+// @Description Raw management write (§3.15). It replaces every column of the
+// @Description row it binds, including role, status, points and
+// @Description supabase_user_id, so it is open to system administrators only.
+// @Description Owners edit their own name and avatar_url through PUT
+// @Description /v1/users/me.
 // @Tags users
 // @Accept json
 // @Produce json
@@ -112,6 +124,8 @@ func (a *API) UserCreateHandler(c *gin.Context) {
 // @Param user body domain.User true "User data"
 // @Success 200 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -160,13 +174,16 @@ func (a *API) UserUpdateHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, updated)
 }
 
-// @Summary Delete a user
+// @Summary Delete a user (system administration)
+// @Description Raw management write (§3.15), open to system administrators only.
 // @Tags users
 // @Accept json
 // @Produce json
 // @Param id path string true "User ID"
 // @Success 204
 // @Failure 400 {object} api.ErrorResponse
+// @Failure 401 {object} api.ErrorResponse
+// @Failure 403 {object} api.ErrorResponse
 // @Failure 404 {object} api.ErrorResponse
 // @Failure 409 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
@@ -340,7 +357,8 @@ type UpdateMeRequest struct {
 // @Summary Update the caller's own profile
 // @Description Updates the allowlisted fields of the caller's own profile: name
 // @Description and avatar_url. Any other field in the body, including role,
-// @Description status and points, is ignored.
+// @Description status, points and email, is ignored. A field the body omits is
+// @Description left untouched; an empty body writes nothing.
 // @Tags users
 // @Accept json
 // @Produce json
@@ -348,7 +366,7 @@ type UpdateMeRequest struct {
 // @Success 200 {object} domain.User
 // @Failure 400 {object} api.ErrorResponse
 // @Failure 401 {object} api.ErrorResponse
-// @Failure 409 {object} api.ErrorResponse
+// @Failure 404 {object} api.ErrorResponse
 // @Failure 500 {object} api.ErrorResponse
 // @Security BearerAuth
 // @Router /v1/users/me [put]
@@ -365,29 +383,15 @@ func (a *API) UserMeUpdateHandler(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	// Read the row again instead of trusting the middleware snapshot, so the
-	// write does not carry values resolved earlier in the request.
-	user, err := a.userRepo.GetByID(ctx, caller.ID)
+	// Write the two allowlisted columns instead of loading the row and saving it
+	// back: a snapshot loaded here would restore its own copy of email, role,
+	// status, points and supabase_user_id, and undo whatever another request
+	// committed in between. The repository returns the committed row, so the
+	// response is what the database holds now, not what this request assumed.
+	user, err := a.userRepo.UpdateProfile(c.Request.Context(), caller.ID, req.Name, req.AvatarURL)
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			writeError(c, errorWithMessage(domain.ErrNotFound, "User not found"))
-			return
-		}
-		writeError(c, err)
-		return
-	}
-
-	if req.Name != nil {
-		user.Name = *req.Name
-	}
-	if req.AvatarURL != nil {
-		user.AvatarURL = req.AvatarURL
-	}
-
-	if err := a.userRepo.Update(ctx, user); err != nil {
-		if errors.Is(err, domain.ErrDuplicateEntry) {
-			writeError(c, errorWithMessage(domain.ErrDuplicateEntry, "User already exists"))
 			return
 		}
 		writeError(c, err)
