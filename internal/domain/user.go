@@ -69,5 +69,17 @@ type UserRepository interface {
 	// GetBySupabaseUserID.
 	CreateIfAbsentBySupabaseUserID(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
+
+	// UpdateProfile writes only the account fields the owner may change (spec
+	// §3.1.2: name, avatar_url) of the live row userID, and returns that row as
+	// PostgreSQL stored it.
+	//
+	// A nil pointer leaves its column untouched; a non-nil pointer writes
+	// exactly that value, so an empty avatar_url clears the column to the empty
+	// string. No other column is read, written or restored, which is what keeps
+	// a value another writer committed (email, role, status, points,
+	// supabase_user_id) from being overwritten with a stale snapshot. It returns
+	// ErrNotFound when no live row carries userID, and writes nothing.
+	UpdateProfile(ctx context.Context, userID uuid.UUID, name *string, avatarURL *string) (*User, error)
 	Delete(ctx context.Context, userID uuid.UUID) error
 }
