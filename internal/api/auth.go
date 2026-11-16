@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"log"
-	"net/http"
 	"strings"
 
 	"jpcorrect-backend/internal/domain"
@@ -70,7 +69,7 @@ func (a *API) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := a.validateToken(c)
 		if err != nil {
-			a.respondAuthError(c, err)
+			writeError(c, err)
 			c.Abort()
 			return
 		}
@@ -87,7 +86,8 @@ func debugCallerMiddleware() gin.HandlerFunc {
 		if caller != "" {
 			userID, err := uuid.Parse(caller)
 			if err != nil || userID == uuid.Nil {
-				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid X-Debug-User-ID header"})
+				writeError(c, errorWithMessage(domain.ErrInvalidRequest, "invalid X-Debug-User-ID header"))
+				c.Abort()
 				return
 			}
 			c.Set("userID", userID.String())
@@ -102,52 +102,25 @@ func debugCallerMiddleware() gin.HandlerFunc {
 func (a *API) APIKeyMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if a.clientAPIKey == "" {
-			a.respondAuthError(c, domain.NewAuthError(
-				http.StatusUnauthorized,
-				"API key authentication is not configured",
-				"",
-			))
+			writeError(c, errorWithMessage(domain.ErrUnauthorized, "API key authentication is not configured"))
 			c.Abort()
 			return
 		}
 
 		providedKey := c.GetHeader("X-API-Key")
 		if providedKey == "" {
-			a.respondAuthError(c, domain.NewAuthError(
-				http.StatusUnauthorized,
-				"missing X-API-Key header",
-				"",
-			))
+			writeError(c, errorWithMessage(domain.ErrUnauthorized, "missing X-API-Key header"))
 			c.Abort()
 			return
 		}
 
 		if subtle.ConstantTimeCompare([]byte(providedKey), []byte(a.clientAPIKey)) != 1 {
-			a.respondAuthError(c, domain.NewAuthError(
-				http.StatusUnauthorized,
-				"invalid API key",
-				"",
-			))
+			writeError(c, errorWithMessage(domain.ErrUnauthorized, "invalid API key"))
 			c.Abort()
 			return
 		}
 
 		c.Next()
-	}
-}
-
-// respondAuthError handles authentication errors and returns appropriate HTTP response
-func (a *API) respondAuthError(c *gin.Context, err error) {
-	authErr, ok := err.(*domain.AuthError)
-	if ok {
-		c.JSON(authErr.StatusCode, gin.H{
-			"error":   authErr.Message,
-			"details": authErr.Details,
-		})
-	} else {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "internal server error",
-		})
 	}
 }
 
@@ -162,39 +135,26 @@ func (a *API) validateToken(c *gin.Context) error {
 	var tokenString string
 	switch len(fields) {
 	case 0:
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"missing authorization header",
-			"",
-		)
+		return errorWithMessage(domain.ErrUnauthorized, "missing authorization header")
 	case 1:
 		tokenString = fields[0]
 	case 2:
 		if !strings.EqualFold(fields[0], "Bearer") {
-			return domain.NewAuthError(
-				http.StatusUnauthorized,
-				"invalid authorization header format",
-				"",
-			)
+			return errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
 		}
 		tokenString = fields[1]
 	default:
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid authorization header format",
-			"",
-		)
+		return errorWithMessage(domain.ErrUnauthorized, "invalid authorization header format")
 	}
 
 	// Check if JWKS is initialized
 	a.jwksMutex.Lock()
 	if a.jwksErr != nil || a.jwksCache == nil {
 		a.jwksMutex.Unlock()
-		return domain.NewAuthError(
-			http.StatusInternalServerError,
-			"JWKS not initialized",
-			"",
-		)
+		// A misconfigured JWKS endpoint is an operator problem: log it and
+		// keep the response free of internal detail.
+		log.Printf("JWKS is not initialized: %v", a.jwksErr)
+		return domain.ErrInternal
 	}
 	kf := a.jwksCache
 	a.jwksMutex.Unlock()
@@ -203,29 +163,17 @@ func (a *API) validateToken(c *gin.Context) error {
 	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, kf.Keyfunc)
 	if err != nil {
 		log.Printf("invalid token error: %v", err)
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid token",
-			"",
-		)
+		return errorWithMessage(domain.ErrUnauthorized, "invalid token")
 	}
 
 	if !token.Valid {
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid token",
-			"",
-		)
+		return errorWithMessage(domain.ErrUnauthorized, "invalid token")
 	}
 
 	// Extract claims
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
 	if !ok {
-		return domain.NewAuthError(
-			http.StatusUnauthorized,
-			"invalid token claims",
-			"",
-		)
+		return errorWithMessage(domain.ErrUnauthorized, "invalid token claims")
 	}
 
 	// Store the user ID (subject) in the context for downstream handlers

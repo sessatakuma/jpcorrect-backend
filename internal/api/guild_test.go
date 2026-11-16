@@ -162,7 +162,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 		rec := invokeHandler(t, api.GuildTransferLeaderHandler, transferPath(uuid.New()), nil, body)
 
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.Contains(t, rec.Body.String(), "unauthorized")
+		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 		assert.Empty(t, gRepo.transferLeaderCalls)
 	})
 
@@ -180,6 +180,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 		assert.Contains(t, rec.Body.String(), "only the guild master can transfer leadership")
+		assert.Equal(t, "FORBIDDEN", decodeEnvelope(t, rec).Error.Code)
 		// the handler delegated the authz check to the repo — the call was made
 		if assert.Len(t, gRepo.transferLeaderCalls, 1) {
 			assert.Equal(t, callerID, gRepo.transferLeaderCalls[0].callerID)
@@ -199,12 +200,13 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 		assert.Contains(t, rec.Body.String(), "only the guild master can transfer leadership")
+		assert.Equal(t, "FORBIDDEN", decodeEnvelope(t, rec).Error.Code)
 		if assert.Len(t, gRepo.transferLeaderCalls, 1) {
 			assert.Equal(t, callerID, gRepo.transferLeaderCalls[0].callerID)
 		}
 	})
 
-	t.Run("caller is master, new leader not a member → 400", func(t *testing.T) {
+	t.Run("caller is master, new leader not an active member → 404", func(t *testing.T) {
 		api, gRepo, _ := newTestAPI()
 		guildID := uuid.New()
 		gRepo.transferLeaderErr = domain.ErrNotGuildMember
@@ -213,8 +215,10 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		rec := invokeHandler(t, api.GuildTransferLeaderHandler, transferPath(guildID), &callerID, body)
 
-		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		assert.Contains(t, rec.Body.String(), "New leader must be a member of the guild")
+		// Spec §3.3: "Target not an active member → 404 ErrNotFound".
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		assert.Contains(t, rec.Body.String(), "new leader must be an active member of the guild")
+		assert.Equal(t, "NOT_FOUND", decodeEnvelope(t, rec).Error.Code)
 		if assert.Len(t, gRepo.transferLeaderCalls, 1) {
 			assert.Equal(t, newLeaderID, gRepo.transferLeaderCalls[0].newLeaderID)
 		}
@@ -230,6 +234,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 		assert.Contains(t, rec.Body.String(), "Guild not found")
+		assert.Equal(t, "NOT_FOUND", decodeEnvelope(t, rec).Error.Code)
 	})
 
 	t.Run("new leader already leads another guild → 409", func(t *testing.T) {
@@ -243,6 +248,7 @@ func TestGuildTransferLeaderHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusConflict, rec.Code)
 		assert.Contains(t, rec.Body.String(), "new leader already leads another guild")
+		assert.Equal(t, "GUILD_LIMIT_REACHED", decodeEnvelope(t, rec).Error.Code)
 	})
 
 	t.Run("caller is master, success → 200", func(t *testing.T) {
@@ -275,7 +281,7 @@ func TestGuildInviteLinkGetHandler(t *testing.T) {
 		rec := invokeHandler(t, api.GuildInviteLinkGetHandler, getPath(uuid.New()), nil, nil)
 
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
-		assert.Contains(t, rec.Body.String(), "unauthorized")
+		assert.Equal(t, "UNAUTHORIZED", decodeEnvelope(t, rec).Error.Code)
 		assert.Empty(t, aRepo.getByGuildAndUserCalls)
 	})
 
@@ -288,6 +294,7 @@ func TestGuildInviteLinkGetHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusForbidden, rec.Code)
 		assert.Contains(t, rec.Body.String(), "user is not a member of this guild")
+		assert.Equal(t, "FORBIDDEN", decodeEnvelope(t, rec).Error.Code)
 		if assert.Len(t, aRepo.getByGuildAndUserCalls, 1) {
 			assert.Equal(t, guildID, aRepo.getByGuildAndUserCalls[0].guildID)
 			assert.Equal(t, callerID, aRepo.getByGuildAndUserCalls[0].userID)
@@ -394,6 +401,7 @@ func TestGuildInviteLinkCreateHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		assert.Contains(t, rec.Body.String(), "ttl_seconds must be between 1 and 31536000")
+		assert.Equal(t, "INVALID_REQUEST", decodeEnvelope(t, rec).Error.Code)
 		assert.Empty(t, gRepo.createInviteLinkCalls)
 	})
 
