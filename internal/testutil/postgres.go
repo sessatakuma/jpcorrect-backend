@@ -35,7 +35,7 @@ func BaselineModels() []any {
 		&domain.EventAttendee{},
 		&domain.Transcript{},
 		&domain.Mistake{},
-		&domain.GuildInvite{},
+		&domain.InviteLink{},
 	}
 }
 

@@ -126,6 +126,8 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 
 	guild := domain.Guild{ID: uuid.New(), Name: "concurrent invite rotation test"}
 	require.NoError(t, db.Create(&guild).Error)
+	creator := domain.User{ID: uuid.New(), Email: "invite-rotation@example.com", Name: "invite creator"}
+	require.NoError(t, db.Create(&creator).Error)
 
 	repo := NewGormGuildRepository(db)
 	start := make(chan struct{})
@@ -135,14 +137,17 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 
 	for range 2 {
 		go func() {
-			invite := &domain.GuildInvite{
-				ID:      uuid.New(),
-				GuildID: guild.ID,
-				Code:    strings.ReplaceAll(uuid.NewString(), "-", ""),
+			now := time.Now()
+			invite := &domain.InviteLink{
+				ID:              uuid.New(),
+				GuildID:         guild.ID,
+				Token:           strings.ReplaceAll(uuid.NewString(), "-", ""),
+				ExpiresAt:       now.Add(7 * 24 * time.Hour),
+				CreatedByUserID: creator.ID,
 			}
 			ready.Done()
 			<-start
-			results <- repo.CreateInviteLinkWithTx(context.Background(), guild.ID, invite, time.Now())
+			results <- repo.CreateInviteLinkWithTx(context.Background(), guild.ID, invite, now)
 		}()
 	}
 
@@ -153,9 +158,9 @@ func TestCreateInviteLinkWithTxConcurrentRotation(t *testing.T) {
 	}
 
 	var total, active int64
-	require.NoError(t, db.Model(&domain.GuildInvite{}).Where("guild_id = ?", guild.ID).Count(&total).Error)
-	require.NoError(t, db.Model(&domain.GuildInvite{}).
-		Where("guild_id = ? AND (expires_at IS NULL OR expires_at > ?)", guild.ID, time.Now()).
+	require.NoError(t, db.Model(&domain.InviteLink{}).Where("guild_id = ?", guild.ID).Count(&total).Error)
+	require.NoError(t, db.Model(&domain.InviteLink{}).
+		Where("guild_id = ? AND expires_at > ?", guild.ID, time.Now()).
 		Count(&active).Error)
 	assert.EqualValues(t, 2, total)
 	assert.EqualValues(t, 1, active)
