@@ -29,6 +29,23 @@ make swag                             # regenerate Swagger docs
 Smoke test with all three up: `/healthz` → `ok`, `/swagger/index.html` → 200
 (debug only), `http://127.0.0.1:8000/docs` → 200.
 
+## Implementation plan terminology
+
+The backend MVP is tracked in root issue #60 as eight epics (#61–#68). Use
+"epic #N" in issues, PR bodies, commit messages and code comments; "wave" and
+the group nicknames are retired and match nothing.
+
+- **Merge gates**: only epics #61 and #62 must be fully merged to `main` before
+  downstream work starts, and epic #62 starts after epic #61 merges. Any other
+  dependency may be a predecessor layer in the same `gh stack`. Three
+  sub-issues are also blocked by a whole epic: #94 by epic #64, #99 by epic #65
+  and #109 by epic #67.
+- **Sources of truth**: the Talkuma Backend Implementation Plan in the Outline
+  docs (the spec) is the sole implementation basis; root issue #60 records
+  later decisions. The maintainer writes each product decision back to the
+  spec in the same change, and applies an implementer's proposed spec text
+  after the PR merges. If the two disagree, the spec wins.
+
 ## Testing
 
 ```bash
@@ -55,8 +72,24 @@ removed in #49).
 ## Code conventions
 
 - **Schema**: the GORM `AutoMigrate` call in `internal/cmd/api.go` is the only
-  schema tool — add every new domain model there (User, Guild,
-  GuildAttendee, Event, EventAttendee, Transcript, Mistake).
+  schema tool. `migrationModels()` holds the full spec §2.3 list in
+  foreign-key order; add a new domain model there and to
+  `testutil.BaselineModels()` (`TestMigrationModelsMatchTestBaseline` catches
+  drift). `main` has eight models (User, Guild, GuildAttendee, GuildInvite,
+  Event, EventAttendee, Transcript, Mistake); #120 replaces `GuildInvite` with
+  `InviteLink`, so the spec list is those eight minus `GuildInvite` plus the 20
+  §2.2 tables. The naming strategy is `SingularTable`, so every table is the
+  singular snake_case model name. AutoMigrate never drops an index after its
+  tag is removed: add the drop to `database.DropLegacyIndexes`, which
+  `internal/cmd/api.go` calls right after `AutoMigrate`.
+- **Leader quota**: issue #81 owns the locked query that counts active master
+  memberships joined to live guilds (§3.3.1). The retired partial unique
+  index must not be recreated: it also counts soft-deleted guilds.
+- **Foreign keys**: declare the relation as a belongs-to association field
+  (`Guild *Guild` with `foreignKey:GuildID` and
+  `constraint:OnUpdate:CASCADE,OnDelete:RESTRICT`, JSON and Swagger ignored),
+  never as a `constraint` tag on the scalar column: GORM silently ignores the
+  latter and creates no constraint.
 - **UUIDs**: always `uuid.UUID`, never strings/ints; generate with
   `uuid.New()` in `Create` when missing.
 - **Context**: first argument everywhere; `.WithContext(ctx)` on every GORM
@@ -67,10 +100,22 @@ removed in #49).
   `writeError` (`internal/api/errors.go`), which maps those sentinels to the
   §1.5 envelope `{"error":{"code","message","details"}}`; an unmapped error
   is a generic 500 that never echoes its text.
-- **Soft delete**: only `User`, `Guild`, `Event` carry `gorm.DeletedAt` (use
-  `Unscoped()` for a hard delete); the other four models hard-delete.
+- **Soft delete**: `User`, `Guild`, `Event`, `Activity`, `Topic`, `FeedPost`
+  and `FeedComment` carry `gorm.DeletedAt` (use `Unscoped()` for a hard
+  delete); every other model hard-deletes. On the `main` baseline that is five
+  of the eight models (GuildAttendee, GuildInvite, EventAttendee, Transcript,
+  Mistake); #120 replaces `GuildInvite` with `InviteLink`, which also
+  hard-deletes, so `Guild` is the only soft-deleting guild table.
+  `RecordingAsset.deleted_at` is a plain `*time.Time` on purpose: the retained
+  metadata stays visible and the row is marked through `status`.
 - `/v1/practices` routes use the `Event` model (backward-compat naming).
-- `Transcript.Accent` is `datatypes.JSON` / `jsonb` — the only JSONB column.
+- JSONB columns are `datatypes.JSON` / `jsonb`:
+  `Transcript.Accent`, `Event.StepDurations`,
+  `AIAnalysisSubmission.RequestPayload` and `ResponsePayload`,
+  `NotificationOutbox.Payload`, `Notification.Payload`,
+  `PushSubscription.Keys`, `Topic.HintVocab` and `HintGrammar`,
+  `FeedPost.Metadata`, `ReviewRecord.Stage2Summary`, and
+  `RecordingAsset.TimelineMetadata`.
 - `GuildAttendeeRepository` lives in `gorm_guild.go`, not its own file.
 - Imports: stdlib → third-party → local.
 
